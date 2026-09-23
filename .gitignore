@@ -1,0 +1,9 @@
+# raw downloads (Overpass extracts, terrain tiles): ~660 MB, regenerable with tools/
+data/raw/
+# the built site: GitHub Actions builds it (.github/workflows/pages.yml)
+dist/
+web/data/city_all.json
+*.part
+.DS_Store
+__pycache__/
+*.pyc

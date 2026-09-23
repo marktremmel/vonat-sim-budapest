@@ -1,0 +1,53 @@
+{
+ "near": {
+  "w": 1604,
+  "h": 1626,
+  "step_m": 25.672162843178356,
+  "south": 47.45648838092149,
+  "north": 47.832014519078506,
+  "west": 18.632957079128964,
+  "east": 19.18113222087104,
+  "encoding": "decimetres_asl_16bit_RG"
+ },
+ "far": {
+  "w": 790,
+  "h": 796,
+  "step_m": 102.68865137271342,
+  "south": 47.27660465065979,
+  "north": 48.011898249340206,
+  "west": 18.366890009558844,
+  "east": 19.44719929044116,
+  "encoding": "decimetres_asl_16bit_RG"
+ },
+ "cover": {
+  "w": 1604,
+  "h": 1626,
+  "step_m": 25.672162843178356,
+  "south": 47.45648838092149,
+  "north": 47.832014519078506,
+  "west": 18.632957079128964,
+  "east": 19.18113222087104,
+  "classes": [
+   "none",
+   "forest",
+   "scrub",
+   "meadow",
+   "farmland",
+   "orchard",
+   "vineyard",
+   "residential",
+   "industrial",
+   "water",
+   "rock",
+   "wetland",
+   "railway",
+   "park",
+   "sand",
+   "quarry"
+  ]
+ },
+ "water": {
+  "a": 95.943,
+  "b": 8.9824e-05
+ }
+}

@@ -1,0 +1,2516 @@
+{
+ "signals": [
+  {
+   "km": 0.0,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main",
+    "shunting"
+   ],
+   "function": "protection",
+   "function_hu": null,
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": "K11",
+   "lat": 47.5104535,
+   "lon": 19.0568814,
+   "line": "down",
+   "line_km": 0.0,
+   "line_offset_m": 0.0,
+   "near": "Budapest-Nyugati",
+   "near_dist_km": -0.012
+  },
+  {
+   "km": 0.0,
+   "offset_m": 4.9,
+   "side": "left",
+   "kinds": [
+    "main",
+    "shunting"
+   ],
+   "function": "protection",
+   "function_hu": null,
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": "K10",
+   "lat": 47.5104863,
+   "lon": 19.0568388,
+   "line": "down",
+   "line_km": 0.0,
+   "line_offset_m": 4.9,
+   "near": "Budapest-Nyugati",
+   "near_dist_km": -0.012
+  },
+  {
+   "km": 0.347,
+   "offset_m": 4.6,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "exit",
+   "function_hu": "kijárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": "L",
+   "lat": 47.5125182,
+   "lon": 19.0603457,
+   "line": "up",
+   "line_km": 0.221,
+   "line_offset_m": 0.0,
+   "near": "Budapest-Nyugati",
+   "near_dist_km": 0.209
+  },
+  {
+   "km": 0.694,
+   "offset_m": 5.2,
+   "side": "left",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": null,
+   "lat": 47.5144285,
+   "lon": 19.0640053,
+   "line": "up",
+   "line_km": 0.569,
+   "line_offset_m": 0.0,
+   "near": "Budapest-Nyugati",
+   "near_dist_km": 0.557
+  },
+  {
+   "km": 0.773,
+   "offset_m": 5.0,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "entry",
+   "function_hu": "bejárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": "T",
+   "lat": 47.5148026,
+   "lon": 19.0648988,
+   "line": "up",
+   "line_km": 0.648,
+   "line_offset_m": 0.0,
+   "near": "Budapest-Nyugati",
+   "near_dist_km": 0.636
+  },
+  {
+   "km": 0.694,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "backward",
+   "ref": null,
+   "lat": 47.5143885,
+   "lon": 19.0640406,
+   "line": "down",
+   "line_km": 0.694,
+   "line_offset_m": 0.0,
+   "near": "Budapest-Nyugati",
+   "near_dist_km": 0.682
+  },
+  {
+   "km": 0.773,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "entry",
+   "function_hu": "bejárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": "Z",
+   "lat": 47.5147643,
+   "lon": 19.0649332,
+   "line": "down",
+   "line_km": 0.773,
+   "line_offset_m": 0.0,
+   "near": "Budapest-Nyugati",
+   "near_dist_km": 0.761
+  },
+  {
+   "km": 1.601,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "exit",
+   "function_hu": "kijárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": "A",
+   "lat": 47.5186274,
+   "lon": 19.0743542,
+   "line": "down",
+   "line_km": 1.601,
+   "line_offset_m": 0.0,
+   "near": "Rákosrendező",
+   "near_dist_km": -1.502
+  },
+  {
+   "km": 1.944,
+   "offset_m": 4.2,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "entry",
+   "function_hu": "bejárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": "G",
+   "lat": 47.5202715,
+   "lon": 19.0782222,
+   "line": "up",
+   "line_km": 1.819,
+   "line_offset_m": 0.0,
+   "near": "Rákosrendező",
+   "near_dist_km": -1.284
+  },
+  {
+   "km": 1.962,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "entry",
+   "function_hu": "bejárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": "N",
+   "lat": 47.520324,
+   "lon": 19.0784546,
+   "line": "down",
+   "line_km": 1.962,
+   "line_offset_m": 0.0,
+   "near": "Rákosrendező",
+   "near_dist_km": -1.141
+  },
+  {
+   "km": 2.325,
+   "offset_m": 4.7,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "entry",
+   "function_hu": "bejárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": "B",
+   "lat": 47.5220422,
+   "lon": 19.0825575,
+   "line": "up",
+   "line_km": 2.2,
+   "line_offset_m": 0.0,
+   "near": "Rákosrendező",
+   "near_dist_km": -0.903
+  },
+  {
+   "km": 2.324,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "entry",
+   "function_hu": "bejárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": "C",
+   "lat": 47.522006,
+   "lon": 19.0825896,
+   "line": "down",
+   "line_km": 2.324,
+   "line_offset_m": 0.0,
+   "near": "Rákosrendező",
+   "near_dist_km": -0.779
+  },
+  {
+   "km": 4.668,
+   "offset_m": 3.7,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "entry",
+   "function_hu": "bejárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": "H",
+   "lat": 47.5387248,
+   "lon": 19.1006288,
+   "line": "up",
+   "line_km": 4.54,
+   "line_offset_m": 0.0,
+   "near": "Rákosrendező",
+   "near_dist_km": 1.437
+  },
+  {
+   "km": 4.698,
+   "offset_m": 3.5,
+   "side": "left",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "backward",
+   "ref": null,
+   "lat": 47.5389645,
+   "lon": 19.1008061,
+   "line": "up",
+   "line_km": 4.57,
+   "line_offset_m": 0.0,
+   "near": "Rákosrendező",
+   "near_dist_km": 1.467
+  },
+  {
+   "km": 4.698,
+   "offset_m": 3.5,
+   "side": "left",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": null,
+   "lat": 47.5389693,
+   "lon": 19.1008096,
+   "line": "up",
+   "line_km": 4.571,
+   "line_offset_m": 0.0,
+   "near": "Rákosrendező",
+   "near_dist_km": 1.468
+  },
+  {
+   "km": 4.668,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "entry",
+   "function_hu": "bejárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": "G",
+   "lat": 47.5387094,
+   "lon": 19.1006731,
+   "line": "down",
+   "line_km": 4.668,
+   "line_offset_m": 0.0,
+   "near": "Istvántelek",
+   "near_dist_km": -1.456
+  },
+  {
+   "km": 4.697,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": null,
+   "lat": 47.5389502,
+   "lon": 19.1008481,
+   "line": "down",
+   "line_km": 4.697,
+   "line_offset_m": 0.0,
+   "near": "Istvántelek",
+   "near_dist_km": -1.427
+  },
+  {
+   "km": 4.698,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "backward",
+   "ref": null,
+   "lat": 47.5389551,
+   "lon": 19.1008516,
+   "line": "down",
+   "line_km": 4.698,
+   "line_offset_m": 0.0,
+   "near": "Istvántelek",
+   "near_dist_km": -1.426
+  },
+  {
+   "km": 5.924,
+   "offset_m": 11.7,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "block",
+   "function_hu": "térközjelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": "58b",
+   "lat": 47.5494057,
+   "lon": 19.1058958,
+   "line": "up",
+   "line_km": 5.796,
+   "line_offset_m": 0.0,
+   "near": "Istvántelek",
+   "near_dist_km": -0.328
+  },
+  {
+   "km": 5.926,
+   "offset_m": 11.7,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "block",
+   "function_hu": "térközjelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": "61a",
+   "lat": 47.5494228,
+   "lon": 19.1059025,
+   "line": "up",
+   "line_km": 5.798,
+   "line_offset_m": 0.0,
+   "near": "Istvántelek",
+   "near_dist_km": -0.326
+  },
+  {
+   "km": 5.924,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "block",
+   "function_hu": "térközjelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": "58a",
+   "lat": 47.5493791,
+   "lon": 19.1060464,
+   "line": "down",
+   "line_km": 5.924,
+   "line_offset_m": 0.0,
+   "near": "Istvántelek",
+   "near_dist_km": -0.2
+  },
+  {
+   "km": 5.926,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "block",
+   "function_hu": "térközjelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": "61b",
+   "lat": 47.5493961,
+   "lon": 19.1060532,
+   "line": "down",
+   "line_km": 5.926,
+   "line_offset_m": 0.0,
+   "near": "Istvántelek",
+   "near_dist_km": -0.198
+  },
+  {
+   "km": 6.15,
+   "offset_m": 11.0,
+   "side": "left",
+   "kinds": [
+    "main",
+    "repeater"
+   ],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": "61aism",
+   "lat": 47.5513659,
+   "lon": 19.106663,
+   "line": "up",
+   "line_km": 6.021,
+   "line_offset_m": 0.0,
+   "near": "Istvántelek",
+   "near_dist_km": -0.103
+  },
+  {
+   "km": 6.149,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main",
+    "repeater"
+   ],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "backward",
+   "ref": "61bism",
+   "lat": 47.5513402,
+   "lon": 19.1068049,
+   "line": "down",
+   "line_km": 6.149,
+   "line_offset_m": 0.0,
+   "near": "Istvántelek",
+   "near_dist_km": 0.025
+  },
+  {
+   "km": 7.169,
+   "offset_m": 4.5,
+   "side": "left",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "backward",
+   "ref": null,
+   "lat": 47.5602291,
+   "lon": 19.1101551,
+   "line": "up",
+   "line_km": 7.041,
+   "line_offset_m": 0.0,
+   "near": "Rákospalota-Újpest",
+   "near_dist_km": -0.783
+  },
+  {
+   "km": 7.17,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": null,
+   "lat": 47.5602201,
+   "lon": 19.1102141,
+   "line": "down",
+   "line_km": 7.17,
+   "line_offset_m": 0.0,
+   "near": "Rákospalota-Újpest",
+   "near_dist_km": -0.654
+  },
+  {
+   "km": 7.595,
+   "offset_m": 4.8,
+   "side": "left",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": "K3",
+   "lat": 47.5639279,
+   "lon": 19.1116082,
+   "line": "up",
+   "line_km": 7.466,
+   "line_offset_m": 0.0,
+   "near": "Rákospalota-Újpest",
+   "near_dist_km": -0.358
+  },
+  {
+   "km": 7.542,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "backward",
+   "ref": "K4",
+   "lat": 47.563457,
+   "lon": 19.1114885,
+   "line": "down",
+   "line_km": 7.542,
+   "line_offset_m": 0.0,
+   "near": "Rákospalota-Újpest",
+   "near_dist_km": -0.282
+  },
+  {
+   "km": 8.528,
+   "offset_m": 4.8,
+   "side": "left",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "backward",
+   "ref": "V3",
+   "lat": 47.5720369,
+   "lon": 19.1147982,
+   "line": "up",
+   "line_km": 8.399,
+   "line_offset_m": 0.0,
+   "near": "Rákospalota-Újpest",
+   "near_dist_km": 0.575
+  },
+  {
+   "km": 8.434,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": "V4",
+   "lat": 47.5712105,
+   "lon": 19.1145401,
+   "line": "down",
+   "line_km": 8.434,
+   "line_offset_m": 0.0,
+   "near": "Rákospalota-Újpest",
+   "near_dist_km": 0.61
+  },
+  {
+   "km": 8.855,
+   "offset_m": 5.0,
+   "side": "left",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": null,
+   "lat": 47.574886,
+   "lon": 19.1159168,
+   "line": "up",
+   "line_km": 8.727,
+   "line_offset_m": 0.0,
+   "near": "Rákospalota-Újpest",
+   "near_dist_km": 0.903
+  },
+  {
+   "km": 8.856,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "backward",
+   "ref": null,
+   "lat": 47.5748748,
+   "lon": 19.1159813,
+   "line": "down",
+   "line_km": 8.856,
+   "line_offset_m": 0.0,
+   "near": "Rákospalota-Újpest",
+   "near_dist_km": 1.032
+  },
+  {
+   "km": 13.626,
+   "offset_m": 5.2,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "entry",
+   "function_hu": "bejárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": "B",
+   "lat": 47.6160035,
+   "lon": 19.1321335,
+   "line": "up",
+   "line_km": 13.497,
+   "line_offset_m": 0.0,
+   "near": "Dunakeszi alsó",
+   "near_dist_km": 0.747
+  },
+  {
+   "km": 13.626,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "entry",
+   "function_hu": "bejárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": "A",
+   "lat": 47.6159914,
+   "lon": 19.1321998,
+   "line": "down",
+   "line_km": 13.626,
+   "line_offset_m": 0.0,
+   "near": "Dunakeszi alsó",
+   "near_dist_km": 0.876
+  },
+  {
+   "km": 13.933,
+   "offset_m": 5.2,
+   "side": "left",
+   "kinds": [
+    "shunting"
+   ],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": "J8",
+   "lat": 47.6186797,
+   "lon": 19.1331861,
+   "line": "up",
+   "line_km": 13.805,
+   "line_offset_m": 0.0,
+   "near": "Dunakeszi",
+   "near_dist_km": -0.952
+  },
+  {
+   "km": 14.092,
+   "offset_m": 6.7,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "exit",
+   "function_hu": "kijárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": "K4",
+   "lat": 47.6200606,
+   "lon": 19.1337086,
+   "line": "up",
+   "line_km": 13.963,
+   "line_offset_m": 0.0,
+   "near": "Dunakeszi",
+   "near_dist_km": -0.794
+  },
+  {
+   "km": 13.985,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "shunting"
+   ],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "backward",
+   "ref": "B14",
+   "lat": 47.6191198,
+   "lon": 19.1334312,
+   "line": "down",
+   "line_km": 13.985,
+   "line_offset_m": 0.0,
+   "near": "Dunakeszi",
+   "near_dist_km": -0.772
+  },
+  {
+   "km": 14.092,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "exit",
+   "function_hu": "kijárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": "K3",
+   "lat": 47.6200455,
+   "lon": 19.1337949,
+   "line": "down",
+   "line_km": 14.092,
+   "line_offset_m": 0.0,
+   "near": "Dunakeszi",
+   "near_dist_km": -0.665
+  },
+  {
+   "km": 14.83,
+   "offset_m": 11.0,
+   "side": "left",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "backward",
+   "ref": "V4",
+   "lat": 47.6264758,
+   "lon": 19.1362343,
+   "line": "up",
+   "line_km": 14.701,
+   "line_offset_m": 0.0,
+   "near": "Dunakeszi",
+   "near_dist_km": -0.056
+  },
+  {
+   "km": 14.956,
+   "offset_m": 7.7,
+   "side": "left",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "backward",
+   "ref": "B11",
+   "lat": 47.6275705,
+   "lon": 19.136682,
+   "line": "up",
+   "line_km": 14.828,
+   "line_offset_m": 0.0,
+   "near": "Dunakeszi",
+   "near_dist_km": 0.071
+  },
+  {
+   "km": 14.83,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": "V3",
+   "lat": 47.6264503,
+   "lon": 19.1363754,
+   "line": "down",
+   "line_km": 14.83,
+   "line_offset_m": 0.0,
+   "near": "Dunakeszi",
+   "near_dist_km": 0.073
+  },
+  {
+   "km": 15.024,
+   "offset_m": 7.2,
+   "side": "left",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": "E11",
+   "lat": 47.6281572,
+   "lon": 19.1369155,
+   "line": "up",
+   "line_km": 14.895,
+   "line_offset_m": 0.0,
+   "near": "Dunakeszi",
+   "near_dist_km": 0.138
+  },
+  {
+   "km": 14.956,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": "J9",
+   "lat": 47.6275522,
+   "lon": 19.1367814,
+   "line": "down",
+   "line_km": 14.956,
+   "line_offset_m": 0.0,
+   "near": "Dunakeszi",
+   "near_dist_km": 0.199
+  },
+  {
+   "km": 15.024,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "backward",
+   "ref": "E9",
+   "lat": 47.6281402,
+   "lon": 19.1370085,
+   "line": "down",
+   "line_km": 15.024,
+   "line_offset_m": 0.0,
+   "near": "Dunakeszi",
+   "near_dist_km": 0.267
+  },
+  {
+   "km": 15.298,
+   "offset_m": 6.9,
+   "side": "left",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": "D",
+   "lat": 47.6305489,
+   "lon": 19.1377636,
+   "line": "up",
+   "line_km": 15.169,
+   "line_offset_m": 0.0,
+   "near": "Dunakeszi",
+   "near_dist_km": 0.412
+  },
+  {
+   "km": 15.298,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "backward",
+   "ref": "F",
+   "lat": 47.630538,
+   "lon": 19.1378536,
+   "line": "down",
+   "line_km": 15.298,
+   "line_offset_m": 0.0,
+   "near": "Dunakeszi",
+   "near_dist_km": 0.541
+  },
+  {
+   "km": 16.381,
+   "offset_m": 13.1,
+   "side": "left",
+   "kinds": [
+    "main",
+    "repeater"
+   ],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "backward",
+   "ref": "166bIsm",
+   "lat": 47.6397869,
+   "lon": 19.1340834,
+   "line": "up",
+   "line_km": 16.253,
+   "line_offset_m": 0.0,
+   "near": "Dunakeszi-Gyártelep",
+   "near_dist_km": -0.561
+  },
+  {
+   "km": 16.381,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main",
+    "repeater"
+   ],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": "166aIsm",
+   "lat": 47.6397883,
+   "lon": 19.1342573,
+   "line": "down",
+   "line_km": 16.381,
+   "line_offset_m": 0.0,
+   "near": "Dunakeszi-Gyártelep",
+   "near_dist_km": -0.433
+  },
+  {
+   "km": 16.593,
+   "offset_m": 15.2,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "block",
+   "function_hu": "térközjelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": "166b",
+   "lat": 47.6417038,
+   "lon": 19.1343582,
+   "line": "up",
+   "line_km": 16.467,
+   "line_offset_m": 0.0,
+   "near": "Dunakeszi-Gyártelep",
+   "near_dist_km": -0.347
+  },
+  {
+   "km": 16.594,
+   "offset_m": 15.2,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "block",
+   "function_hu": "térközjelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": "167a",
+   "lat": 47.6417097,
+   "lon": 19.1343597,
+   "line": "up",
+   "line_km": 16.468,
+   "line_offset_m": 0.0,
+   "near": "Dunakeszi-Gyártelep",
+   "near_dist_km": -0.346
+  },
+  {
+   "km": 16.593,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "block",
+   "function_hu": "térközjelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": "166a",
+   "lat": 47.641681,
+   "lon": 19.1345574,
+   "line": "down",
+   "line_km": 16.593,
+   "line_offset_m": 0.0,
+   "near": "Dunakeszi-Gyártelep",
+   "near_dist_km": -0.221
+  },
+  {
+   "km": 16.594,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "block",
+   "function_hu": "térközjelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": "167b",
+   "lat": 47.6416869,
+   "lon": 19.1345588,
+   "line": "down",
+   "line_km": 16.594,
+   "line_offset_m": 0.0,
+   "near": "Dunakeszi-Gyártelep",
+   "near_dist_km": -0.22
+  },
+  {
+   "km": 27.661,
+   "offset_m": 4.1,
+   "side": "left",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "both",
+   "ref": null,
+   "lat": 47.7383047,
+   "lon": 19.1559785,
+   "line": "up",
+   "line_km": 27.535,
+   "line_offset_m": 0.0,
+   "near": "Sződ-Sződliget",
+   "near_dist_km": 0.73
+  },
+  {
+   "km": 27.661,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "both",
+   "ref": null,
+   "lat": 47.7383026,
+   "lon": 19.1560335,
+   "line": "down",
+   "line_km": 27.661,
+   "line_offset_m": 0.0,
+   "near": "Sződ-Sződliget",
+   "near_dist_km": 0.856
+  },
+  {
+   "km": 32.0,
+   "offset_m": 5.2,
+   "side": "left",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "backward",
+   "ref": null,
+   "lat": 47.7754466,
+   "lon": 19.1471463,
+   "line": "up",
+   "line_km": 31.871,
+   "line_offset_m": 0.0,
+   "near": "Vác-Alsóváros",
+   "near_dist_km": 0.167
+  },
+  {
+   "km": 32.0,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": null,
+   "lat": 47.7754746,
+   "lon": 19.1472025,
+   "line": "down",
+   "line_km": 32.0,
+   "line_offset_m": 0.0,
+   "near": "Vác-Alsóváros",
+   "near_dist_km": 0.296
+  },
+  {
+   "km": 33.073,
+   "offset_m": 27.9,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "exit",
+   "function_hu": "kijárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": "K2",
+   "lat": 47.7815369,
+   "lon": 19.136581,
+   "line": "up",
+   "line_km": 32.941,
+   "line_offset_m": 0.0,
+   "near": "Vác",
+   "near_dist_km": -0.368
+  },
+  {
+   "km": 33.073,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "exit",
+   "function_hu": "kijárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": "K5",
+   "lat": 47.7817647,
+   "lon": 19.1367365,
+   "line": "down",
+   "line_km": 33.073,
+   "line_offset_m": 0.0,
+   "near": "Vác",
+   "near_dist_km": -0.236
+  },
+  {
+   "km": 33.694,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": null,
+   "lat": 47.7841423,
+   "lon": 19.1292247,
+   "line": "down",
+   "line_km": 33.694,
+   "line_offset_m": 0.0,
+   "near": "Vác",
+   "near_dist_km": 0.385
+  },
+  {
+   "km": 33.897,
+   "offset_m": 18.9,
+   "side": "left",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "backward",
+   "ref": "V2",
+   "lat": 47.7853348,
+   "lon": 19.1271304,
+   "line": "up",
+   "line_km": 33.777,
+   "line_offset_m": 0.0,
+   "near": "Vác",
+   "near_dist_km": 0.468
+  },
+  {
+   "km": 33.798,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": null,
+   "lat": 47.7847567,
+   "lon": 19.1281857,
+   "line": "down",
+   "line_km": 33.798,
+   "line_offset_m": 0.0,
+   "near": "Vác",
+   "near_dist_km": 0.489
+  },
+  {
+   "km": 33.944,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": "V5",
+   "lat": 47.7857735,
+   "lon": 19.1269507,
+   "line": "down",
+   "line_km": 33.944,
+   "line_offset_m": 0.0,
+   "near": "Vác",
+   "near_dist_km": 0.635
+  },
+  {
+   "km": 34.747,
+   "offset_m": 3.8,
+   "side": "left",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": "D",
+   "lat": 47.7914036,
+   "lon": 19.1202576,
+   "line": "up",
+   "line_km": 34.626,
+   "line_offset_m": 0.0,
+   "near": "Kisvác",
+   "near_dist_km": -0.726
+  },
+  {
+   "km": 34.747,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "backward",
+   "ref": "E",
+   "lat": 47.7914297,
+   "lon": 19.1202908,
+   "line": "down",
+   "line_km": 34.747,
+   "line_offset_m": 0.0,
+   "near": "Kisvác",
+   "near_dist_km": -0.605
+  },
+  {
+   "km": 36.041,
+   "offset_m": 4.2,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "block",
+   "function_hu": "térközjelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": "360b",
+   "lat": 47.7994529,
+   "lon": 19.107851,
+   "line": "up",
+   "line_km": 35.922,
+   "line_offset_m": 0.0,
+   "near": "Kisvác",
+   "near_dist_km": 0.57
+  },
+  {
+   "km": 36.043,
+   "offset_m": 4.2,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "block",
+   "function_hu": "térközjelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": null,
+   "lat": 47.7994692,
+   "lon": 19.1078381,
+   "line": "up",
+   "line_km": 35.924,
+   "line_offset_m": 0.0,
+   "near": "Kisvác",
+   "near_dist_km": 0.572
+  },
+  {
+   "km": 36.041,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "block",
+   "function_hu": "térközjelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": "360a",
+   "lat": 47.7994705,
+   "lon": 19.1079001,
+   "line": "down",
+   "line_km": 36.041,
+   "line_offset_m": 0.0,
+   "near": "Kisvác",
+   "near_dist_km": 0.689
+  },
+  {
+   "km": 36.043,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "block",
+   "function_hu": "térközjelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": null,
+   "lat": 47.7994868,
+   "lon": 19.1078872,
+   "line": "down",
+   "line_km": 36.043,
+   "line_offset_m": 0.0,
+   "near": "Kisvác",
+   "near_dist_km": 0.691
+  },
+  {
+   "km": 37.534,
+   "offset_m": 3.9,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "block",
+   "function_hu": "térközjelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": "376b",
+   "lat": 47.8094001,
+   "lon": 19.0946979,
+   "line": "up",
+   "line_km": 37.414,
+   "line_offset_m": 0.0,
+   "near": "Kisvác",
+   "near_dist_km": 2.062
+  },
+  {
+   "km": 37.537,
+   "offset_m": 3.9,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "block",
+   "function_hu": "térközjelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": null,
+   "lat": 47.8094184,
+   "lon": 19.094669,
+   "line": "up",
+   "line_km": 37.417,
+   "line_offset_m": 0.0,
+   "near": "Kisvác",
+   "near_dist_km": 2.065
+  },
+  {
+   "km": 37.534,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "block",
+   "function_hu": "térközjelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": "376a",
+   "lat": 47.8094263,
+   "lon": 19.094732,
+   "line": "down",
+   "line_km": 37.534,
+   "line_offset_m": 0.0,
+   "near": "Kisvác",
+   "near_dist_km": 2.182
+  },
+  {
+   "km": 37.537,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "block",
+   "function_hu": "térközjelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": null,
+   "lat": 47.8094446,
+   "lon": 19.094703,
+   "line": "down",
+   "line_km": 37.537,
+   "line_offset_m": 0.0,
+   "near": "Kisvác",
+   "near_dist_km": 2.185
+  },
+  {
+   "km": 40.98,
+   "offset_m": 4.1,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "block",
+   "function_hu": "térközjelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": "410b",
+   "lat": 47.8226275,
+   "lon": 19.0539121,
+   "line": "up",
+   "line_km": 40.859,
+   "line_offset_m": 0.0,
+   "near": "Fenyveshegy",
+   "near_dist_km": 1.071
+  },
+  {
+   "km": 40.982,
+   "offset_m": 4.1,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "block",
+   "function_hu": "térközjelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": "411a",
+   "lat": 47.8226353,
+   "lon": 19.0538906,
+   "line": "up",
+   "line_km": 40.861,
+   "line_offset_m": 0.0,
+   "near": "Fenyveshegy",
+   "near_dist_km": 1.073
+  },
+  {
+   "km": 40.98,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "block",
+   "function_hu": "térközjelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": "410a",
+   "lat": 47.8226604,
+   "lon": 19.0539379,
+   "line": "down",
+   "line_km": 40.98,
+   "line_offset_m": 0.0,
+   "near": "Fenyveshegy",
+   "near_dist_km": 1.192
+  },
+  {
+   "km": 40.982,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "block",
+   "function_hu": "térközjelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": "411b",
+   "lat": 47.8226681,
+   "lon": 19.0539164,
+   "line": "down",
+   "line_km": 40.982,
+   "line_offset_m": 0.0,
+   "near": "Fenyveshegy",
+   "near_dist_km": 1.194
+  },
+  {
+   "km": 42.279,
+   "offset_m": 4.4,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "exit",
+   "function_hu": "kijárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": "A",
+   "lat": 47.8244206,
+   "lon": 19.0374413,
+   "line": "up",
+   "line_km": 42.155,
+   "line_offset_m": 0.0,
+   "near": "Verőce",
+   "near_dist_km": -0.826
+  },
+  {
+   "km": 42.279,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "exit",
+   "function_hu": "kijárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": "B",
+   "lat": 47.8244595,
+   "lon": 19.0374306,
+   "line": "down",
+   "line_km": 42.279,
+   "line_offset_m": 0.0,
+   "near": "Verőce",
+   "near_dist_km": -0.702
+  },
+  {
+   "km": 42.595,
+   "offset_m": 4.8,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "exit",
+   "function_hu": "kijárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": "K2",
+   "lat": 47.8240263,
+   "lon": 19.0332416,
+   "line": "up",
+   "line_km": 42.472,
+   "line_offset_m": 0.0,
+   "near": "Verőce",
+   "near_dist_km": -0.509
+  },
+  {
+   "km": 42.65,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "exit",
+   "function_hu": "kijárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": "K3",
+   "lat": 47.8240162,
+   "lon": 19.0325015,
+   "line": "down",
+   "line_km": 42.65,
+   "line_offset_m": 0.0,
+   "near": "Verőce",
+   "near_dist_km": -0.331
+  },
+  {
+   "km": 43.219,
+   "offset_m": 8.1,
+   "side": "left",
+   "kinds": [
+    "main",
+    "repeater"
+   ],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "backward",
+   "ref": "V2bIsm",
+   "lat": 47.8235269,
+   "lon": 19.0249096,
+   "line": "up",
+   "line_km": 43.098,
+   "line_offset_m": 0.0,
+   "near": "Verőce",
+   "near_dist_km": 0.117
+  },
+  {
+   "km": 43.326,
+   "offset_m": 6.2,
+   "side": "left",
+   "kinds": [
+    "main",
+    "repeater"
+   ],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "backward",
+   "ref": "V2aIsm",
+   "lat": 47.8237753,
+   "lon": 19.0235045,
+   "line": "up",
+   "line_km": 43.207,
+   "line_offset_m": 0.0,
+   "near": "Verőce",
+   "near_dist_km": 0.226
+  },
+  {
+   "km": 43.256,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main",
+    "repeater"
+   ],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": "V3aIsm",
+   "lat": 47.8236563,
+   "lon": 19.024439,
+   "line": "down",
+   "line_km": 43.256,
+   "line_offset_m": 0.0,
+   "near": "Verőce",
+   "near_dist_km": 0.275
+  },
+  {
+   "km": 43.448,
+   "offset_m": 5.4,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "exit",
+   "function_hu": "kijárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": "V2",
+   "lat": 47.8242111,
+   "lon": 19.0220103,
+   "line": "up",
+   "line_km": 43.329,
+   "line_offset_m": 0.0,
+   "near": "Verőce",
+   "near_dist_km": 0.348
+  },
+  {
+   "km": 43.448,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "exit",
+   "function_hu": "kijárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": "V3",
+   "lat": 47.8242554,
+   "lon": 19.0220402,
+   "line": "down",
+   "line_km": 43.448,
+   "line_offset_m": 0.0,
+   "near": "Verőce",
+   "near_dist_km": 0.467
+  },
+  {
+   "km": 43.809,
+   "offset_m": 5.3,
+   "side": "left",
+   "kinds": [
+    "main"
+   ],
+   "function": "entry",
+   "function_hu": "bejárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "forward",
+   "ref": "C",
+   "lat": 47.8255632,
+   "lon": 19.0176099,
+   "line": "up",
+   "line_km": 43.69,
+   "line_offset_m": 0.0,
+   "near": "Kismaros",
+   "near_dist_km": -0.661
+  },
+  {
+   "km": 43.809,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [
+    "main"
+   ],
+   "function": "entry",
+   "function_hu": "bejárati jelző",
+   "form": "light",
+   "height": "normal",
+   "direction": "backward",
+   "ref": "D",
+   "lat": 47.8256063,
+   "lon": 19.0176394,
+   "line": "down",
+   "line_km": 43.809,
+   "line_offset_m": 0.0,
+   "near": "Kismaros",
+   "near_dist_km": -0.542
+  },
+  {
+   "km": 62.32,
+   "offset_m": 4.9,
+   "side": "left",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": "K5",
+   "lat": 47.818772,
+   "lon": 18.8674111,
+   "line": "up",
+   "line_km": 62.201,
+   "line_offset_m": 0.0,
+   "near": "Szob alsó",
+   "near_dist_km": 0.388
+  },
+  {
+   "km": 62.321,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "backward",
+   "ref": "K4",
+   "lat": 47.8188131,
+   "lon": 18.8674379,
+   "line": "down",
+   "line_km": 62.321,
+   "line_offset_m": 0.0,
+   "near": "Szob",
+   "near_dist_km": -0.468
+  },
+  {
+   "km": 63.094,
+   "offset_m": 5.0,
+   "side": "left",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "backward",
+   "ref": null,
+   "lat": 47.8220186,
+   "lon": 18.8582752,
+   "line": "up",
+   "line_km": 62.975,
+   "line_offset_m": 0.0,
+   "near": "Szob",
+   "near_dist_km": 0.186
+  },
+  {
+   "km": 63.137,
+   "offset_m": 0.0,
+   "side": "right",
+   "kinds": [],
+   "function": null,
+   "function_hu": null,
+   "form": null,
+   "height": null,
+   "direction": "forward",
+   "ref": null,
+   "lat": 47.8222079,
+   "lon": 18.8577713,
+   "line": "down",
+   "line_km": 63.137,
+   "line_offset_m": 0.0,
+   "near": "Szob",
+   "near_dist_km": 0.348
+  }
+ ],
+ "blocks": {
+  "down": [
+   {
+    "from_km": 0.0,
+    "to_km": 0.773,
+    "length_m": 773,
+    "from": "protection",
+    "to": "entry",
+    "near": "Budapest-Nyugati"
+   },
+   {
+    "from_km": 0.773,
+    "to_km": 1.601,
+    "length_m": 828,
+    "from": "entry",
+    "to": "exit",
+    "near": "Budapest-Nyugati"
+   },
+   {
+    "from_km": 1.601,
+    "to_km": 1.962,
+    "length_m": 361,
+    "from": "exit",
+    "to": "entry",
+    "near": "Rákosrendező"
+   },
+   {
+    "from_km": 1.962,
+    "to_km": 2.324,
+    "length_m": 362,
+    "from": "entry",
+    "to": "entry",
+    "near": "Rákosrendező"
+   },
+   {
+    "from_km": 2.324,
+    "to_km": 4.668,
+    "length_m": 2344,
+    "from": "entry",
+    "to": "entry",
+    "near": "Rákosrendező"
+   },
+   {
+    "from_km": 4.668,
+    "to_km": 5.924,
+    "length_m": 1256,
+    "from": "entry",
+    "to": "block",
+    "near": "Istvántelek"
+   },
+   {
+    "from_km": 5.926,
+    "to_km": 6.149,
+    "length_m": 223,
+    "from": "block",
+    "to": "untagged",
+    "near": "Istvántelek"
+   },
+   {
+    "from_km": 6.149,
+    "to_km": 13.626,
+    "length_m": 7477,
+    "from": "untagged",
+    "to": "entry",
+    "near": "Istvántelek"
+   },
+   {
+    "from_km": 13.626,
+    "to_km": 14.092,
+    "length_m": 466,
+    "from": "entry",
+    "to": "exit",
+    "near": "Dunakeszi alsó"
+   },
+   {
+    "from_km": 14.092,
+    "to_km": 16.381,
+    "length_m": 2289,
+    "from": "exit",
+    "to": "untagged",
+    "near": "Dunakeszi"
+   },
+   {
+    "from_km": 16.381,
+    "to_km": 16.593,
+    "length_m": 212,
+    "from": "untagged",
+    "to": "block",
+    "near": "Dunakeszi-Gyártelep"
+   },
+   {
+    "from_km": 16.594,
+    "to_km": 33.073,
+    "length_m": 16479,
+    "from": "block",
+    "to": "exit",
+    "near": "Dunakeszi-Gyártelep"
+   },
+   {
+    "from_km": 33.073,
+    "to_km": 36.041,
+    "length_m": 2968,
+    "from": "exit",
+    "to": "block",
+    "near": "Vác"
+   },
+   {
+    "from_km": 36.043,
+    "to_km": 37.534,
+    "length_m": 1491,
+    "from": "block",
+    "to": "block",
+    "near": "Kisvác"
+   },
+   {
+    "from_km": 37.537,
+    "to_km": 40.98,
+    "length_m": 3443,
+    "from": "block",
+    "to": "block",
+    "near": "Kisvác"
+   },
+   {
+    "from_km": 40.982,
+    "to_km": 42.279,
+    "length_m": 1297,
+    "from": "block",
+    "to": "exit",
+    "near": "Fenyveshegy"
+   },
+   {
+    "from_km": 42.279,
+    "to_km": 42.65,
+    "length_m": 371,
+    "from": "exit",
+    "to": "exit",
+    "near": "Verőce"
+   },
+   {
+    "from_km": 42.65,
+    "to_km": 43.256,
+    "length_m": 606,
+    "from": "exit",
+    "to": "untagged",
+    "near": "Verőce"
+   },
+   {
+    "from_km": 43.256,
+    "to_km": 43.448,
+    "length_m": 192,
+    "from": "untagged",
+    "to": "exit",
+    "near": "Verőce"
+   },
+   {
+    "from_km": 43.448,
+    "to_km": 43.809,
+    "length_m": 361,
+    "from": "exit",
+    "to": "entry",
+    "near": "Verőce"
+   }
+  ],
+  "up": [
+   {
+    "from_km": 0.221,
+    "to_km": 0.648,
+    "length_m": 427,
+    "from": "exit",
+    "to": "entry",
+    "near": "Budapest-Nyugati"
+   },
+   {
+    "from_km": 0.648,
+    "to_km": 1.819,
+    "length_m": 1171,
+    "from": "entry",
+    "to": "entry",
+    "near": "Budapest-Nyugati"
+   },
+   {
+    "from_km": 1.819,
+    "to_km": 2.2,
+    "length_m": 381,
+    "from": "entry",
+    "to": "entry",
+    "near": "Rákosrendező"
+   },
+   {
+    "from_km": 2.2,
+    "to_km": 4.54,
+    "length_m": 2340,
+    "from": "entry",
+    "to": "entry",
+    "near": "Rákosrendező"
+   },
+   {
+    "from_km": 4.54,
+    "to_km": 5.796,
+    "length_m": 1256,
+    "from": "entry",
+    "to": "block",
+    "near": "Rákosrendező"
+   },
+   {
+    "from_km": 5.798,
+    "to_km": 6.021,
+    "length_m": 223,
+    "from": "block",
+    "to": "untagged",
+    "near": "Istvántelek"
+   },
+   {
+    "from_km": 6.021,
+    "to_km": 13.497,
+    "length_m": 7476,
+    "from": "untagged",
+    "to": "entry",
+    "near": "Istvántelek"
+   },
+   {
+    "from_km": 13.497,
+    "to_km": 13.963,
+    "length_m": 466,
+    "from": "entry",
+    "to": "exit",
+    "near": "Dunakeszi alsó"
+   },
+   {
+    "from_km": 13.963,
+    "to_km": 16.253,
+    "length_m": 2290,
+    "from": "exit",
+    "to": "untagged",
+    "near": "Dunakeszi"
+   },
+   {
+    "from_km": 16.253,
+    "to_km": 16.467,
+    "length_m": 214,
+    "from": "untagged",
+    "to": "block",
+    "near": "Dunakeszi-Gyártelep"
+   },
+   {
+    "from_km": 16.468,
+    "to_km": 32.941,
+    "length_m": 16473,
+    "from": "block",
+    "to": "exit",
+    "near": "Dunakeszi-Gyártelep"
+   },
+   {
+    "from_km": 32.941,
+    "to_km": 35.922,
+    "length_m": 2981,
+    "from": "exit",
+    "to": "block",
+    "near": "Vác"
+   },
+   {
+    "from_km": 35.924,
+    "to_km": 37.414,
+    "length_m": 1490,
+    "from": "block",
+    "to": "block",
+    "near": "Kisvác"
+   },
+   {
+    "from_km": 37.417,
+    "to_km": 40.859,
+    "length_m": 3442,
+    "from": "block",
+    "to": "block",
+    "near": "Kisvác"
+   },
+   {
+    "from_km": 40.861,
+    "to_km": 42.155,
+    "length_m": 1294,
+    "from": "block",
+    "to": "exit",
+    "near": "Fenyveshegy"
+   },
+   {
+    "from_km": 42.155,
+    "to_km": 42.472,
+    "length_m": 317,
+    "from": "exit",
+    "to": "exit",
+    "near": "Verőce"
+   },
+   {
+    "from_km": 42.472,
+    "to_km": 43.098,
+    "length_m": 626,
+    "from": "exit",
+    "to": "untagged",
+    "near": "Verőce"
+   },
+   {
+    "from_km": 43.098,
+    "to_km": 43.207,
+    "length_m": 109,
+    "from": "untagged",
+    "to": "untagged",
+    "near": "Verőce"
+   },
+   {
+    "from_km": 43.207,
+    "to_km": 43.329,
+    "length_m": 122,
+    "from": "untagged",
+    "to": "exit",
+    "near": "Verőce"
+   },
+   {
+    "from_km": 43.329,
+    "to_km": 43.69,
+    "length_m": 361,
+    "from": "exit",
+    "to": "entry",
+    "near": "Verőce"
+   }
+  ]
+ },
+ "station_roads": {
+  "Istvántelek": [
+   {
+    "ref": "70",
+    "length_m": 4958,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "80"
+   },
+   {
+    "ref": "201",
+    "length_m": 134,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "40"
+   },
+   {
+    "ref": "202",
+    "length_m": 1775,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "60"
+   },
+   {
+    "ref": "220",
+    "length_m": 1294,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "10"
+   }
+  ],
+  "Budapest-Nyugati": [
+   {
+    "ref": "70",
+    "length_m": 3452,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "20"
+   },
+   {
+    "ref": "100",
+    "length_m": 3466,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "20"
+   },
+   {
+    "ref": "209",
+    "length_m": 1523,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "20"
+   }
+  ],
+  "Szob": [
+   {
+    "ref": "70",
+    "length_m": 2648,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "100"
+   },
+   {
+    "ref": "120A",
+    "length_m": 182,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "120"
+   }
+  ],
+  "Rákosrendező": [
+   {
+    "ref": "70",
+    "length_m": 5882,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "60"
+   },
+   {
+    "ref": "209",
+    "length_m": 1375,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "50"
+   },
+   {
+    "ref": "210",
+    "length_m": 1261,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "20"
+   },
+   {
+    "ref": "218",
+    "length_m": 994,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "60"
+   },
+   {
+    "ref": "219",
+    "length_m": 269,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "40"
+   },
+   {
+    "ref": "220",
+    "length_m": 1548,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "40"
+   }
+  ],
+  "Fenyveshegy": [
+   {
+    "ref": "70",
+    "length_m": 11768,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "100"
+   },
+   {
+    "ref": "75",
+    "length_m": 3247,
+    "service": null,
+    "electrified": "no",
+    "maxspeed": "60"
+   }
+  ],
+  "Kisvác": [
+   {
+    "ref": "70",
+    "length_m": 4078,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "100"
+   },
+   {
+    "ref": "75",
+    "length_m": 2981,
+    "service": null,
+    "electrified": "no",
+    "maxspeed": "60"
+   },
+   {
+    "ref": "75K",
+    "length_m": 328,
+    "service": null,
+    "electrified": "no",
+    "maxspeed": "20"
+   }
+  ],
+  "Vác-Alsóváros": [
+   {
+    "ref": "70",
+    "length_m": 7412,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "120"
+   },
+   {
+    "ref": "71",
+    "length_m": 3125,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "80"
+   }
+  ],
+  "Dunakeszi alsó": [
+   {
+    "ref": "70",
+    "length_m": 5190,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "120"
+   }
+  ],
+  "Sződ-Sződliget": [
+   {
+    "ref": "70",
+    "length_m": 65,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "120"
+   }
+  ],
+  "Kismaros": [
+   {
+    "ref": "70",
+    "length_m": 5406,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "100"
+   }
+  ],
+  "Rákospalota-Újpest": [
+   {
+    "ref": "70",
+    "length_m": 3372,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "120"
+   },
+   {
+    "ref": "71",
+    "length_m": 1008,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "60"
+   },
+   {
+    "ref": "202",
+    "length_m": 527,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "60"
+   }
+  ],
+  "Szob alsó": [
+   {
+    "ref": "70",
+    "length_m": 5605,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "100"
+   }
+  ],
+  "Zebegény": [
+   {
+    "ref": "70",
+    "length_m": 4176,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "100"
+   }
+  ],
+  "Dunakeszi-Gyártelep": [
+   {
+    "ref": "70",
+    "length_m": 6345,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "120"
+   },
+   {
+    "ref": "70AX",
+    "length_m": 1656,
+    "service": null,
+    "electrified": "no",
+    "maxspeed": "20"
+   }
+  ],
+  "Vác": [
+   {
+    "ref": "70",
+    "length_m": 3091,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "100"
+   },
+   {
+    "ref": "71",
+    "length_m": 938,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "80"
+   },
+   {
+    "ref": "75",
+    "length_m": 1043,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "60"
+   }
+  ],
+  "Verőce": [
+   {
+    "ref": "70",
+    "length_m": 2833,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "100"
+   }
+  ],
+  "Dunakeszi": [
+   {
+    "ref": "70",
+    "length_m": 2234,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "120"
+   },
+   {
+    "ref": "70AX",
+    "length_m": 387,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "40"
+   }
+  ],
+  "Felsőgöd": [
+   {
+    "ref": "70",
+    "length_m": 2958,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "120"
+   }
+  ],
+  "Göd": [
+   {
+    "ref": "70",
+    "length_m": 12795,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "120"
+   }
+  ],
+  "Nagymaros": [
+   {
+    "ref": "70",
+    "length_m": 2255,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "100"
+   }
+  ],
+  "Nagymaros-Visegrád": [
+   {
+    "ref": "70",
+    "length_m": 754,
+    "service": null,
+    "electrified": "contact_line",
+    "maxspeed": "100"
+   }
+  ]
+ }
+}

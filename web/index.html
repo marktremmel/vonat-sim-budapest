@@ -1,0 +1,412 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Szob felé</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600;700&display=swap">
+<style>
+  html,body{margin:0;height:100%;background:#06090c;overflow:hidden;
+    font-family:"IBM Plex Sans",system-ui,sans-serif;color:#dbe7ee}
+  #wrap{position:fixed;inset:0}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  #hud{pointer-events:none}
+  #panel{position:absolute;left:14px;top:12px;z-index:5;font-size:12px;
+    background:rgba(8,16,22,.6);border:1px solid rgba(120,160,180,.22);
+    border-radius:3px;padding:10px 12px;backdrop-filter:blur(3px);max-width:272px}
+  #panel h1{font-size:15px;margin:0 0 6px;font-weight:700;letter-spacing:-.02em}
+  #panel label{display:flex;gap:8px;align-items:center;margin:6px 0;
+    font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.08em;
+    text-transform:uppercase;color:#8ea9b8}
+  input[type=range]{flex:1;accent-color:#3fcbd2}
+  #dispBtn{width:100%;margin-top:10px;background:#12414a;color:#dff3f5;
+    border:1px solid #2b7f88;border-radius:3px;padding:7px;font:inherit;
+    font-size:12px;cursor:pointer;letter-spacing:.04em}
+  #dispBtn:hover{background:#175662}
+  #panel .ro{font-family:"IBM Plex Mono",monospace;font-size:10px;color:#3fcbd2;
+    min-width:66px;text-align:right;text-transform:none;letter-spacing:0}
+  #wxNote{margin:8px 0 2px;color:#9fb8c6;font-size:10.5px;line-height:1.55;
+    font-family:"IBM Plex Mono",monospace;border-left:2px solid #2b7f88;
+    padding-left:8px}
+  #wxNote b{color:#3fcbd2;font-weight:500;letter-spacing:.04em}
+  #panel select{background:rgba(255,255,255,.07);color:#e6eef4;
+    border:1px solid rgba(120,160,180,.25);border-radius:3px;padding:3px 5px;
+    font-family:inherit;font-size:10.5px;flex:1;text-transform:none;
+    letter-spacing:0}
+  #panel{max-height:calc(100vh - 40px);overflow-y:auto}
+  #keys{margin-top:8px;color:#7d95a3;font-size:10.5px;line-height:1.7;
+    font-family:"IBM Plex Mono",monospace}
+  #err{position:absolute;inset:0;display:grid;place-items:center;color:#ff7264;
+    pointer-events:none;
+    font-size:14px;text-align:center;padding:40px}
+  #menu{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:20;
+    background:rgba(9,17,24,.94);border:1px solid rgba(120,160,180,.3);border-radius:4px;
+    padding:26px 30px;min-width:340px;backdrop-filter:blur(6px);display:none}
+  #menu.on{display:block}
+  #menu h2{margin:0;font-size:26px;font-weight:800;letter-spacing:-.03em}
+  #menu .lede{margin:2px 0 18px;color:#8ea9b8;font-family:"IBM Plex Mono",monospace;
+    font-size:11px;letter-spacing:.16em;text-transform:uppercase}
+  #menu .row{display:flex;align-items:center;gap:10px;margin:11px 0;font-size:12.5px;
+    color:#b7cad6}
+  #menu select,#menu input[type=range]{flex:1;background:rgba(255,255,255,.07);
+    color:#e6eef4;border:1px solid rgba(120,160,180,.25);border-radius:3px;padding:5px 7px;
+    font-family:inherit;font-size:12.5px}
+  #menu #mHourV{font-family:"IBM Plex Mono",monospace;font-size:12px;color:#3fcbd2;width:44px}
+  #menu .btns{display:flex;gap:9px;margin-top:20px}
+  #menu button{flex:1;background:#12414a;color:#dff3f5;border:1px solid #2b7f88;
+    border-radius:3px;padding:9px;font:inherit;font-size:13px;cursor:pointer}
+  #menu button:hover{background:#175662}
+  #menu #mClose{background:rgba(255,255,255,.06);border-color:rgba(120,160,180,.25);
+    color:#b7cad6}
+  #menu .hint{margin:16px 0 0;color:#6d8593;font-size:10.5px;
+    font-family:"IBM Plex Mono",monospace}
+  /* the panel is two tabs now: what you fly the train with, and everything
+     you set once and forget */
+  #tabs{display:flex;gap:4px;margin:2px 0 8px}
+  #tabs button{flex:1;background:rgba(255,255,255,.05);color:#8ea9b8;
+    border:1px solid rgba(120,160,180,.2);border-radius:3px;padding:4px 2px;
+    font:inherit;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+    cursor:pointer;font-family:"IBM Plex Mono",monospace}
+  #tabs button.on{background:#12414a;color:#dff3f5;border-color:#2b7f88}
+  .pane{display:none} .pane.on{display:block}
+  #hideHud{position:absolute;right:14px;bottom:14px;z-index:6;
+    background:rgba(8,16,22,.6);color:#8ea9b8;border:1px solid rgba(120,160,180,.22);
+    border-radius:3px;padding:5px 9px;font:inherit;font-size:11px;cursor:pointer;
+    font-family:"IBM Plex Mono",monospace;letter-spacing:.08em}
+  #hideHud:hover{color:#dff3f5;border-color:#2b7f88}
+  body.bare #panel, body.bare #hud, body.bare #dispBtn{display:none}
+  body.bare #hideHud{opacity:.25}
+  body.bare #hideHud:hover{opacity:1}
+  #keys b{color:#9fb8c6;font-weight:500}
+  /* the mode bar: every way of looking at the line, one click away. Top
+     centre, where nothing else lives; the bottom belongs to the driving
+     read-outs (it used to sit on top of them). Keys are in the tooltips. */
+  #modebar{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:7;
+    display:flex;gap:2px;background:rgba(8,16,22,.55);border:1px solid rgba(120,160,180,.2);
+    border-radius:4px;padding:3px;backdrop-filter:blur(3px);align-items:center}
+  #modebar button{background:transparent;color:#b7cad6;border:1px solid transparent;border-radius:3px;
+    padding:3px 8px;font:inherit;font-size:11.5px;cursor:pointer;white-space:nowrap}
+  #modebar button:hover{background:rgba(255,255,255,.06);color:#fff}
+  #modebar button.on{background:#12414a;border-color:#2b7f88;color:#fff}
+  #modebar .sep{width:1px;height:16px;background:rgba(120,160,180,.25);margin:0 3px}
+  body.bare #modebar{opacity:.15} body.bare #modebar:hover{opacity:1}
+  /* narrow windows: the bar would cover the map, so it goes under the panel */
+  @media (max-width:1100px){#modebar{left:auto;right:auto;transform:none;left:14px;top:auto;bottom:84px}}
+  #panel .fold{float:right;background:none;border:0;color:#6d8593;cursor:pointer;font:inherit;
+    font-size:13px;padding:0 2px;line-height:1}
+  #panel .fold:hover{color:#dff3f5}
+  #panel.folded #tabs, #panel.folded .pane, #panel.folded #buildTag{display:none}
+  #panel.folded h1{margin:0}
+  #panel .chk{justify-content:flex-start}
+  #panel .chk input{accent-color:#3fcbd2;margin:0}
+  #attrib{position:absolute;right:8px;bottom:2px;z-index:6;font:9px "IBM Plex Mono",monospace;
+    color:rgba(150,180,196,.55);pointer-events:auto}
+  #attrib a{color:inherit}
+  body.bare #attrib{opacity:.4}
+  #help{position:absolute;inset:0;z-index:30;display:none;place-items:center;background:rgba(3,7,10,.55)}
+  #help.on{display:grid}
+  #help .card{background:rgba(9,17,24,.96);border:1px solid rgba(120,160,180,.3);border-radius:4px;
+    padding:22px 26px;max-width:760px;max-height:84vh;overflow:auto;columns:2;column-gap:34px}
+  #help h3{margin:0 0 6px;font-size:13px;color:#3fcbd2;letter-spacing:.06em;text-transform:uppercase;
+    break-after:avoid}
+  #help dl{margin:0 0 16px;display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12px;
+    break-inside:avoid}
+  #help dt{font-family:"IBM Plex Mono",monospace;color:#dff3f5;white-space:nowrap}
+  #help dd{margin:0;color:#9fb8c6}
+  @media (max-width:700px){#help .card{columns:1}}
+  #endModal{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    background:rgba(8,16,22,0.92);border:1px solid rgba(120,160,180,0.3);
+    box-shadow:0 8px 32px rgba(0,0,0,0.7);border-radius:6px;padding:30px;
+    z-index:100;text-align:center;backdrop-filter:blur(10px);color:#dff3f5;
+    font-family:"IBM Plex Sans",sans-serif;min-width:300px;}
+  #endModal h2{margin:0 0 20px 0;color:#fff;font-weight:400;font-size:24px}
+  #endModal .stats{margin-bottom:25px;text-align:left;font-size:14px;color:#8ea9b8}
+  #endModal .stats p{margin:10px 0;}
+  #endModal .stats span{font-weight:600;color:#dff3f5;font-size:16px;}
+  #endModal .stats hr{border:none;border-top:1px solid rgba(120,160,180,0.2);margin:15px 0;}
+  #endModal .stats h3{margin:0;color:#3fcbd2;font-size:28px;text-align:center;font-weight:500;}
+  #endModal .btns{display:flex;gap:12px;justify-content:center;}
+  #endModal .btns button{background:rgba(255,255,255,0.08);color:#dff3f5;
+    border:1px solid rgba(120,160,180,0.3);border-radius:4px;padding:8px 16px;
+    cursor:pointer;font-family:"IBM Plex Mono",monospace;font-size:12px;text-transform:uppercase;}
+  #endModal .btns button:hover{background:#12414a;border-color:#2b7f88;}
+</style>
+<div id="wrap">
+  <canvas id="gl"></canvas>
+  <canvas id="hud"></canvas>
+  <div id="panel">
+    <h1><span id="panelTitle">Szob felé</span><button class="fold" id="foldBtn" title="panel össze / szét">▾</button></h1>
+    <div id="buildTag" style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#6d8593;margin:-3px 0 8px;letter-spacing:0.08em;text-transform:uppercase"></div>
+    <div id="tabs">
+      <button id="tabRun" class="on">Menet</button>
+      <button id="tabSet">Beállítás</button>
+    </div>
+    <div id="paneRun" class="pane on">
+    <label>Time <input id="timeSlider" type="range" min="0" max="24" step="0.05" value="19.4"><span id="hourOut" class="ro">19:24</span></label>
+    <label>Date <input id="daySlider" type="range" min="1" max="365" step="1" value="200"><span id="dayOut" class="ro">július 19.</span></label>
+    <label>Időjárás <select id="wxSit"></select></label>
+    <label class="chk"><input id="wxChange" type="checkbox" checked> változékony — frontok jönnek</label>
+    <label>Erősség <input id="wxInt" type="range" min="0" max="2" step="0.02" value="1"></label>
+    <label>Duna <input id="danSlider" type="range" min="-4" max="14" step="0.1" value="0"><span id="danOut" class="ro">±0.0 m</span></label>
+    <div id="wxNote"></div>
+    </div>
+
+    <div id="paneSet" class="pane">
+    <label>Felhő <select id="cloudType"></select></label>
+    <label>Pára <input id="fogSlider" type="range" min="0.15" max="4" step="0.02" value="1"></label>
+    <label>Élesség <input id="resSlider" type="range" min="0.6" max="2.6" step="0.1" value="1.4"><span id="resOut" class="ro"></span></label>
+    <label>Exposure <input id="expSlider" type="range" min="0.5" max="2.6" step="0.02" value="1.35"></label>
+    <label>Bloom <input id="bloomSlider" type="range" min="0" max="1.5" step="0.02" value="0.5"></label>
+    <label>Film grain <input id="grainSlider" type="range" min="0" max="1" step="0.02" value="0.35"></label>
+    <label>Chroma <input id="chromaSlider" type="range" min="0" max="1" step="0.02" value="0.40"></label>
+    <label>Vignette <input id="vigSlider" type="range" min="0" max="1" step="0.02" value="0.28"></label>
+    <label>Volume <input id="volSlider" type="range" min="0" max="1" step="0.02" value="0.7"></label>
+    <label>Animáció <select id="cineSel">
+        <option value="off">— áll —</option>
+        <option value="day">a nap folyása</option>
+        <option value="year">az év folyása</option>
+        <option value="weather">az idő fordulása</option>
+        <option value="all">mind együtt</option>
+      </select></label>
+    <label>Kamera <select id="camSel">
+        <option value="normal">Kézi / Belső (Normal)</option>
+        <option value="orbit">Keringő (Orbit)</option>
+        <option value="drone">Drón követés (Drone)</option>
+      </select></label>
+    <label>Tempó <input id="cineRate" type="range" min="0.2" max="6" step="0.1" value="1.6"></label>
+    <div id="keys">Minden billentyű: <b>?</b> · felület elrejtése: <b>U</b> · mérőszámok: <b>F3</b></div>
+    </div>
+  </div>
+  <div id="modebar">
+    <button data-mode="tour" title="Kilátás: automatikus kamera, a vonat magától halad — csak nézd">Kilátás</button>
+    <button data-mode="cab" title="Vissza a vezetőállásba">Fülke</button>
+    <button data-mode="passenger" title="Utas: ablak mellett az emeleten (Y · ⇧Y másik oldal)">Utas</button>
+    <button data-mode="chase" title="A vonat kívülről (C)">Kívülről</button>
+    <button data-mode="free" title="Szabad kamera: WASD, R/F fel-le (⇧C)">Szabad</button>
+    <button data-mode="plane" title="Repülés (⇧P) · Esc vissza">Repülő</button>
+    <button data-mode="drone" title="FPV drón (⇧D)">Drón</button>
+    <button data-mode="car" title="Vezess autót (⇧A) · Esc vissza">Autó</button>
+    <span class="sep"></span>
+    <button data-act="manual" title="Kézi vezetés (M): W/S kontroller, Backspace vészfék">Kézi</button>
+    <button data-act="map" title="Térkép (Tab)">Térkép</button>
+    <button data-act="disp" title="Diszpécser tábla (Q)">Diszpécser</button>
+    <button data-act="bare" title="Felület elrejtése (U)">U</button>
+    <button data-act="help" title="Minden billentyű (?)">?</button>
+  </div>
+  <div id="help"><div class="card">
+    <h3>Vezetés</h3>
+    <dl><dt>M</dt><dd>kézi / automata</dd>
+      <dt>W / S</dt><dd>kontroller egy fokkal fel / le (P1–P8 vontatás, B1–B8 fék)</dd>
+      <dt>⇧0</dt><dd>kontroller nullára</dd>
+      <dt>Backspace</dt><dd>vészfék (megállásig nem oldható)</dd>
+      <dt>E</dt><dd>éberség nyugtázása (EVM-120)</dd>
+      <dt>J</dt><dd>homokszórás</dd><dt>H</dt><dd>kürt</dd>
+      <dt>⇧F</dt><dd>fényszóró</dd><dt>X</dt><dd>ablaktörlő</dd>
+      <dt>, / .</dt><dd>előző / következő állomás</dd><dt>⇧R</dt><dd>menet újraindítása</dd></dl>
+    <h3>Nézetek</h3>
+    <dl><dt>Y</dt><dd>utasként az emeleten, ablak mellett · ⇧Y másik oldal</dd>
+      <dt>C</dt><dd>kívülről · egérgörgő: közelebb / távolabb</dd>
+      <dt>F</dt><dd>másik vonat követése</dd>
+      <dt>⇧C</dt><dd>szabad kamera: WASD, R/F, shift gyorsít</dd>
+      <dt>⇧P</dt><dd>repülés · 1 Cessna, 2 Gripen, 3 helikopter · W/S bólint, A/D dönt (a dőlés megmarad), Q/E, R/F gáz, C pilótafülke, Space fék a földön · lágyan le is szállhatsz</dd>
+      <dt>⇧D</dt><dd>drón: WASD, Space fel, Q/E fordul</dd>
+      <dt>⇧A</dt><dd>autó: W gáz, S fék/hátra, A/D kormány, Space kézifék, C vezetőülés</dd>
+      <dt>I</dt><dd>fülke belső</dd><dt>egér húzás</dt><dd>körbenézés</dd></dl>
+    <h3>Világ</h3>
+    <dl><dt>1 / 2 / 3</dt><dd>idő szorzó</dd><dt>Space</dt><dd>szünet</dd>
+      <dt>Tab</dt><dd>térkép</dd><dt>Q</dt><dd>diszpécser tábla</dd>
+      <dt>G</dt><dd>hang be / ki</dd><dt>L</dt><dd>hegynevek</dd><dt>P</dt><dd>feliratok</dd>
+      <dt>U</dt><dd>felület elrejtése</dd></dl>
+    <h3>Rétegek</h3>
+    <dl><dt>T V R K</dt><dd>terep · növényzet · vágány · ég</dd>
+      <dt>B N O</dt><dd>épületek · utak · felsővezeték</dd></dl>
+    <h3>Panel</h3>
+    <dl><dt>Menet</dt><dd>idő, dátum, időjárás, Duna vízállás (felfelé: árvíz)</dd>
+      <dt>Beállítás</dt><dd>felhőtípus, pára, élesség, expozíció, animáció</dd><dt>F3</dt><dd>fejlesztői mérőszámok (fps, zoom…)</dd></dl>
+  </div></div>
+  <div id="attrib">v0.1 alpha · térkép: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> közreműködők · domborzat: Mapzen/AWS Terrain Tiles</div>
+  <div id="err"></div>
+  <div id="menu">
+    <h2 id="menuTitle">Szob felé</h2>
+    <p class="lede" id="menuSubtitle">MÁV 70 · Vác – Szob</p>
+    
+    <script>
+      const qs = new URLSearchParams(window.location.search);
+      const l = qs.get('line') || 'line70';
+      const mTitle = document.getElementById("menuTitle");
+      const mSub = document.getElementById("menuSubtitle");
+      if (l === 'line71') {
+        mTitle.textContent = "Veresegyház felé";
+        mSub.textContent = "MÁV 71 · Budapest - Vác";
+      } else if (l === 's21') {
+        mTitle.textContent = "Lajosmizse felé";
+        mSub.textContent = "S21 · Nyugati – Kőbánya-Kispest – Ócsa – Lajosmizse";
+      } else if (l === 'line2') {
+        mTitle.textContent = "Esztergom felé";
+        mSub.textContent = "MÁV 2 · Budapest - Esztergom";
+      }
+    </script>
+    
+    <label class="row">Network
+      <select id="mNetwork">
+        <option value="line70">Line 70 (Budapest - Vác - Szob)</option>
+        <option value="line71">Line 71 (Budapest - Veresegyház - Vác)</option>
+        <option value="line2">Line 2 (Budapest - Esztergom)</option>
+        <option value="s21">S21 (Budapest-Nyugati - Kőbánya-Kispest - Lajosmizse)</option>
+      </select>
+    </label>
+    
+    <label class="row">Scenario
+      <select id="mScenario">
+        <optgroup label="MÁV 70 (Vác-Szob)">
+          <option value="S70">S70 (Minden állomáson megáll)</option>
+          <option value="G70">G70 (Gyorsított személy)</option>
+          <option value="EC">EuroCity (Metropolitan)</option>
+          <option value="Freight">Tehervonat (Bypass)</option>
+        </optgroup>
+        <optgroup label="MÁV 2 (Esztergom)">
+          <option value="S72">S72 (Minden állomáson megáll)</option>
+          <option value="Z72">Z72 (Gyorsított személy)</option>
+        </optgroup>
+      </select>
+    </label>
+    
+    <label class="row">Direction
+      <select id="mDir">
+      </select>
+    </label>
+    <label class="row">Start at <select id="mStart"></select></label>
+    
+    <label class="row">Environment
+      <select id="mEnv">
+        <option value="custom">Custom (use settings panel)</option>
+        <option value="summer_morning">Summer Morning (Clear)</option>
+        <option value="autumn_rain">Autumn Afternoon (Rain)</option>
+        <option value="winter_snow">Winter Night (Snow)</option>
+        <option value="storm">Summer Storm</option>
+      </select>
+    </label>
+    
+    <label class="row">Depart <input id="mHour" type="range" min="0" max="24" step="0.25" value="10.5"><span id="mHourV">10:30</span></label>
+    <label class="row">Driving
+      <select id="mMode">
+        <option value="auto">automatic</option>
+        <option value="manual">manual</option>
+      </select></label>
+    <div class="btns">
+      <button id="mGo">Start the run</button>
+      <button id="mClose">Back</button>
+    </div>
+    <p class="hint">ESC menu · R restart this run · F follow another train</p>
+  </div>
+  
+  <div id="endModal" style="display: none;">
+    <h2>Run Completed</h2>
+    <div class="stats">
+      <p>Passengers: <span id="endPax">0</span></p>
+      <p>Punctuality: <span id="endTimeAcc">100%</span></p>
+      <p>Violations: <span id="endPenalties">0</span></p>
+      <hr>
+      <h3>Score: <span id="endScore">0</span></h3>
+    </div>
+    <div class="btns">
+      <button id="endRestart">Play Again</button>
+      <button id="endMenu">Main Menu</button>
+    </div>
+  </div>
+</div>
+<script>
+// Mode bar and help. Buttons do exactly what the keys do: they send the key.
+(function () {
+  const key = (code, shift) => {
+    dispatchEvent(new KeyboardEvent("keydown", { code, shiftKey: !!shift }));
+    dispatchEvent(new KeyboardEvent("keyup", { code, shiftKey: !!shift }));
+  };
+  const S = () => (typeof state !== "undefined" ? state : null);
+  const toCab = () => {
+    const st = S(); if (!st) return;
+    st.tour = null;
+    if (st.plane) st.plane.active = false;
+    if (st.drone) st.drone.active = false;
+    if (st.car) st.car.active = false;
+    st.fly = null; st.follow = false; st.passenger = null; st.followIdx = -1;
+    st.followCarIdx = -1; st.followShipIdx = -1; st.yaw = 0; st.pitch = -0.02; st.zoom = 1;
+  };
+  const act = {
+    cab: toCab,
+    tour: () => { const st = S(); if (!st) return; if (st.tour) { toCab(); return; }
+                  toCab(); st.manual = false; if (window.SIM) SIM.driver.auto = true;
+                  st.tour = { t: 0, i: -1 }; },
+    passenger: () => { const st = S(); if (st && st.passenger) return; toCab(); key("KeyY"); },
+    chase: () => { toCab(); const st = S(); if (st) st.follow = true; },
+    free: () => { const st = S(); if (st && st.fly) return; toCab(); key("KeyC", true); },
+    plane: () => { const st = S(); if (st && st.plane && st.plane.active) return; toCab(); key("KeyP", true); },
+    drone: () => { const st = S(); if (st && st.drone && st.drone.active) return; toCab(); key("KeyD", true); },
+    car: () => { const st = S(); if (st && st.car && st.car.active) return; toCab(); key("KeyA", true); },
+    bare: () => key("KeyU"), manual: () => key("KeyM"), map: () => key("Tab"), disp: () => key("KeyQ"),
+    help: () => document.getElementById("help").classList.toggle("on"),
+  };
+  document.querySelectorAll("#modebar button").forEach(b => b.addEventListener("click", e => {
+    e.stopPropagation(); (act[b.dataset.mode || b.dataset.act] || (() => {}))(); b.blur();
+  }));
+  document.getElementById("help").addEventListener("click", () =>
+    document.getElementById("help").classList.remove("on"));
+  addEventListener("keydown", e => {
+    if (e.code === "Slash" || e.code === "F1") { e.preventDefault(); act.help(); }
+    if (e.code === "Escape") document.getElementById("help").classList.remove("on");
+  });
+  setInterval(() => {
+    const st = S(); if (!st) return;
+    const mode = st.tour ? "tour" : st.car && st.car.active ? "car" : st.plane && st.plane.active ? "plane" : st.drone && st.drone.active ? "drone"
+               : st.fly ? "free" : st.passenger ? "passenger" : st.follow ? "chase" : "cab";
+    document.querySelectorAll("#modebar button[data-mode]").forEach(b =>
+      b.classList.toggle("on", b.dataset.mode === mode));
+    const m = document.querySelector('#modebar button[data-act="manual"]');
+    if (m) m.classList.toggle("on", !!st.manual);
+  }, 250);
+})();
+</script>
+<script type="module">
+  import { boot } from './src/main.js';
+  
+  async function load() {
+    const params = new URLSearchParams(window.location.search);
+    const line = params.get('line') || 'line70';
+    const suffix = line === 'line70' ? '' : `_${line}`;
+    
+    try {
+      const ts = Date.now();
+      const worldRes = await fetch(`data/world${suffix}.json?t=${ts}`);
+      if (!worldRes.ok) throw new Error(`Failed to load world data for ${line}`);
+      const worldData = await worldRes.json();
+      
+      const routeRes = await fetch(`data/route${suffix}.json?t=${ts}`);
+      if (!routeRes.ok) throw new Error(`Failed to load route data for ${line}`);
+      
+      const assets = {
+        world: worldData,
+        route: await routeRes.json(),
+        heightNear: `data/height_near${suffix}.png`,
+        heightFar: `data/height_far${suffix}.png`,
+        coverNear: `data/cover_near${suffix}.png`,
+        context: await fetch(`data/context${suffix}.json?t=${ts}`)
+            .then(r => r.ok ? r.json() : fetch(`data/context.json?t=${ts}`).then(r2 => r2.json())),
+        // each line has its own inset map and timetable; fall back to line
+        // 70's only if a line has not been baked with one
+        map: `data/map${suffix}.png?t=${ts}`,
+        mapMeta: await fetch(`data/map${suffix}.json?t=${ts}`)
+            .then(r => r.ok ? r.json() : fetch(`data/map.json?t=${ts}`).then(r2 => r2.json())),
+        timetable: await fetch(`data/timetable${suffix}.json?t=${ts}`)
+            .then(r => r.ok ? r.json() : fetch(`data/timetable.json?t=${ts}`).then(r2 => r2.json())),
+      };
+      
+      await boot(assets);
+    } catch (e) {
+      document.getElementById('err').textContent = 'Startup failed: ' + e.message;
+      console.error(e);
+    }
+  }
+  
+  if (!window.ASSETS) {
+    load();
+  }
+</script>

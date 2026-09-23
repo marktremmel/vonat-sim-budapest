@@ -1,0 +1,1076 @@
+[
+ {
+  "km": 0.012,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 126,
+  "name": null,
+  "spans": {
+   "path": 1
+  },
+  "span_names": []
+ },
+ {
+  "km": 0.012,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 125,
+  "name": null,
+  "spans": {
+   "path": 1
+  },
+  "span_names": []
+ },
+ {
+  "km": 0.012,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 125,
+  "name": null,
+  "spans": {
+   "path": 1
+  },
+  "span_names": []
+ },
+ {
+  "km": 0.012,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 126,
+  "name": null,
+  "spans": {
+   "path": 1
+  },
+  "span_names": []
+ },
+ {
+  "km": 0.413,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 92,
+  "name": null,
+  "spans": {},
+  "span_names": []
+ },
+ {
+  "km": 0.534,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 119,
+  "name": null,
+  "spans": {},
+  "span_names": []
+ },
+ {
+  "km": 0.534,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 143,
+  "name": null,
+  "spans": {},
+  "span_names": []
+ },
+ {
+  "km": 0.534,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 119,
+  "name": null,
+  "spans": {},
+  "span_names": []
+ },
+ {
+  "km": 0.534,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 119,
+  "name": null,
+  "spans": {},
+  "span_names": []
+ },
+ {
+  "km": 0.534,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 119,
+  "name": null,
+  "spans": {},
+  "span_names": []
+ },
+ {
+  "km": 0.535,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 122,
+  "name": null,
+  "spans": {},
+  "span_names": []
+ },
+ {
+  "km": 0.535,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 119,
+  "name": null,
+  "spans": {},
+  "span_names": []
+ },
+ {
+  "km": 0.621,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 119,
+  "name": null,
+  "spans": {},
+  "span_names": []
+ },
+ {
+  "km": 0.735,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 119,
+  "name": null,
+  "spans": {},
+  "span_names": []
+ },
+ {
+  "km": 4.082,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 7,
+  "name": null,
+  "spans": {
+   "road": 1
+  },
+  "span_names": [
+   "Tahi utca"
+  ]
+ },
+ {
+  "km": 5.083,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 54,
+  "name": null,
+  "spans": {},
+  "span_names": []
+ },
+ {
+  "km": 5.11,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 28,
+  "name": null,
+  "spans": {},
+  "span_names": []
+ },
+ {
+  "km": 6.388,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 49,
+  "name": null,
+  "spans": {},
+  "span_names": []
+ },
+ {
+  "km": 6.388,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 49,
+  "name": null,
+  "spans": {},
+  "span_names": []
+ },
+ {
+  "km": 8.826,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 24,
+  "name": null,
+  "spans": {
+   "water": 1,
+   "path": 1
+  },
+  "span_names": [
+   "Szilas-patak"
+  ]
+ },
+ {
+  "km": 8.826,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 14,
+  "name": null,
+  "spans": {
+   "water": 1,
+   "path": 1
+  },
+  "span_names": [
+   "Szilas-patak"
+  ]
+ },
+ {
+  "km": 8.85,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 24,
+  "name": null,
+  "spans": {
+   "water": 1,
+   "path": 1
+  },
+  "span_names": [
+   "Szilas-patak"
+  ]
+ },
+ {
+  "km": 10.948,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 20,
+  "name": null,
+  "spans": {
+   "water": 1
+  },
+  "span_names": [
+   "Csömöri-patak"
+  ]
+ },
+ {
+  "km": 10.968,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 20,
+  "name": null,
+  "spans": {
+   "water": 1
+  },
+  "span_names": [
+   "Csömöri-patak"
+  ]
+ },
+ {
+  "km": 11.641,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 64,
+  "name": null,
+  "spans": {
+   "path": 1,
+   "water": 1,
+   "road": 1
+  },
+  "span_names": [
+   "Mogyoródi-patak"
+  ]
+ },
+ {
+  "km": 11.705,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 64,
+  "name": null,
+  "spans": {
+   "path": 1,
+   "water": 1,
+   "road": 1
+  },
+  "span_names": [
+   "Mogyoródi-patak"
+  ]
+ },
+ {
+  "km": 17.361,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 469,
+  "name": null,
+  "spans": {
+   "road": 1
+  },
+  "span_names": []
+ },
+ {
+  "km": 17.362,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 469,
+  "name": null,
+  "spans": {
+   "road": 1
+  },
+  "span_names": []
+ },
+ {
+  "km": 17.75,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 156,
+  "name": null,
+  "spans": {},
+  "span_names": []
+ },
+ {
+  "km": 17.754,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 156,
+  "name": null,
+  "spans": {},
+  "span_names": []
+ },
+ {
+  "km": 17.755,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 156,
+  "name": null,
+  "spans": {},
+  "span_names": []
+ },
+ {
+  "km": 18.18,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 10,
+  "name": null,
+  "spans": {
+   "road": 1
+  },
+  "span_names": [
+   "Sólyom utca"
+  ]
+ },
+ {
+  "km": 18.19,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 11,
+  "name": null,
+  "spans": {
+   "road": 1
+  },
+  "span_names": [
+   "Sólyom utca"
+  ]
+ },
+ {
+  "km": 21.29,
+  "tag": "tunnel",
+  "tag_value": "yes",
+  "layer": "-1",
+  "length_m": 19,
+  "name": "Felszedett Gazdasági vasút vágánya",
+  "spans": {},
+  "span_names": []
+ },
+ {
+  "km": 24.586,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 6,
+  "name": null,
+  "spans": {
+   "path": 1,
+   "water": 1
+  },
+  "span_names": [
+   "Ilka-patak"
+  ]
+ },
+ {
+  "km": 24.592,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 6,
+  "name": null,
+  "spans": {
+   "path": 1,
+   "water": 1
+  },
+  "span_names": [
+   "Ilka-patak"
+  ]
+ },
+ {
+  "km": 26.066,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 32,
+  "name": null,
+  "spans": {
+   "water": 1
+  },
+  "span_names": [
+   "Sződrákos-patak"
+  ]
+ },
+ {
+  "km": 26.098,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 33,
+  "name": null,
+  "spans": {
+   "water": 1
+  },
+  "span_names": [
+   "Sződrákos-patak"
+  ]
+ },
+ {
+  "km": 30.951,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 13,
+  "name": null,
+  "spans": {
+   "water": 1
+  },
+  "span_names": [
+   "Gombás-patak"
+  ]
+ },
+ {
+  "km": 35.44,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 11,
+  "name": null,
+  "spans": {
+   "road": 2,
+   "path": 1
+  },
+  "span_names": [
+   "Huszár utca"
+  ]
+ },
+ {
+  "km": 35.451,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 11,
+  "name": null,
+  "spans": {
+   "road": 2,
+   "path": 1
+  },
+  "span_names": [
+   "Huszár utca"
+  ]
+ },
+ {
+  "km": 35.451,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 11,
+  "name": null,
+  "spans": {
+   "road": 2,
+   "path": 1
+  },
+  "span_names": [
+   "Huszár utca"
+  ]
+ },
+ {
+  "km": 36.086,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 23,
+  "name": null,
+  "spans": {
+   "water": 1,
+   "path": 1
+  },
+  "span_names": [
+   "Felső-Gombás-patak"
+  ]
+ },
+ {
+  "km": 36.109,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 23,
+  "name": null,
+  "spans": {
+   "water": 1,
+   "path": 1
+  },
+  "span_names": [
+   "Felső-Gombás-patak"
+  ]
+ },
+ {
+  "km": 36.109,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 23,
+  "name": null,
+  "spans": {
+   "water": 1,
+   "path": 1
+  },
+  "span_names": [
+   "Felső-Gombás-patak"
+  ]
+ },
+ {
+  "km": 36.397,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 24,
+  "name": null,
+  "spans": {
+   "road": 1,
+   "path": 1
+  },
+  "span_names": []
+ },
+ {
+  "km": 36.397,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 24,
+  "name": null,
+  "spans": {
+   "road": 1,
+   "path": 1
+  },
+  "span_names": []
+ },
+ {
+  "km": 36.397,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 24,
+  "name": null,
+  "spans": {
+   "road": 1,
+   "path": 1
+  },
+  "span_names": []
+ },
+ {
+  "km": 36.398,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 24,
+  "name": null,
+  "spans": {
+   "road": 1,
+   "path": 1
+  },
+  "span_names": []
+ },
+ {
+  "km": 36.664,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 16,
+  "name": null,
+  "spans": {
+   "road": 1
+  },
+  "span_names": []
+ },
+ {
+  "km": 36.669,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 18,
+  "name": null,
+  "spans": {
+   "road": 1
+  },
+  "span_names": []
+ },
+ {
+  "km": 36.674,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 20,
+  "name": null,
+  "spans": {
+   "road": 1
+  },
+  "span_names": []
+ },
+ {
+  "km": 36.753,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 41,
+  "name": null,
+  "spans": {
+   "road": 1
+  },
+  "span_names": []
+ },
+ {
+  "km": 37.221,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 24,
+  "name": null,
+  "spans": {},
+  "span_names": []
+ },
+ {
+  "km": 42.298,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 10,
+  "name": null,
+  "spans": {
+   "road": 1
+  },
+  "span_names": [
+   "Hunyadi János utca"
+  ]
+ },
+ {
+  "km": 42.308,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 10,
+  "name": null,
+  "spans": {
+   "road": 1
+  },
+  "span_names": [
+   "Hunyadi János utca"
+  ]
+ },
+ {
+  "km": 42.443,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 24,
+  "name": null,
+  "spans": {
+   "road": 1
+  },
+  "span_names": [
+   "Rákóczi út"
+  ]
+ },
+ {
+  "km": 42.466,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 24,
+  "name": null,
+  "spans": {
+   "road": 1
+  },
+  "span_names": [
+   "Rákóczi út"
+  ]
+ },
+ {
+  "km": 43.607,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 8,
+  "name": null,
+  "spans": {
+   "road": 1
+  },
+  "span_names": [
+   "Migazzi utca"
+  ]
+ },
+ {
+  "km": 43.615,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 8,
+  "name": null,
+  "spans": {
+   "road": 1
+  },
+  "span_names": [
+   "Migazzi utca"
+  ]
+ },
+ {
+  "km": 43.705,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 15,
+  "name": null,
+  "spans": {
+   "water": 1,
+   "path": 2
+  },
+  "span_names": [
+   "Morgó-patak"
+  ]
+ },
+ {
+  "km": 43.72,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 15,
+  "name": null,
+  "spans": {
+   "water": 1,
+   "path": 2
+  },
+  "span_names": [
+   "Morgó-patak"
+  ]
+ },
+ {
+  "km": 43.723,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 20,
+  "name": null,
+  "spans": {
+   "water": 1,
+   "path": 1
+  },
+  "span_names": [
+   "Morgó-patak"
+  ]
+ },
+ {
+  "km": 44.074,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 47,
+  "name": null,
+  "spans": {},
+  "span_names": []
+ },
+ {
+  "km": 44.121,
+  "tag": "tunnel",
+  "tag_value": "building_passage",
+  "layer": null,
+  "length_m": 47,
+  "name": null,
+  "spans": {},
+  "span_names": []
+ },
+ {
+  "km": 44.141,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 23,
+  "name": null,
+  "spans": {
+   "road": 1,
+   "path": 1
+  },
+  "span_names": [
+   "Szokolyai út"
+  ]
+ },
+ {
+  "km": 44.164,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 23,
+  "name": null,
+  "spans": {
+   "road": 1,
+   "path": 1
+  },
+  "span_names": [
+   "Szokolyai út"
+  ]
+ },
+ {
+  "km": 46.418,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 27,
+  "name": null,
+  "spans": {
+   "road": 1,
+   "water": 1
+  },
+  "span_names": [
+   "Mosoni-patak"
+  ]
+ },
+ {
+  "km": 46.445,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 27,
+  "name": null,
+  "spans": {
+   "road": 1,
+   "water": 1
+  },
+  "span_names": [
+   "Mosoni-patak"
+  ]
+ },
+ {
+  "km": 47.48,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 13,
+  "name": null,
+  "spans": {
+   "path": 1
+  },
+  "span_names": []
+ },
+ {
+  "km": 47.493,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 13,
+  "name": null,
+  "spans": {
+   "path": 1
+  },
+  "span_names": []
+ },
+ {
+  "km": 57.319,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 10,
+  "name": null,
+  "spans": {
+   "water": 1
+  },
+  "span_names": [
+   "Ernő-patak"
+  ]
+ },
+ {
+  "km": 57.329,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 9,
+  "name": null,
+  "spans": {
+   "water": 1
+  },
+  "span_names": [
+   "Ernő-patak"
+  ]
+ },
+ {
+  "km": 57.965,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 75,
+  "name": null,
+  "spans": {
+   "road": 1,
+   "water": 1
+  },
+  "span_names": [
+   "Malom-patak",
+   "Árpád utca"
+  ]
+ },
+ {
+  "km": 58.04,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 75,
+  "name": null,
+  "spans": {
+   "road": 1,
+   "water": 1
+  },
+  "span_names": [
+   "Malom-patak",
+   "Árpád utca"
+  ]
+ },
+ {
+  "km": 59.367,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 40,
+  "name": null,
+  "spans": {
+   "road": 1
+  },
+  "span_names": [
+   "Ország út"
+  ]
+ },
+ {
+  "km": 59.412,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 44,
+  "name": null,
+  "spans": {
+   "road": 1
+  },
+  "span_names": [
+   "Ország út"
+  ]
+ },
+ {
+  "km": 61.951,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 26,
+  "name": null,
+  "spans": {
+   "road": 2
+  },
+  "span_names": [
+   "Arany János utca"
+  ]
+ },
+ {
+  "km": 61.977,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 25,
+  "name": null,
+  "spans": {
+   "road": 2
+  },
+  "span_names": [
+   "Arany János utca"
+  ]
+ },
+ {
+  "km": 63.457,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 80,
+  "name": "Sávoly híd",
+  "spans": {
+   "path": 2
+  },
+  "span_names": []
+ },
+ {
+  "km": 63.536,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 92,
+  "name": "Sávolyho most",
+  "spans": {
+   "water": 1,
+   "path": 1
+  },
+  "span_names": [
+   "Ipoly / Ipeľ"
+  ]
+ },
+ {
+  "km": 63.536,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 91,
+  "name": "Sávolyho most",
+  "spans": {
+   "water": 1,
+   "path": 1
+  },
+  "span_names": [
+   "Ipoly / Ipeľ"
+  ]
+ },
+ {
+  "km": 63.536,
+  "tag": "bridge",
+  "tag_value": "yes",
+  "layer": "1",
+  "length_m": 79,
+  "name": "Sávoly híd",
+  "spans": {
+   "path": 2
+  },
+  "span_names": []
+ }
+]

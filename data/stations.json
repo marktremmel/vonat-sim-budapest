@@ -1,0 +1,1564 @@
+{
+  "nearby_other_lines": [
+    {
+      "name": "Batthyány tér",
+      "lat": 47.5071525,
+      "lon": 19.0394089,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Rákoshegy",
+      "lat": 47.4692713,
+      "lon": 19.2423087,
+      "type": "stop",
+      "km": 3.231
+    },
+    {
+      "name": "Békásmegyer",
+      "lat": 47.5985529,
+      "lon": 19.0550449,
+      "type": "stop",
+      "km": 5.273
+    },
+    {
+      "name": "Budakalász, Lenfonó",
+      "lat": 47.6216559,
+      "lon": 19.0468961,
+      "type": "stop",
+      "km": 8.429
+    },
+    {
+      "name": "Pomáz",
+      "lat": 47.6431469,
+      "lon": 19.0322301,
+      "type": "stop",
+      "km": 11.496
+    },
+    {
+      "name": "Pannóniatelep",
+      "lat": 47.65244,
+      "lon": 19.0651899,
+      "type": "stop",
+      "km": 18.755
+    },
+    {
+      "name": "Filatorigát",
+      "lat": 47.5517794,
+      "lon": 19.0463788,
+      "type": "stop",
+      "km": 5.03
+    },
+    {
+      "name": "Kaszásdűlő",
+      "lat": 47.5564687,
+      "lon": 19.0450949,
+      "type": "stop",
+      "km": 5.219
+    },
+    {
+      "name": "Csillaghegy",
+      "lat": 47.5859343,
+      "lon": 19.0448983,
+      "type": "stop",
+      "km": 6.322
+    },
+    {
+      "name": "Tímár utca",
+      "lat": 47.5343927,
+      "lon": 19.045067,
+      "type": "stop",
+      "km": 0.338
+    },
+    {
+      "name": "Szépvölgyi út",
+      "lat": 47.5270464,
+      "lon": 19.0400889,
+      "type": "stop",
+      "km": 0.044
+    },
+    {
+      "name": "Szentisvántelep",
+      "lat": 47.6291275,
+      "lon": 19.0431703,
+      "type": "stop",
+      "km": 8.959
+    },
+    {
+      "name": "Rómaifürdő",
+      "lat": 47.5761295,
+      "lon": 19.048643,
+      "type": "stop",
+      "km": 5.324
+    },
+    {
+      "name": "Bicske",
+      "lat": 47.4841787,
+      "lon": 18.617494,
+      "type": "stop",
+      "km": 30.957
+    },
+    {
+      "name": "Boráros tér",
+      "lat": 47.4790718,
+      "lon": 19.0665583,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Tát",
+      "lat": 47.741368,
+      "lon": 18.6474296,
+      "type": "stop",
+      "km": 42.841
+    },
+    {
+      "name": "Tokod",
+      "lat": 47.7347875,
+      "lon": 18.6748623,
+      "type": "stop",
+      "km": 42.786
+    },
+    {
+      "name": "Börzsönyliget",
+      "lat": 47.8440862,
+      "lon": 19.0159302,
+      "type": "halt",
+      "km": 44.32
+    },
+    {
+      "name": "Örs vezér tere",
+      "lat": 47.5036462,
+      "lon": 19.137917,
+      "type": "stop",
+      "km": 3.09
+    },
+    {
+      "name": "Törökbálint",
+      "lat": 47.4500174,
+      "lon": 18.9066296,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Normafa",
+      "lat": 47.5000224,
+      "lon": 18.9705845,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Virágvölgy",
+      "lat": 47.5059234,
+      "lon": 18.9586628,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Kén utca",
+      "lat": 47.4551979,
+      "lon": 19.0863335,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Széchenyi fürdő",
+      "lat": 47.5175002,
+      "lon": 19.0809796,
+      "type": "stop",
+      "km": 1.957
+    },
+    {
+      "name": "Astoria",
+      "lat": 47.4947043,
+      "lon": 19.0611312,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Deák Ferenc tér",
+      "lat": 47.4987174,
+      "lon": 19.0535832,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Széll Kálmán tér",
+      "lat": 47.5074511,
+      "lon": 19.0256603,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Déli pályaudvar",
+      "lat": 47.5005761,
+      "lon": 19.024583,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Újpest-központ",
+      "lat": 47.560457,
+      "lon": 19.0898789,
+      "type": "stop",
+      "km": 2.409
+    },
+    {
+      "name": "Nagyvárad tér",
+      "lat": 47.478392,
+      "lon": 19.0910047,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Puskás Ferenc Stadion",
+      "lat": 47.5002597,
+      "lon": 19.1049996,
+      "type": "stop",
+      "km": 2.498
+    },
+    {
+      "name": "Keleti pályaudvar",
+      "lat": 47.4996808,
+      "lon": 19.0815544,
+      "type": "stop",
+      "km": 1.023
+    },
+    {
+      "name": "Blaha Lujza tér",
+      "lat": 47.4967125,
+      "lon": 19.0691136,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Kossuth Lajos tér",
+      "lat": 47.5058478,
+      "lon": 19.0443567,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Vörösmarty tér",
+      "lat": 47.4966148,
+      "lon": 19.0501274,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Bajcsy-Zsilinszky út",
+      "lat": 47.4998353,
+      "lon": 19.0552234,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Opera",
+      "lat": 47.5022225,
+      "lon": 19.0587907,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Oktogon",
+      "lat": 47.5048756,
+      "lon": 19.0627723,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Vörösmarty utca",
+      "lat": 47.5071795,
+      "lon": 19.0662323,
+      "type": "stop",
+      "km": 0.295
+    },
+    {
+      "name": "Kodály körönd",
+      "lat": 47.5091902,
+      "lon": 19.069217,
+      "type": "stop",
+      "km": 0.718
+    },
+    {
+      "name": "Bajza utca",
+      "lat": 47.5113209,
+      "lon": 19.072409,
+      "type": "stop",
+      "km": 1.055
+    },
+    {
+      "name": "Hősök tere",
+      "lat": 47.5141673,
+      "lon": 19.0766684,
+      "type": "stop",
+      "km": 1.472
+    },
+    {
+      "name": "Mexikói út",
+      "lat": 47.5195924,
+      "lon": 19.0905234,
+      "type": "stop",
+      "km": 2.678
+    },
+    {
+      "name": "Gyöngyösi utca",
+      "lat": 47.548538,
+      "lon": 19.0731257,
+      "type": "stop",
+      "km": 2.06
+    },
+    {
+      "name": "Forgách utca",
+      "lat": 47.5382422,
+      "lon": 19.0690928,
+      "type": "stop",
+      "km": 1.494
+    },
+    {
+      "name": "Göncz Árpád városközpont",
+      "lat": 47.5320885,
+      "lon": 19.0664756,
+      "type": "stop",
+      "km": 1.748
+    },
+    {
+      "name": "Dózsa György út",
+      "lat": 47.524445,
+      "lon": 19.0631686,
+      "type": "stop",
+      "km": 1.086
+    },
+    {
+      "name": "Lehel tér",
+      "lat": 47.5176595,
+      "lon": 19.0602118,
+      "type": "stop",
+      "km": 0.503
+    },
+    {
+      "name": "Arany János utca",
+      "lat": 47.5035667,
+      "lon": 19.0544066,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Ferenciek tere",
+      "lat": 47.4920808,
+      "lon": 19.056801,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Kálvin tér",
+      "lat": 47.489555,
+      "lon": 19.0619691,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Corvin-negyed",
+      "lat": 47.4849398,
+      "lon": 19.0722572,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Népliget",
+      "lat": 47.4749997,
+      "lon": 19.1006457,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Határ út",
+      "lat": 47.4656575,
+      "lon": 19.126615,
+      "type": "stop",
+      "km": 1.867
+    },
+    {
+      "name": "Ecseri út",
+      "lat": 47.4705828,
+      "lon": 19.1114308,
+      "type": "stop",
+      "km": 1.179
+    },
+    {
+      "name": "Biatorbágy",
+      "lat": 47.4807328,
+      "lon": 18.8340163,
+      "type": "stop",
+      "km": 15.409
+    },
+    {
+      "name": "Herceghalom",
+      "lat": 47.4937443,
+      "lon": 18.743619,
+      "type": "stop",
+      "km": 22.678
+    },
+    {
+      "name": "Bicske alsó",
+      "lat": 47.4863604,
+      "lon": 18.6421673,
+      "type": "stop",
+      "km": 26.299
+    },
+    {
+      "name": "Clark Ádám tér",
+      "lat": 47.4978756,
+      "lon": 19.0397417,
+      "type": "halt",
+      "km": 0.0
+    },
+    {
+      "name": "Szent György tér",
+      "lat": 47.4976438,
+      "lon": 19.0385676,
+      "type": "halt",
+      "km": 0.0
+    },
+    {
+      "name": "Szokolya",
+      "lat": 47.8710406,
+      "lon": 19.0306788,
+      "type": "station",
+      "km": 44.237
+    },
+    {
+      "name": "Magyarkút",
+      "lat": 47.8489407,
+      "lon": 19.0467475,
+      "type": "halt",
+      "km": 41.742
+    },
+    {
+      "name": "Magyarkút-Verőce",
+      "lat": 47.8311762,
+      "lon": 19.0402018,
+      "type": "halt",
+      "km": 41.964
+    },
+    {
+      "name": "Kőbánya felső",
+      "lat": 47.4917627,
+      "lon": 19.1330048,
+      "type": "stop",
+      "km": 2.75
+    },
+    {
+      "name": "Hűvösvölgy",
+      "lat": 47.5409044,
+      "lon": 18.963856,
+      "type": "stop",
+      "km": 9.358
+    },
+    {
+      "name": "Hárshegy",
+      "lat": 47.5354941,
+      "lon": 18.9611318,
+      "type": "stop",
+      "km": 9.34
+    },
+    {
+      "name": "Szépjuhászné",
+      "lat": 47.5283867,
+      "lon": 18.9553089,
+      "type": "stop",
+      "km": 9.343
+    },
+    {
+      "name": "Csillebérc",
+      "lat": 47.4981149,
+      "lon": 18.9614099,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Széchenyihegy",
+      "lat": 47.4943024,
+      "lon": 18.9765734,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Zugló",
+      "lat": 47.5119911,
+      "lon": 19.1005192,
+      "type": "stop",
+      "km": 2.712
+    },
+    {
+      "name": "Kőbánya-Kispest",
+      "lat": 47.4631256,
+      "lon": 19.1520745,
+      "type": "stop",
+      "km": 2.695
+    },
+    {
+      "name": "Rákos",
+      "lat": 47.4889958,
+      "lon": 19.1728443,
+      "type": "stop",
+      "km": 3.116
+    },
+    {
+      "name": "Rákoscsaba-Újtelep",
+      "lat": 47.4873511,
+      "lon": 19.2712075,
+      "type": "stop",
+      "km": 4.834
+    },
+    {
+      "name": "Budapest-Kelenföld",
+      "lat": 47.4634967,
+      "lon": 19.0213976,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Vasúttörténeti Park",
+      "lat": 47.5415302,
+      "lon": 19.0978413,
+      "type": "station",
+      "km": 0.219
+    },
+    {
+      "name": "Pestszentlőrinc",
+      "lat": 47.4554767,
+      "lon": 19.180871,
+      "type": "stop",
+      "km": 2.74
+    },
+    {
+      "name": "Rákoscsaba",
+      "lat": 47.49135,
+      "lon": 19.2826893,
+      "type": "stop",
+      "km": 4.965
+    },
+    {
+      "name": "Budapest-Déli",
+      "lat": 47.4994789,
+      "lon": 19.0248757,
+      "type": "station",
+      "km": 0.0
+    },
+    {
+      "name": "Szentistvántelep",
+      "lat": 47.6283023,
+      "lon": 19.0435028,
+      "type": "stop",
+      "km": 8.959
+    },
+    {
+      "name": "Budakalász",
+      "lat": 47.6161478,
+      "lon": 19.054893,
+      "type": "stop",
+      "km": 8.234
+    },
+    {
+      "name": "Szentlélek tér",
+      "lat": 47.5397989,
+      "lon": 19.0471077,
+      "type": "stop",
+      "km": 4.762
+    },
+    {
+      "name": "Szentendre",
+      "lat": 47.6609677,
+      "lon": 19.0754938,
+      "type": "stop",
+      "km": 18.91
+    },
+    {
+      "name": "Müpa - Nemzeti Színház",
+      "lat": 47.4698791,
+      "lon": 19.0701318,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Közvágóhíd",
+      "lat": 47.4662006,
+      "lon": 19.0773396,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Berkenye",
+      "lat": 47.8854887,
+      "lon": 19.0713366,
+      "type": "stop",
+      "km": 41.57
+    },
+    {
+      "name": "Štúrovo",
+      "lat": 47.7999029,
+      "lon": 18.6791096,
+      "type": "station",
+      "km": 47.962
+    },
+    {
+      "name": "Malomvölgy",
+      "lat": 47.8565798,
+      "lon": 18.8535971,
+      "type": "stop",
+      "km": 63.536
+    },
+    {
+      "name": "Jánoshegy",
+      "lat": 47.5148926,
+      "lon": 18.9508991,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Mogyoród",
+      "lat": 47.5967818,
+      "lon": 19.2717468,
+      "type": "stop",
+      "km": 22.745
+    },
+    {
+      "name": "Kerepes",
+      "lat": 47.5527591,
+      "lon": 19.2704087,
+      "type": "stop",
+      "km": 16.99
+    },
+    {
+      "name": "Mátyásföld, repülőtér",
+      "lat": 47.5120274,
+      "lon": 19.1945606,
+      "type": "stop",
+      "km": 4.862
+    },
+    {
+      "name": "Sashalom",
+      "lat": 47.5090626,
+      "lon": 19.1791954,
+      "type": "stop",
+      "km": 4.582
+    },
+    {
+      "name": "Mátyásföld, Imre utca",
+      "lat": 47.5133157,
+      "lon": 19.1989051,
+      "type": "stop",
+      "km": 4.915
+    },
+    {
+      "name": "Szentjakab",
+      "lat": 47.5973428,
+      "lon": 19.290236,
+      "type": "stop",
+      "km": 24.179
+    },
+    {
+      "name": "Cinkota",
+      "lat": 47.5193967,
+      "lon": 19.2172596,
+      "type": "stop",
+      "km": 5.293
+    },
+    {
+      "name": "Szabadságtelep",
+      "lat": 47.5375998,
+      "lon": 19.206134,
+      "type": "stop",
+      "km": 6.625
+    },
+    {
+      "name": "Zsófialiget",
+      "lat": 47.5485339,
+      "lon": 19.2642641,
+      "type": "stop",
+      "km": 16.971
+    },
+    {
+      "name": "Kistarcsa, kórház",
+      "lat": 47.5394096,
+      "lon": 19.2495505,
+      "type": "stop",
+      "km": 16.921
+    },
+    {
+      "name": "Árpádföld",
+      "lat": 47.532828,
+      "lon": 19.2128552,
+      "type": "stop",
+      "km": 6.124
+    },
+    {
+      "name": "Mátyásföld alsó",
+      "lat": 47.516018,
+      "lon": 19.2075958,
+      "type": "stop",
+      "km": 5.103
+    },
+    {
+      "name": "Rákosfalva",
+      "lat": 47.5051098,
+      "lon": 19.1517497,
+      "type": "stop",
+      "km": 3.278
+    },
+    {
+      "name": "Ilonatelep",
+      "lat": 47.5263107,
+      "lon": 19.2289656,
+      "type": "stop",
+      "km": 5.806
+    },
+    {
+      "name": "Csömör",
+      "lat": 47.545088,
+      "lon": 19.224715,
+      "type": "stop",
+      "km": 15.798
+    },
+    {
+      "name": "Szilasliget",
+      "lat": 47.5688223,
+      "lon": 19.2753653,
+      "type": "stop",
+      "km": 22.745
+    },
+    {
+      "name": "Cinkota alsó",
+      "lat": 47.5268002,
+      "lon": 19.2209355,
+      "type": "stop",
+      "km": 5.698
+    },
+    {
+      "name": "Nagyicce",
+      "lat": 47.5070243,
+      "lon": 19.1679047,
+      "type": "stop",
+      "km": 4.066
+    },
+    {
+      "name": "Kistarcsa",
+      "lat": 47.545953,
+      "lon": 19.2600882,
+      "type": "stop",
+      "km": 16.952
+    },
+    {
+      "name": "Budapest-Keleti",
+      "lat": 47.5006365,
+      "lon": 19.0860909,
+      "type": "stop",
+      "km": 1.306
+    },
+    {
+      "name": "Malomkert",
+      "lat": 47.832187,
+      "lon": 18.8554344,
+      "type": "stop",
+      "km": 63.536
+    },
+    {
+      "name": "Márianosztra",
+      "lat": 47.8660556,
+      "lon": 18.865764,
+      "type": "stop",
+      "km": 63.536
+    },
+    {
+      "name": "Rákosszentmihály",
+      "lat": 47.521187,
+      "lon": 19.1461087,
+      "type": "station",
+      "km": 4.582
+    },
+    {
+      "name": "Rákoskert",
+      "lat": 47.4559601,
+      "lon": 19.2968179,
+      "type": "stop",
+      "km": 3.856
+    },
+    {
+      "name": "Rákosliget",
+      "lat": 47.4860288,
+      "lon": 19.2581758,
+      "type": "stop",
+      "km": 4.762
+    },
+    {
+      "name": "Főbejárat",
+      "lat": 47.6921819,
+      "lon": 19.0448754,
+      "type": "stop",
+      "km": 20.93
+    },
+    {
+      "name": "Királyrét",
+      "lat": 47.8939193,
+      "lon": 18.9791518,
+      "type": "stop",
+      "km": 45.23
+    },
+    {
+      "name": "Hártókút",
+      "lat": 47.8505742,
+      "lon": 19.0202694,
+      "type": "station",
+      "km": 44.258
+    },
+    {
+      "name": "Morgó",
+      "lat": 47.83819,
+      "lon": 19.0068577,
+      "type": "stop",
+      "km": 44.569
+    },
+    {
+      "name": "Paphegy",
+      "lat": 47.8818028,
+      "lon": 18.9850568,
+      "type": "stop",
+      "km": 45.134
+    },
+    {
+      "name": "Szokolya-Mányoki",
+      "lat": 47.8643964,
+      "lon": 19.0055348,
+      "type": "halt",
+      "km": 44.537
+    },
+    {
+      "name": "Szokolya-Riezner",
+      "lat": 47.8664295,
+      "lon": 19.0007693,
+      "type": "halt",
+      "km": 44.6
+    },
+    {
+      "name": "Kelenföld vasútállomás",
+      "lat": 47.4644092,
+      "lon": 19.0198556,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Móricz Zsigmond körtér",
+      "lat": 47.4766126,
+      "lon": 19.0472593,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Bikás park",
+      "lat": 47.4649438,
+      "lon": 19.0323996,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Fővám tér",
+      "lat": 47.4860987,
+      "lon": 19.0576472,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Újbuda-központ",
+      "lat": 47.4728946,
+      "lon": 19.0459836,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Ferencváros",
+      "lat": 47.4686682,
+      "lon": 19.0893332,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Kőbánya alsó",
+      "lat": 47.482173,
+      "lon": 19.1276191,
+      "type": "stop",
+      "km": 2.686
+    },
+    {
+      "name": "Pillangó utca",
+      "lat": 47.5011283,
+      "lon": 19.1192725,
+      "type": "stop",
+      "km": 2.74
+    },
+    {
+      "name": "Semmelweis Klinikák",
+      "lat": 47.4829403,
+      "lon": 19.0784788,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Margit híd, budai hídfő",
+      "lat": 47.5159882,
+      "lon": 19.0394748,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Pöttyös utca",
+      "lat": 47.4684754,
+      "lon": 19.117367,
+      "type": "stop",
+      "km": 1.355
+    },
+    {
+      "name": "Kamenný Most nad Hronom",
+      "lat": 47.8485475,
+      "lon": 18.6550838,
+      "type": "halt",
+      "km": 47.962
+    },
+    {
+      "name": "Szent Gellért tér – Műegyetem",
+      "lat": 47.4830846,
+      "lon": 19.0549736,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "II. János Pál pápa tér",
+      "lat": 47.4960998,
+      "lon": 19.077771,
+      "type": "stop",
+      "km": 0.149
+    },
+    {
+      "name": "Rákóczi tér",
+      "lat": 47.4926904,
+      "lon": 19.0714014,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Máriakút",
+      "lat": 47.8540133,
+      "lon": 18.8532412,
+      "type": "halt",
+      "km": 63.536
+    },
+    {
+      "name": "Kisnémedi",
+      "lat": 47.7242994,
+      "lon": 19.2650391,
+      "type": "halt",
+      "km": 35.251
+    },
+    {
+      "name": "Vetettfű",
+      "lat": 47.8963109,
+      "lon": 18.8791533,
+      "type": "halt",
+      "km": 63.536
+    },
+    {
+      "name": "Petyerák tanya",
+      "lat": 47.8412304,
+      "lon": 18.8484798,
+      "type": "stop",
+      "km": 63.536
+    },
+    {
+      "name": "Chľaba zástavka",
+      "lat": 47.8248299,
+      "lon": 18.8283614,
+      "type": "stop",
+      "km": 63.536
+    },
+    {
+      "name": "Akadémiaújtelep",
+      "lat": 47.4857781,
+      "lon": 19.2227561,
+      "type": "halt",
+      "km": 4.021
+    },
+    {
+      "name": "Újpalota",
+      "lat": 47.531616,
+      "lon": 19.126113,
+      "type": "halt",
+      "km": 4.762
+    },
+    {
+      "name": "Vízimalom",
+      "lat": 47.6944481,
+      "lon": 19.0486032,
+      "type": "halt",
+      "km": 21.318
+    },
+    {
+      "name": "Kovácsműhely",
+      "lat": 47.6956721,
+      "lon": 19.0434302,
+      "type": "halt",
+      "km": 21.318
+    },
+    {
+      "name": "Sztaravoda-patak",
+      "lat": 47.697439,
+      "lon": 19.0464517,
+      "type": "halt",
+      "km": 21.431
+    },
+    {
+      "name": "Harangláb",
+      "lat": 47.6913019,
+      "lon": 19.051393,
+      "type": "halt",
+      "km": 20.929
+    },
+    {
+      "name": "Néprajzi látványtár",
+      "lat": 47.6890046,
+      "lon": 19.0546989,
+      "type": "halt",
+      "km": 20.727
+    },
+    {
+      "name": "Kamenín",
+      "lat": 47.8885918,
+      "lon": 18.6422991,
+      "type": "halt",
+      "km": 47.962
+    },
+    {
+      "name": "Barackos",
+      "lat": 47.8384135,
+      "lon": 18.8512982,
+      "type": "stop",
+      "km": 63.536
+    },
+    {
+      "name": "Füstös-forrás",
+      "lat": 47.8925054,
+      "lon": 18.8769231,
+      "type": "stop",
+      "km": 63.536
+    },
+    {
+      "name": "Štúrovo tranzitná skupina",
+      "lat": 47.8013857,
+      "lon": 18.6504038,
+      "type": "station",
+      "km": 47.962
+    },
+    {
+      "name": "Chľaba zastávka",
+      "lat": 47.8248069,
+      "lon": 18.8283613,
+      "type": "station",
+      "km": 63.536
+    }
+  ],
+  "on_line70": [
+    {
+      "name": "Budapest-Nyugati",
+      "lat": 47.5111566,
+      "lon": 19.0589919,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Nyugati pályaudvar",
+      "lat": 47.5108516,
+      "lon": 19.0559665,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Rákosrendező",
+      "lat": 47.5264436,
+      "lon": 19.090466,
+      "type": "stop",
+      "km": 3.103
+    },
+    {
+      "name": "Istvántelek",
+      "lat": 47.5511179,
+      "lon": 19.1067228,
+      "type": "stop",
+      "km": 6.124
+    },
+    {
+      "name": "Rákospalota-Újpest",
+      "lat": 47.5660521,
+      "lon": 19.1124453,
+      "type": "stop",
+      "km": 7.839
+    },
+    {
+      "name": "Dunakeszi alsó",
+      "lat": 47.607198,
+      "lon": 19.1285421,
+      "type": "stop",
+      "km": 12.61
+    },
+    {
+      "name": "Dunakeszi",
+      "lat": 47.6258148,
+      "lon": 19.1361387,
+      "type": "stop",
+      "km": 14.757
+    },
+    {
+      "name": "Dunakeszi-Gyártelep",
+      "lat": 47.642835,
+      "lon": 19.1346375,
+      "type": "stop",
+      "km": 16.721
+    },
+    {
+      "name": "Alsógöd",
+      "lat": 47.6758133,
+      "lon": 19.1342387,
+      "type": "halt",
+      "km": 20.451
+    },
+    {
+      "name": "Göd",
+      "lat": 47.6871003,
+      "lon": 19.1375383,
+      "type": "stop",
+      "km": 21.731
+    },
+    {
+      "name": "Felsőgöd",
+      "lat": 47.7058586,
+      "lon": 19.1435626,
+      "type": "stop",
+      "km": 23.867
+    },
+    {
+      "name": "Sződ-Sződliget",
+      "lat": 47.728099,
+      "lon": 19.1548571,
+      "type": "stop",
+      "km": 26.523
+    },
+    {
+      "name": "Vác-Alsóváros",
+      "lat": 47.7723472,
+      "lon": 19.1504818,
+      "type": "stop",
+      "km": 31.575
+    },
+    {
+      "name": "Vác",
+      "lat": 47.7827191,
+      "lon": 19.1330097,
+      "type": "station",
+      "km": 33.371
+    },
+    {
+      "name": "Kisvác",
+      "lat": 47.7953623,
+      "lon": 19.1135797,
+      "type": "stop",
+      "km": 35.412
+    },
+    {
+      "name": "Fenyveshegy",
+      "lat": 47.8180761,
+      "lon": 19.0683595,
+      "type": "stop",
+      "km": 39.788
+    },
+    {
+      "name": "Verőce",
+      "lat": 47.823784,
+      "lon": 19.031725,
+      "type": "station",
+      "km": 42.711
+    },
+    {
+      "name": "Kismaros",
+      "lat": 47.827571,
+      "lon": 19.013343,
+      "type": "stop",
+      "km": 44.184
+    },
+    {
+      "name": "Nagymaros-Visegrád",
+      "lat": 47.7910806,
+      "lon": 18.9588872,
+      "type": "halt",
+      "km": 50.388
+    },
+    {
+      "name": "Nagymaros",
+      "lat": 47.7800282,
+      "lon": 18.9520597,
+      "type": "station",
+      "km": 51.72
+    },
+    {
+      "name": "Zebegény",
+      "lat": 47.8004132,
+      "lon": 18.9091754,
+      "type": "stop",
+      "km": 58.457
+    },
+    {
+      "name": "Szob alsó",
+      "lat": 47.8163855,
+      "lon": 18.8731889,
+      "type": "stop",
+      "km": 61.813
+    },
+    {
+      "name": "Szob",
+      "lat": 47.8217073,
+      "lon": 18.8606379,
+      "type": "station",
+      "km": 62.918
+    }
+  ],
+  "on_line2": [
+    {
+      "name": "Budapest-Nyugati",
+      "lat": 47.5111566,
+      "lon": 19.0589919,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Boros-Pincehely",
+      "lat": 47.5429097,
+      "lon": 19.0977401,
+      "type": "halt",
+      "km": 0.424
+    },
+    {
+      "name": "Vasútmúzeum",
+      "lat": 47.5442343,
+      "lon": 19.0980821,
+      "type": "stop",
+      "km": 0.483
+    },
+    {
+      "name": "Angyalföld",
+      "lat": 47.5501767,
+      "lon": 19.0894367,
+      "type": "stop",
+      "km": 1.412
+    },
+    {
+      "name": "Újpest",
+      "lat": 47.5588362,
+      "lon": 19.0796843,
+      "type": "stop",
+      "km": 2.631
+    },
+    {
+      "name": "Újpest-városkapu",
+      "lat": 47.5591282,
+      "lon": 19.0798077,
+      "type": "stop",
+      "km": 2.657
+    },
+    {
+      "name": "Aquincum",
+      "lat": 47.5663001,
+      "lon": 19.0473576,
+      "type": "stop",
+      "km": 5.235
+    },
+    {
+      "name": "Óbuda",
+      "lat": 47.5691729,
+      "lon": 19.0324573,
+      "type": "stop",
+      "km": 6.405
+    },
+    {
+      "name": "Aranyvölgy",
+      "lat": 47.573722,
+      "lon": 19.0177893,
+      "type": "stop",
+      "km": 7.623
+    },
+    {
+      "name": "Üröm",
+      "lat": 47.5805619,
+      "lon": 19.0023264,
+      "type": "stop",
+      "km": 9.017
+    },
+    {
+      "name": "Solymár",
+      "lat": 47.5962983,
+      "lon": 18.9498812,
+      "type": "stop",
+      "km": 13.56
+    },
+    {
+      "name": "Szélhegy",
+      "lat": 47.6013872,
+      "lon": 18.9280311,
+      "type": "stop",
+      "km": 15.312
+    },
+    {
+      "name": "Vörösvárbánya",
+      "lat": 47.6105165,
+      "lon": 18.9127411,
+      "type": "stop",
+      "km": 16.991
+    },
+    {
+      "name": "Pilisvörösvár",
+      "lat": 47.61519,
+      "lon": 18.9006144,
+      "type": "stop",
+      "km": 18.067
+    },
+    {
+      "name": "Szabadságliget",
+      "lat": 47.6261767,
+      "lon": 18.892954,
+      "type": "stop",
+      "km": 19.61
+    },
+    {
+      "name": "Pázmáneum",
+      "lat": 47.6304926,
+      "lon": 18.8520932,
+      "type": "stop",
+      "km": 24.147
+    },
+    {
+      "name": "Klotildliget",
+      "lat": 47.6376059,
+      "lon": 18.8462331,
+      "type": "stop",
+      "km": 25.214
+    },
+    {
+      "name": "Piliscsaba",
+      "lat": 47.6387588,
+      "lon": 18.8286181,
+      "type": "stop",
+      "km": 26.909
+    },
+    {
+      "name": "Magdolnavölgy",
+      "lat": 47.6476814,
+      "lon": 18.8186908,
+      "type": "stop",
+      "km": 28.165
+    },
+    {
+      "name": "Pilisjászfalu",
+      "lat": 47.6561429,
+      "lon": 18.7974566,
+      "type": "stop",
+      "km": 30.091
+    },
+    {
+      "name": "Piliscsév",
+      "lat": 47.6739225,
+      "lon": 18.7911819,
+      "type": "stop",
+      "km": 33.34
+    },
+    {
+      "name": "Leányvár",
+      "lat": 47.687759,
+      "lon": 18.7723816,
+      "type": "stop",
+      "km": 35.447
+    },
+    {
+      "name": "Dorog",
+      "lat": 47.7235927,
+      "lon": 18.7327676,
+      "type": "stop",
+      "km": 40.486
+    },
+    {
+      "name": "Esztergom-Kertváros",
+      "lat": 47.742792,
+      "lon": 18.7171775,
+      "type": "stop",
+      "km": 43.339
+    },
+    {
+      "name": "Esztergom",
+      "lat": 47.7780494,
+      "lon": 18.7432847,
+      "type": "stop",
+      "km": 47.962
+    }
+  ],
+  "on_line71": [
+    {
+      "name": "Budapest-Nyugati",
+      "lat": 47.5111566,
+      "lon": 19.0589919,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Nyugati pályaudvar",
+      "lat": 47.5117045,
+      "lon": 19.0569822,
+      "type": "stop",
+      "km": 0.0
+    },
+    {
+      "name": "Rákosrendező",
+      "lat": 47.5269462,
+      "lon": 19.0908622,
+      "type": "stop",
+      "km": 3.027
+    },
+    {
+      "name": "Istvántelek",
+      "lat": 47.5495823,
+      "lon": 19.1059652,
+      "type": "stop",
+      "km": 5.804
+    },
+    {
+      "name": "Rákospalota-Újpest",
+      "lat": 47.5658943,
+      "lon": 19.1125196,
+      "type": "stop",
+      "km": 7.683
+    },
+    {
+      "name": "Rákospalota-Kertváros",
+      "lat": 47.5782616,
+      "lon": 19.1227791,
+      "type": "stop",
+      "km": 9.319
+    },
+    {
+      "name": "Alagimajor",
+      "lat": 47.6019405,
+      "lon": 19.1541844,
+      "type": "stop",
+      "km": 13.048
+    },
+    {
+      "name": "Fót",
+      "lat": 47.6114127,
+      "lon": 19.1820074,
+      "type": "stop",
+      "km": 15.478
+    },
+    {
+      "name": "Fótújfalu",
+      "lat": 47.6149021,
+      "lon": 19.1929295,
+      "type": "stop",
+      "km": 16.449
+    },
+    {
+      "name": "Fótfürdő",
+      "lat": 47.6220637,
+      "lon": 19.2006216,
+      "type": "stop",
+      "km": 17.697
+    },
+    {
+      "name": "Csomád",
+      "lat": 47.6357205,
+      "lon": 19.2216786,
+      "type": "stop",
+      "km": 20.748
+    },
+    {
+      "name": "Ivacs",
+      "lat": 47.641749,
+      "lon": 19.27393,
+      "type": "stop",
+      "km": 24.861
+    },
+    {
+      "name": "Veresegyház",
+      "lat": 47.6490786,
+      "lon": 19.2887777,
+      "type": "station",
+      "km": 26.263
+    },
+    {
+      "name": "Erdőkertes",
+      "lat": 47.6620008,
+      "lon": 19.2958346,
+      "type": "stop",
+      "km": 27.842
+    },
+    {
+      "name": "Vicziántelep",
+      "lat": 47.6755064,
+      "lon": 19.2866073,
+      "type": "halt",
+      "km": 29.551
+    },
+    {
+      "name": "Őrbottyán",
+      "lat": 47.6863981,
+      "lon": 19.2836362,
+      "type": "stop",
+      "km": 30.809
+    },
+    {
+      "name": "Rudnaykert",
+      "lat": 47.7174627,
+      "lon": 19.2580997,
+      "type": "halt",
+      "km": 35.165
+    },
+    {
+      "name": "Váchartyán",
+      "lat": 47.7251436,
+      "lon": 19.2496267,
+      "type": "halt",
+      "km": 36.249
+    },
+    {
+      "name": "Vácrátót",
+      "lat": 47.7328775,
+      "lon": 19.2177725,
+      "type": "station",
+      "km": 38.834
+    },
+    {
+      "name": "Csörög",
+      "lat": 47.7360987,
+      "lon": 19.1958612,
+      "type": "stop",
+      "km": 40.512
+    },
+    {
+      "name": "Máriaudvar",
+      "lat": 47.7521706,
+      "lon": 19.1647197,
+      "type": "stop",
+      "km": 43.456
+    },
+    {
+      "name": "Vác-Alsóváros",
+      "lat": 47.773364,
+      "lon": 19.1496237,
+      "type": "stop",
+      "km": 46.092
+    }
+  ]
+}
