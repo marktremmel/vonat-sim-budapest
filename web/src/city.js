@@ -50,7 +50,7 @@ export class CityTiles {
     for (const { t } of want) {
       if (this.loaded.has(t.file) || this.pending.has(t.file) || this.queued.has(t.file)) continue;
       if (this.pending.size >= 3) break;
-      const p = fetch(`data/city/${t.file}`).then(r => r.ok ? r.json() : null)
+      const p = fetch(`${window.DATA_BASE || "data/"}city/${t.file}`).then(r => r.ok ? r.json() : null)
         .then(body => { this.pending.delete(t.file); if (body) { this.queue.push({ t, body }); this.queued.add(t.file); } })
         .catch(() => this.pending.delete(t.file));
       this.pending.set(t.file, p);

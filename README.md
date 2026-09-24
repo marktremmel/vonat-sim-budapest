@@ -25,7 +25,11 @@ places.
     python3 tools/serve.py 8177 dist           # then http://localhost:8177
 
 `dist/` has to be served over HTTP; opening the file directly will not work.
-GitHub Pages builds the same way (`.github/workflows/pages.yml`).
+
+GitHub Pages ("Deploy from a branch", `main`, root) serves the `index.html` at
+the repository root: `build_sim.py` writes it along with `dist/`, pointing it
+at `web/data/` (`window.DATA_BASE`). After changing anything, run the build
+and commit the new `index.html` with the change.
 
 ## Data
 

@@ -64,6 +64,13 @@ def main():
     import shutil
     shutil.copytree("web/data", "dist/data", dirs_exist_ok=True)
     io.open("dist/index.html", "w", encoding="utf-8").write(out)   # for the dev server
+    # The copy GitHub Pages serves: Pages deploys this repository's root, so
+    # the game is index.html here, reading its data from web/data/ (the
+    # loader, city.js and audio.js take window.DATA_BASE).
+    root = out.replace("<script", '<script>window.DATA_BASE = "web/data/";</script>\n<script', 1)
+    io.open("index.html", "w", encoding="utf-8").write(root)
+    if not os.path.exists(".nojekyll"):
+        io.open(".nojekyll", "w").write("")
     mb = os.path.getsize("dist/szob-fele.html") / 1e6
     print(f"wrote dist/szob-fele.html and dist/artifact.html  {mb:.2f} MB")
     print(f"  js {len(js)/1024:.0f} KB, assets dynamic fetch")

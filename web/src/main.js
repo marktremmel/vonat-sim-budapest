@@ -781,7 +781,7 @@ export async function boot(assets) {
   let city = null;
   const ctxRoadIds = new Set((ctx.roads && ctx.roads.ids) || []);
   try {
-    const cityIndex = await fetch("data/city/index.json").then(r => r.ok ? r.json() : null);
+    const cityIndex = await fetch((window.DATA_BASE || "data/") + "city/index.json").then(r => r.ok ? r.json() : null);
     if (cityIndex) {
       const widths = cityIndex.widths;
       const waterAt = (north) => wA + wB * north;

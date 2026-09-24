@@ -60,9 +60,9 @@ export class Sound {
     this.nodes.master = master;
 
     // Load samples
-    this.loadSample("szignal_mav", "data/audio/mav-szignal.mp3");
-    this.loadSample("szignal_99", "data/audio/máv-bent-99_Spec_Szignal.mp3");
-    this.loadSample("bemondo_10perc", "data/audio/s70személyvonatindulgödönátvácra10percmulva.mp3");
+    this.loadSample("szignal_mav", (window.DATA_BASE || "data/") + "audio/mav-szignal.mp3");
+    this.loadSample("szignal_99", (window.DATA_BASE || "data/") + "audio/máv-bent-99_Spec_Szignal.mp3");
+    this.loadSample("bemondo_10perc", (window.DATA_BASE || "data/") + "audio/s70személyvonatindulgödönátvácra10percmulva.mp3");
     
     // ---- rolling noise: wheels on rail, broadband, speed driven
     const noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);

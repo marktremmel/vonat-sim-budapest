@@ -373,30 +373,33 @@
     const line = params.get('line') || 'line70';
     const suffix = line === 'line70' ? '' : `_${line}`;
     
+    // where the baked data lives: data/ next to dist/index.html, web/data/
+    // for the copy at the repository root that GitHub Pages serves
+    const DATA = window.DATA_BASE || 'data/';
     try {
       const ts = Date.now();
-      const worldRes = await fetch(`data/world${suffix}.json?t=${ts}`);
+      const worldRes = await fetch(`${DATA}world${suffix}.json?t=${ts}`);
       if (!worldRes.ok) throw new Error(`Failed to load world data for ${line}`);
       const worldData = await worldRes.json();
       
-      const routeRes = await fetch(`data/route${suffix}.json?t=${ts}`);
+      const routeRes = await fetch(`${DATA}route${suffix}.json?t=${ts}`);
       if (!routeRes.ok) throw new Error(`Failed to load route data for ${line}`);
       
       const assets = {
         world: worldData,
         route: await routeRes.json(),
-        heightNear: `data/height_near${suffix}.png`,
-        heightFar: `data/height_far${suffix}.png`,
-        coverNear: `data/cover_near${suffix}.png`,
-        context: await fetch(`data/context${suffix}.json?t=${ts}`)
-            .then(r => r.ok ? r.json() : fetch(`data/context.json?t=${ts}`).then(r2 => r2.json())),
+        heightNear: `${DATA}height_near${suffix}.png`,
+        heightFar: `${DATA}height_far${suffix}.png`,
+        coverNear: `${DATA}cover_near${suffix}.png`,
+        context: await fetch(`${DATA}context${suffix}.json?t=${ts}`)
+            .then(r => r.ok ? r.json() : fetch(`${DATA}context.json?t=${ts}`).then(r2 => r2.json())),
         // each line has its own inset map and timetable; fall back to line
         // 70's only if a line has not been baked with one
-        map: `data/map${suffix}.png?t=${ts}`,
-        mapMeta: await fetch(`data/map${suffix}.json?t=${ts}`)
-            .then(r => r.ok ? r.json() : fetch(`data/map.json?t=${ts}`).then(r2 => r2.json())),
-        timetable: await fetch(`data/timetable${suffix}.json?t=${ts}`)
-            .then(r => r.ok ? r.json() : fetch(`data/timetable.json?t=${ts}`).then(r2 => r2.json())),
+        map: `${DATA}map${suffix}.png?t=${ts}`,
+        mapMeta: await fetch(`${DATA}map${suffix}.json?t=${ts}`)
+            .then(r => r.ok ? r.json() : fetch(`${DATA}map.json?t=${ts}`).then(r2 => r2.json())),
+        timetable: await fetch(`${DATA}timetable${suffix}.json?t=${ts}`)
+            .then(r => r.ok ? r.json() : fetch(`${DATA}timetable.json?t=${ts}`).then(r2 => r2.json())),
       };
       
       await boot(assets);
