@@ -1606,7 +1606,9 @@ void main(){
     // mapped water: the river, or a lake at its own level
     // (the tolerance grows with a drought, or a low river leaves its own
     // surface standing above the mirror plane and the reflection breaks)
-    if (abs(h - wl) < 6.0 + max(0.0, -uDanube)) h = wl;
+    // (the allowance grows with the slider BOTH ways: raised more than 6 m,
+    // the river stayed at its old level under the white flood plane)
+    if (abs(h - wl) < 6.0 + abs(uDanube)) h = wl;
     else {
       // A lake at its own level (Dunakeszi tó): the surface model is lumpy
       // over water, so take the lowest ground round about as the lake's
