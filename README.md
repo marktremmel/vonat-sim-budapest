@@ -5,6 +5,8 @@ OpenStreetMap and elevation data: hand-rolled WebGL2, no dependencies, and a
 Python bake pipeline. It is an alpha: expect rough edges and odd-looking
 places.
 
+**Working on it?** Start with [docs/START_HERE.md](docs/START_HERE.md). What is planned is in [docs/OWNER_BACKLOG.md](docs/OWNER_BACKLOG.md).
+
 **Play:** https://marktremmel.github.io/vonat-sim-budapest/
 (`?line=line2` Esztergom, `?line=s21` Lajosmizse).
 

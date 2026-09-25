@@ -2655,7 +2655,12 @@ export async function boot(assets) {
         ? traffic.trains.filter(t => t.svc.id !== "player")[state.followIdx] : null;
       const len = (shown ? shown.length : driver.s.lengthM) || 160;
       const back = Math.max(95, len * 0.80 + 55) / dolly;
-      camEye = add(eye, add(scale(fwd, -back), [0, (22 + len * 0.05) / dolly, 0]));
+      camEye = add(eye, add(scale(fwd, -back), [0, (26 + len * 0.05) / dolly, 0]));
+      // never under the ground: behind a train on an embankment or along a
+      // hillside the camera sank toward the terrain and the rail looked too
+      // high (owner, 25 Sep: "move it up a notch")
+      const g = demAt(camEye[0], -camEye[2]);
+      if (isFinite(g) && camEye[1] < g + 8) camEye[1] = g + 8;
     }
     state.camXZ = [camEye[0], -camEye[2]];
     if (city) city.update(camEye[0], -camEye[2]);

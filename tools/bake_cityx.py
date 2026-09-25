@@ -74,11 +74,11 @@ SK = {"chimney": (0, 30.0, 1.9), "silo": (1, 24.0, 4.2), "storage_tank": (2, 11.
       "gasometer": (2, 22.0, 14.0), "water_tower": (3, 32.0, 4.0), "mast": (4, 40.0, 1.6),
       "tower": (4, 22.0, 2.2), "crane": (6, 22.0, 3.0), "lighthouse": (3, 14.0, 2.0),
       "communications_tower": (8, 150.0, 5.0)}
-# Towers OSM knows too little about: (lat, lon) → (class, height). The Határ
-# út TV tower (Kispest, Szávay utca) is tagged a communication tower with no
-# height or construction; it is a concrete tower with a pod. ~100 m is an
-# estimate from photographs, not a survey.
-KNOWN = {(47.4639, 19.1484): (8, 100.0, 5.0)}
+# Overrides for towers OSM gets wrong: none. (There was one, a "Határ út TV
+# tower" at 47.4639 19.1484; that node is a MÁV GSM-R radio mast at KÖKI and
+# the owner saw a 100 m tower that is not there. The real TV tower is the
+# Száva utcai adótorony, way 135593548, which OSM tags fully: 154 m.)
+KNOWN = {}
 def known(lat, lon):
     for (la, lo), v in KNOWN.items():
         if abs(la - lat) < 0.0006 and abs(lo - lon) < 0.0009: return v
@@ -115,8 +115,10 @@ for e in els:
     elif mm in SK or (mm == "tower" and t.get("tower:type")):
         cls, h0, r0 = SK.get(mm, SK["tower"])
         tt = t.get("tower:type", "")
+        if t.get("location") == "roof":
+            continue                                   # an antenna on a roof, not a tower
         if mm == "tower" and tt == "communication":
-            h0 = 60.0
+            h0 = 30.0                                  # a phone mast, unless it says otherwise
             if (t.get("tower:construction") in ("concrete", "freestanding") or num(t.get("height"), 0) > 90):
                 cls, r0 = 8, 5.0                          # a TV tower, concrete, with a pod
         elif mm == "tower" and tt in ("lighting",): cls, h0, r0 = 5, 26.0, 0.9

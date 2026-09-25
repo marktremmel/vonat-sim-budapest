@@ -1,3 +1,5 @@
+> Status of the owner's requests is now kept in `docs/OWNER_BACKLOG.md`; this file is the 24 Sep review and its follow-ups.
+
 # Review: where the sim stands, what is broken, where it could go
 
 Written 24 Sep 2026, after v0.1 alpha went to GitHub Pages. It is based on

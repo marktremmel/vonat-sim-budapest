@@ -1,5 +1,9 @@
 # Szob felé: orientation for a fresh session
 
+> **Start with `szob-fele/docs/START_HERE.md`** (25 Sep 2026): the map of the docs, the working
+> rules, and `docs/OWNER_BACKLOG.md`, which holds every owner request with its status. This file is the
+> detailed session log.
+
 Browser train simulator of MÁV line 70 (Budapest-Nyugati → Vác → Szob), built
 from OpenStreetMap + SRTM data. Hand-rolled WebGL2, no dependencies, Python
 bake pipeline. Everything lives in `szob-fele/`. The rest of this folder is
@@ -35,7 +39,13 @@ running the build. Where a claim was checked by running the code, it says so.
   - **The dimension requests got "connection refused" after 200.** Do not rerun that part in bulk; the genus table covers the rest.
 - VEG_VS water-level sign fixed (`w.y` is world z).
 
-**Next, in order:**
+**S-11 (25 Sep, late; not committed):**
+- The KÖKI "TV tower" was my override on a GSM-R mast; removed. Rooftop antennas skipped; phone masts default to 30 m. The real tower is Száva utca, from OSM.
+- Kilátás follow camera raised and clamped 8 m over the ground.
+- `docs/` written: START_HERE, OWNER_BACKLOG (built from the transcript), HISTORY.
+- The owner's screenshots are in `../owner_feedback_images/`.
+
+**Next, in order:** (the full list is docs/OWNER_BACKLOG.md)
 2. Round 9 leftovers (REVIEW.md, "Round 9: where it stands"):
    - look at the pylons, Újpest vaults, Dunakeszi tó, Népsziget and MÁV-telep;
    - PSX houses and street props;

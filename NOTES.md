@@ -1,3 +1,5 @@
+> Sep 2026: for orientation read `docs/START_HERE.md`. In this file only **Traps** is still current; the rest is the August history.
+
 # Backlog
 
 ## Resuming this project in a fresh session
