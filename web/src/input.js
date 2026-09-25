@@ -374,6 +374,30 @@ export function installInput(ctx) {
   cv.addEventListener("pointercancel", endDrag);
   cv.addEventListener("lostpointercapture", endDrag);
   addEventListener("blur", endDrag);
+  // Two fingers pinch the zoom, the way the wheel does. While two are down
+  // the one-finger look-around is off, or the view would spin as you pinch.
+  const fingers = new Map();
+  let pinch0 = 0;
+  cv.addEventListener("pointerdown", e => {
+    if (e.pointerType !== "touch") return;
+    fingers.set(e.pointerId, [e.clientX, e.clientY]);
+    if (fingers.size === 2) { const [a, b] = [...fingers.values()]; pinch0 = Math.hypot(a[0] - b[0], a[1] - b[1]); drag = null; }
+  });
+  cv.addEventListener("pointermove", e => {
+    if (!fingers.has(e.pointerId)) return;
+    fingers.set(e.pointerId, [e.clientX, e.clientY]);
+    if (fingers.size !== 2 || pinch0 <= 0) return;
+    const [a, b] = [...fingers.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    drag = null;
+    if (state.panel) {
+      const v = state.panelView;
+      v.zoom = Math.max(1, Math.min(14, v.zoom * d / pinch0));
+    } else state.zoom = Math.max(0.35, Math.min(6.0, state.zoom * d / pinch0));
+    pinch0 = d;
+  });
+  const lift = e => { fingers.delete(e.pointerId); if (fingers.size < 2) pinch0 = 0; };
+  cv.addEventListener("pointerup", lift);
+  cv.addEventListener("pointercancel", lift);
   cv.addEventListener("wheel", e => {
     e.preventDefault();
     if (state.panel) {

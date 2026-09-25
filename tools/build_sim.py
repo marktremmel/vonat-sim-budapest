@@ -8,7 +8,7 @@ SRC = "web/src"
 # `const` is not.
 ORDER = ["i18n.js", "shaders.js", "engine.js", "env.js", "route.js", "geom.js", "trains.js",
          "traffic.js", "collide.js", "car.js", "aircraft.js", "catenary.js", "structures.js", "audio.js", "clouds.js", "weather.js", "landmarks.js", "parts.js", "city.js", "tour.js",
-         "panel.js", "cab.js", "hud.js", "input.js", "score.js", "missions.js", "easter.js", "photofx.js", "kisvasut.js", "settings.js", "main.js"]
+         "panel.js", "cab.js", "hud.js", "input.js", "score.js", "missions.js", "easter.js", "photofx.js", "kisvasut.js", "vfx.js", "trams.js", "settings.js", "main.js"]
 
 def strip_modules(text):
     text = re.sub(r'^\s*import[^;]*;\s*$', '', text, flags=re.M)

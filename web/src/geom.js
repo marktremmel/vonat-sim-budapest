@@ -344,6 +344,10 @@ export function prepareUnderpasses(ways, widths, demAt, railDistAt) {
   return out;
 }
 
+// Where a bridge model hangs its deck from cables (the Erzsébet híd, one
+// 290 m span), the road layer must not stand its own piers in the river.
+let noPierAt = null;
+export function setNoPierAt(fn) { noPierAt = fn; }
 export function buildRoads(ways, widths, demAt, waterAt, railDistAt) {
   // Where a road runs near the line it must sit on the CORRIDOR, not on the
   // raw DEM. The corridor is graded to rail level and the DEM is not, so the
@@ -586,7 +590,7 @@ export function buildRoads(ways, widths, demAt, waterAt, railDistAt) {
           const gnd = way.wet ? Math.min(groundAt(bx, by), way.waterY) - 3 : groundAt(bx, by) - 0.5;
           const rd = railDistAt ? railDistAt(bx, by) : null;
           const onRail = rd && isFinite(rd.d) && rd.d < 5.5;
-          if (top - gnd > 3 && !onRail) {
+          if (top - gnd > 3 && !onRail && !(noPierAt && noPierAt(bx, by))) {
             const ux = (bx - ax) / L, uy = (by - ay) / L;
             const tw = way.wet ? 2.6 : 0.8, pw = way.wet ? hw * 0.8 : Math.min(hw * 0.7, 3);
             const PC = way.wet ? [0.60, 0.58, 0.54] : [0.56, 0.56, 0.55];
@@ -1764,7 +1768,10 @@ export function buildBufferStops(ends) {
  * which TRACK_FS turns into dark glass that catches the sun.
  */
 export const SOLAR = [0.020, 0.030, 0.050];
-export function buildCityExtras(x, tx, demAt, waterAt, railDistAt) {
+// skipAt(x, y): true where a hand-modelled railway bridge already carries the
+// track (landmarks.js); the extras' own ballast deck there was a second
+// bridge z-fighting under the truss (the Northern Railway Bridge on line 70)
+export function buildCityExtras(x, tx, demAt, waterAt, railDistAt, skipAt = null) {
   const V = [], C = [];
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
   const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
@@ -1782,6 +1789,7 @@ export function buildCityExtras(x, tx, demAt, waterAt, railDistAt) {
       const a = P[i], b = P[i + 1];
       const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
       if (railDistAt) { const r = railDistAt(mx, my); if (r && r.d < 6) continue; }
+      if (bridge && skipAt && skipAt(mx, my)) continue;
       const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
       const nx = -dy / L, ny = dx / L;
       const ya = yOf(a), yb = yOf(b);

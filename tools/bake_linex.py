@@ -31,7 +31,16 @@ def label_rank(t):
 def ring_area(pts):
     return abs(sum(pts[i][0] * pts[i - 1][1] - pts[i - 1][0] * pts[i][1] for i in range(len(pts)))) / 2
 
-out = {"labels": [], "solar": [], "pipes": [], "rails": []}
+out = {"labels": [], "solar": [], "pipes": [], "rails": [], "structs": []}
+# oil wells (q_wells.ql → data/raw/wells.json): pumpjacks, structures.js class 9,
+# where they fall in this line's near window (OSM maps 32 in the region)
+import os
+if os.path.exists("data/raw/wells.json"):
+    for e in json.load(open("data/raw/wells.json", encoding="utf-8"))["elements"]:
+        la = e.get("lat") or (e.get("center") or {}).get("lat"); lo = e.get("lon") or (e.get("center") or {}).get("lon")
+        if la is None: continue
+        if not (W["south"] <= la <= W["north"] and W["west"] <= lo <= W["east"]): continue
+        out["structs"].append(xy(la, lo) + [7.0, 3.0, 9])
 seen = set()
 for e in json.load(open(f"data/raw/linex_{LINE}.json", encoding="utf-8"))["elements"]:
     t = e.get("tags") or {}

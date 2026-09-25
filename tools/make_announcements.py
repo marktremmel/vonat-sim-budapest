@@ -38,12 +38,16 @@ for f in glob.glob("web/data/route*.json"):
 out = "web/data/audio/ann"
 os.makedirs(out, exist_ok=True)
 tmp = tempfile.mkdtemp()
-jobs = [(n, False) for n in sorted(stops)] + [(n, True) for n in sorted(ends)]
-for name, end in jobs:
+# three kinds: "Következő állomás: X." after leaving the previous stop,
+# "X következik." shortly before arriving (the owner: MÁV says both), and
+# the terminus version of the first
+jobs = ([(n, "") for n in sorted(stops)] + [(n, "_veg") for n in sorted(ends)]
+        + [(n, "_kov") for n in sorted(stops)])
+for name, kind in jobs:
     spoken = name.replace("-", " ")
-    text = (f"Következő állomás: {spoken}, a vonat végállomása. Kérjük, minden utasunk szálljon ki."
-            if end else f"Következő állomás: {spoken}.")
-    dst = os.path.join(out, slug(name) + ("_veg" if end else "") + ".m4a")
+    text = (f"Következő állomás: {spoken}, a vonat végállomása. Kérjük, minden utasunk szálljon ki." if kind == "_veg"
+            else f"{spoken} következik." if kind == "_kov" else f"Következő állomás: {spoken}.")
+    dst = os.path.join(out, slug(name) + kind + ".m4a")
     if os.path.exists(dst):
         continue
     aiff = os.path.join(tmp, "a.aiff")

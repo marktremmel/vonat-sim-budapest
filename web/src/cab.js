@@ -235,7 +235,17 @@ function roundRect(c, x, y, w, h, r) {
 // --------------------------------------------------------- cab geometry
 // Built fresh each frame in the train's own frame of reference, so it rides
 // with the vehicle and stays put when you turn your head.
-export function buildCab(eye, fwd, right, up) {
+//
+// The owner: "not just peering through a grey box". It was one: thick flat
+// grey walls round a letterbox. Now each stock has its own cab:
+//   KISS/FLIRT: a tall raked one-piece windscreen on slim pillars, pale
+//     plastic, a charcoal desk;
+//   M416: a two-piece windscreen with a centre pillar, warm beige;
+//   EC/V43: two flat panes, a green-grey steel cab.
+// All share a sun blind, parked wipers, a rubber seal round the glass, side
+// windows with frames, a grab rail and the mirror outside. The instrument
+// face (faceA..D) stays where it was: clicks on the desk map through it.
+export function buildCab(eye, fwd, right, up, stock = "KISS") {
   const V = [], C = [], U = [];
   const P = (r, u, f) => [
     eye[0] + right[0]*r + up[0]*u + fwd[0]*f,
@@ -252,52 +262,89 @@ export function buildCab(eye, fwd, right, up) {
       U.push(uvs[i][0], uvs[i][1]);
     });
   };
-  const dark = [0.115, 0.125, 0.135];
-  const mid  = [0.185, 0.200, 0.215];
-  const desk = [0.145, 0.155, 0.170];
+  const loco = stock === "EC" || stock === "LOCO" || stock === "FREIGHT";
+  const dmu = stock === "M416";
+  const wall  = loco ? [0.34, 0.40, 0.36] : dmu ? [0.62, 0.58, 0.50] : [0.66, 0.68, 0.70];
+  const wallD = wall.map(x => x * 0.72);                 // lower down, in shadow
+  const roof  = loco ? [0.44, 0.48, 0.44] : dmu ? [0.72, 0.69, 0.62] : [0.78, 0.79, 0.80];
+  const desk  = loco ? [0.20, 0.26, 0.22] : dmu ? [0.26, 0.25, 0.24] : [0.13, 0.14, 0.16];
+  const deskT = desk.map(x => x * 1.35);
+  const seal = [0.05, 0.05, 0.06], floorC = [0.10, 0.10, 0.11];
+  const blind = [0.10, 0.12, 0.14], wiper = [0.06, 0.06, 0.07], rail = [0.92, 0.74, 0.14];
 
-  // The eye sat almost on the console. Push the whole cab forward and drop
-  // the desk so there is room to sit in it.
   const HW = 1.52, TOP = 0.86, BOT = -1.45, FRONT = 2.15, BACK = -1.25;
-  const DESK_Y = -0.80, DESK_F = 1.05, SILL = -0.66;
+  const DESK_Y = -0.80, DESK_F = 1.05, SILL = -0.60;
+  // the windscreen leans back at the top (Stadlers a lot, the V43 hardly)
+  const rake = loco ? 0.08 : dmu ? 0.18 : 0.42;
+  const WT = 0.70;                                        // top of the glass
+  const F = (u) => FRONT - rake * (u - SILL) / (WT - SILL);   // the glass plane's depth at height u
+  const pil = loco ? 0.22 : 0.10;                         // pillar width
 
-  // windscreen surround: header, two pillars, and a sill that reaches the
-  // desk. Without the sill there is a gap you can see the world through.
-  quad(P(-HW, TOP, FRONT), P(HW, TOP, FRONT), P(HW, 0.56, FRONT), P(-HW, 0.56, FRONT), mid);
-  for (const sg of [-1, 1]) {
-    quad(P(sg*HW, TOP, FRONT), P(sg*(HW-0.26), TOP, FRONT),
-         P(sg*(HW-0.26), SILL, FRONT), P(sg*HW, SILL, FRONT), mid);
+  // header over the glass, down to its top
+  quad(P(-HW, TOP, F(TOP)), P(HW, TOP, F(TOP)), P(HW, WT, F(WT)), P(-HW, WT, F(WT)), wall);
+  // corner pillars
+  for (const sg of [-1, 1])
+    quad(P(sg*HW, TOP, F(TOP)), P(sg*(HW-pil), TOP, F(TOP)),
+         P(sg*(HW-pil), SILL, F(SILL)), P(sg*HW, SILL, F(SILL)), wall);
+  // a centre pillar on the 416 and the V43
+  if (loco || dmu)
+    quad(P(-0.06, WT, F(WT)), P(0.06, WT, F(WT)), P(0.06, SILL, F(SILL)), P(-0.06, SILL, F(SILL)), wall);
+  // the rubber seal round the glass: a thin dark frame
+  const e = HW - pil, t = 0.035;
+  quad(P(-e, WT, F(WT)), P(e, WT, F(WT)), P(e, WT - t, F(WT - t)), P(-e, WT - t, F(WT - t)), seal);
+  quad(P(-e, SILL + t, F(SILL + t)), P(e, SILL + t, F(SILL + t)), P(e, SILL, F(SILL)), P(-e, SILL, F(SILL)), seal);
+  for (const sg of [-1, 1])
+    quad(P(sg*e, WT, F(WT)), P(sg*(e - t), WT, F(WT)), P(sg*(e - t), SILL, F(SILL)), P(sg*e, SILL, F(SILL)), seal);
+  // sun blind, half drawn over the top of the glass
+  quad(P(-e + 0.05, WT - 0.02, F(WT) - 0.06), P(e - 0.05, WT - 0.02, F(WT) - 0.06),
+       P(e - 0.05, WT - 0.20, F(WT - 0.20) - 0.06), P(-e + 0.05, WT - 0.20, F(WT - 0.20) - 0.06), blind);
+  // wipers, parked along the bottom of the glass, on the outside
+  for (const wx of loco || dmu ? [-0.75, 0.55] : [-0.55]) {
+    const wl = loco || dmu ? 0.62 : 1.05;
+    quad(P(wx, SILL + 0.05, F(SILL) + 0.03), P(wx + wl, SILL + 0.09, F(SILL) + 0.03),
+         P(wx + wl, SILL + 0.11, F(SILL) + 0.03), P(wx, SILL + 0.07, F(SILL) + 0.03), wiper);
   }
-  quad(P(-HW, SILL, FRONT), P(HW, SILL, FRONT),
-       P(HW, DESK_Y, FRONT), P(-HW, DESK_Y, FRONT), mid);
-  // and close the corner between the sill and the side walls
-  for (const sg of [-1, 1]) {
-    quad(P(sg*HW, SILL, FRONT), P(sg*HW, DESK_Y, FRONT),
-         P(sg*HW, DESK_Y, DESK_F), P(sg*HW, SILL, DESK_F), mid);
-  }
-  // roof and rear
-  quad(P(-HW, TOP, FRONT), P(HW, TOP, FRONT), P(HW, TOP, BACK), P(-HW, TOP, BACK), dark);
-  quad(P(HW, TOP, BACK), P(-HW, TOP, BACK), P(-HW, BOT, BACK), P(HW, BOT, BACK), dark);
-  // side walls with a window opening
+  // sill: from the bottom of the glass down to the desk
+  quad(P(-HW, SILL, F(SILL)), P(HW, SILL, F(SILL)), P(HW, DESK_Y, FRONT), P(-HW, DESK_Y, FRONT), wallD);
+  for (const sg of [-1, 1])
+    quad(P(sg*HW, SILL, FRONT), P(sg*HW, DESK_Y, FRONT), P(sg*HW, DESK_Y, DESK_F), P(sg*HW, SILL, DESK_F), wallD);
+  // roof (a lamp strip in it) and the back wall with its door
+  quad(P(-HW, TOP, F(TOP)), P(HW, TOP, F(TOP)), P(HW, TOP, BACK), P(-HW, TOP, BACK), roof);
+  quad(P(-0.35, TOP - 0.01, 0.9), P(0.35, TOP - 0.01, 0.9), P(0.35, TOP - 0.01, -0.3), P(-0.35, TOP - 0.01, -0.3), [0.95, 0.93, 0.86]);
+  quad(P(HW, TOP, BACK), P(-HW, TOP, BACK), P(-HW, BOT, BACK), P(HW, BOT, BACK), wallD);
+  quad(P(0.45, 0.55, BACK + 0.01), P(-0.45, 0.55, BACK + 0.01), P(-0.45, BOT, BACK + 0.01), P(0.45, BOT, BACK + 0.01), wall);
+  // side walls, each with a framed window (the side window slides on a real cab)
+  const SW0 = -0.30, SW1 = 0.46, SF0 = -0.95, SF1 = 1.25;
   for (const sg of [-1, 1]) {
     const x = sg * HW;
-    quad(P(x, TOP, FRONT), P(x, TOP, BACK), P(x, 0.38, BACK), P(x, 0.38, FRONT), mid);
-    quad(P(x, -0.34, FRONT), P(x, -0.34, BACK), P(x, BOT, BACK), P(x, BOT, FRONT), mid);
-    quad(P(x, 0.38, -0.10), P(x, 0.38, -0.36), P(x, -0.34, -0.36), P(x, -0.34, -0.10), mid);
+    quad(P(x, TOP, F(TOP)), P(x, TOP, BACK), P(x, SW1, BACK), P(x, SW1, FRONT), wall);
+    quad(P(x, SW0, FRONT), P(x, SW0, BACK), P(x, BOT, BACK), P(x, BOT, FRONT), wallD);
+    quad(P(x, SW1, SF0), P(x, SW1, BACK), P(x, SW0, BACK), P(x, SW0, SF0), wall);
+    quad(P(x, SW1, FRONT), P(x, SW1, SF1), P(x, SW0, SF1), P(x, SW0, FRONT), wall);
+    // frame and the sliding sash's upright
+    const xi = x - sg * 0.02;
+    quad(P(xi, SW1, SF0), P(xi, SW1, SF1), P(xi, SW1 - 0.04, SF1), P(xi, SW1 - 0.04, SF0), seal);
+    quad(P(xi, SW0 + 0.04, SF0), P(xi, SW0 + 0.04, SF1), P(xi, SW0, SF1), P(xi, SW0, SF0), seal);
+    quad(P(xi, SW1, 0.18), P(xi, SW1, 0.12), P(xi, SW0, 0.12), P(xi, SW0, 0.18), seal);
+    // the grab rail beside the door
+    quad(P(xi - sg * 0.03, 0.30, -0.95), P(xi - sg * 0.03, 0.30, -1.0), P(xi - sg * 0.03, -0.85, -1.0), P(xi - sg * 0.03, -0.85, -0.95), rail);
+    // the mirror, out in the air ahead of the side window
+    const xo = x + sg * 0.22;
+    quad(P(xo, 0.20, 1.30), P(xo, 0.20, 1.52), P(xo, -0.12, 1.52), P(xo, -0.12, 1.30), seal);
+    quad(P(x, 0.05, 1.40), P(xo, 0.05, 1.40), P(xo, 0.0, 1.40), P(x, 0.0, 1.40), seal);
   }
   // floor
-  quad(P(-HW, BOT, FRONT), P(HW, BOT, FRONT), P(HW, BOT, BACK), P(-HW, BOT, BACK), dark);
-  // desk: a sloped console with the instruments on its face
+  quad(P(-HW, BOT, FRONT), P(HW, BOT, FRONT), P(HW, BOT, BACK), P(-HW, BOT, BACK), floorC);
+  // desk: a sloped console with the instruments on its face, and its lip
   quad(P(-HW, DESK_Y, FRONT), P(HW, DESK_Y, FRONT),
        P(HW, DESK_Y, DESK_F), P(-HW, DESK_Y, DESK_F), desk);
-  // stand the instrument face up a little so a short glance down finds it
-  // A 3 m wide face only 0.5 m deep squashes the texture 6:1 and the labels
-  // turn to mush. Make it deeper and match the canvas aspect to it.
+  quad(P(-HW, DESK_Y + 0.02, DESK_F + 0.05), P(HW, DESK_Y + 0.02, DESK_F + 0.05),
+       P(HW, DESK_Y + 0.02, DESK_F - 0.02), P(-HW, DESK_Y + 0.02, DESK_F - 0.02), deskT);
   const faceA = P(-HW, DESK_Y, DESK_F), faceB = P(HW, DESK_Y, DESK_F);
   const faceC = P(HW, -1.16, 0.42), faceD = P(-HW, -1.16, 0.42);
   quad(faceA, faceB, faceC, faceD, desk, [[0,0],[1,0],[1,1],[0,1]]);
   quad(P(-HW, -1.16, 0.42), P(HW, -1.16, 0.42),
-       P(HW, BOT, 0.36), P(-HW, BOT, 0.36), dark);
+       P(HW, BOT, 0.36), P(-HW, BOT, 0.36), floorC);
 
   return { verts: new Float32Array(V), cols: new Float32Array(C),
            uvs: new Float32Array(U), count: V.length / 3,

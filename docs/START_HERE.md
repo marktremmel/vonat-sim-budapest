@@ -19,6 +19,10 @@ Around the trains there is a whole region:
 - weather and seasons;
 - missions, a photo mode, HU/EN.
 
+## Current session
+
+**`SESSION_S13.md`** is the live progress log of the session running now: what's done, what's in progress, what's next. Read it first when you resume.
+
 ## Read in this order
 
 1. **This file.**
@@ -108,7 +112,13 @@ unchanged, and rerun `ground_filter.py`.
 | --- | --- | --- |
 | `docs/START_HERE.md` | orientation | current |
 | `docs/OWNER_BACKLOG.md` | what to do next | current; keep it updated |
+| `docs/UNIFIED_ENGINE_SPEC.md` | Unified "One World" multi-modal engine architecture (all train lines, trams 4/6, 1, 2, H5, vehicle hopping) | current specification |
+| `docs/FEEDBACK_0925_IMPLEMENTATION_PLAN.md` | Actionable fixes and code diffs for 25 Sep prenight feedback items | current implementation guide |
+| `docs/CODEBASE_AUDIT_AND_REVIEW.md` | Deep-dive code audit, 6 critical bugs, bottlenecks, and product evaluation | current audit |
+| `docs/DARK_TIMELINE_DISASTER_SPEC.md` | "The Dark Timeline": geotechnical hill-moving physics, SimCity apocalypse scenarios & WebGL2 destruction engine | current specification |
+| `docs/MODERN_VFX_PARTICLE_ENGINE_SPEC.md` | GPU-instanced VFX engine: blackbody fire, explosions, velocity-stretched sparks, curl-noise smoke & Web Audio synthesis | current specification & drop-in code |
 | `docs/HISTORY.md` | what happened, what was reverted | current |
+| `docs/SESSION_S13.md` | the 26 Sep session's progress log and where it stopped | current |
 | `CLAUDE.md` (in `szob-fele/` and one level up, kept identical) | the session-by-session log with implementation detail. Its "Handoff" section at the top is the latest state | detailed; long |
 | `NOTES.md` | **Traps** (read them); the rest is August history | Traps: current |
 | `README.md` | public page and deep explanations of each subsystem | accurate; a long read |
@@ -116,13 +126,51 @@ unchanged, and rerun `ground_filter.py`.
 | `TESTING.md` | console harness, known-good numbers, camera spots | partly dated (August numbers) |
 | `LANDMARKS.md`, `DATA_SOURCES.md` | each landmark (reality vs data vs model); other data that could be used | 23 Sep |
 
+## S-12 Additions & Architectural Proposals (25 Sep Pass)
+
+> [!IMPORTANT]
+> **Open Design Philosophy**: The specifications and plans created during the S-12 pass (`UNIFIED_ENGINE_SPEC.md`, `DARK_TIMELINE_DISASTER_SPEC.md`, `MODERN_VFX_PARTICLE_ENGINE_SPEC.md`, `FEEDBACK_0925_IMPLEMENTATION_PLAN.md`, and `CODEBASE_AUDIT_AND_REVIEW.md`) are **architectural blueprints and engineering proposals — not dogma**.
+> 
+> Future contributors, the project owner, and subsequent LLM sessions are **actively encouraged to argue with, critique, adapt, or replace any of these proposals** in favor of alternative implementations.
+
+### Summary of Additions & Where Alternative Implementations Can Be Debated:
+
+1. **`docs/UNIFIED_ENGINE_SPEC.md`** (One World Multi-Modal Engine):
+   - *Proposed*: Single master metric origin $(W_0, S_0)$ with standard parallel $\text{FRAME\_LAT} = 47.5000^\circ\text{ N}$, unified `MultiRoute` graph (train lines, trams 4/6, 1, 2, 3, 56/61 greenway, H5 HÉV), and live vehicle hopping.
+   - *Can be argued with*: Floating camera origin per chunk vs global frame (float precision tradeoffs); decoupled line data streaming vs unified graph memory consumption; simplified kinematic vs physics-based bogie simulation on tight tram curves.
+
+2. **`docs/DARK_TIMELINE_DISASTER_SPEC.md`** (High-Impact Events & Disaster Simulation):
+   - *Proposed*: Geotechnical physics calculations for moving hills (Gellért-hegy, Szent Mihály-hegy flank collapse), conventional bomb damage matrix (JDAM, Spice 2000, GBU-28, Russian FAB-1500/3000 UMPK, ODAB-1500 thermobaric), nuclear scaling (1 kt to 500 kt airburst), kinetic orbital strikes, cascading EMP catenary overloads, and disaster impacts on Tram 3 & Tram 56/61.
+   - *Can be argued with*: Shader-based analytical vertex displacement in `TERRAIN_VS` vs CPU heightfield deformation buffers; scripted scenario missions vs emergent sandbox physics; destructible vs static landmark structures.
+
+3. **`docs/MODERN_VFX_PARTICLE_ENGINE_SPEC.md`** (Modern GPU-Instanced Particles):
+   - *Proposed*: Single `drawArraysInstanced` call for 4,096+ particles, Planck blackbody radiation ($1000\text{K}-4200\text{K}$), velocity-aligned stretched billboards for sparks/sparkles, procedural 2D curl noise for billowing smoke, Bayer matrix ordered dither dissolve, and procedural Web Audio synthesis.
+   - *Can be argued with*: CPU ring buffer upload vs Transform Feedback / compute shaders; Bayer dither dissolve vs alpha blending with depth sorting; procedural noise vs baked texture atlases.
+
+4. **`docs/CODEBASE_AUDIT_AND_REVIEW.md`** (Code Deep Dive & Bug Hunt):
+   - *Cataloged*: 6 critical bugs (FLIRT roof camera, seasonal corridor ground tint, aircraft banking look-at lock, city tile road memory leaks, motion blur pixel pinch), performance bottlenecks, and SWOT product review.
+   - *Can be argued with*: Priority rankings of bugs vs new features; architectural choices for city tile way cleanup.
+
+5. **`docs/FEEDBACK_0925_IMPLEMENTATION_PLAN.md`** (Concrete Action Plan for 19 Feedback Items):
+   - *Proposed*: Exact code diffs and step-by-step solutions for all items from `feedback-0925prenight-dev.md`.
+   - *Can be argued with*: Specific UI layout choices (e.g. mobile plane selector button design, fullscreen keybinding conventions).
+
 ## Where to start next
 
-The owner's own priorities as of 25 Sep, from OWNER_BACKLOG.md:
-1. **S21 details:** Zugló, Kőbánya alsó, KÖKI, Mexikói út, the ügyészség tower, Bosnyák tér, the airport, Egis/Richter. The owner annotated these in images 28–47.
-2. **S21 stock:** a diesel railcar (MÁV-START 416, per the photos), not a FLIRT.
-3. **Things built but never looked at:** pylons, Újpest vaults, Dunakeszi tó, Népsziget, MÁV-telep, cars under roads from above.
-4. **Purchased models:** village houses, street props (traffic lights, bus stops), farm buildings.
-5. **Cameras:** the cab lookout (not a grey box) and the flight cockpit.
-6. **AI cars:** more free off-road, with a timeout.
-7. **New lines:** trams 1 and 4/6, H5, Keleti–Kelenföld–Háros, one world.
+Read **`SESSION_S13.md`** → "Where this session stopped". In short (26 Sep):
+1. **Waiting on the owner:**
+   - the exact spots for S21's "train high above the road", the Üllői út crossing and the Újpest "swallowed houses";
+   - the Kispest photos, which did not arrive;
+   - what "cars: models are slow, drive model cars directly" means.
+2. **S21 places** (Zugló, Kőbánya alsó, KÖKI, Mexikói út depot, the ügyészség tower, Bosnyák tér, the airport): detail beyond what OSM already gives.
+3. **Purchased models:** village houses, street props, farm buildings.
+4. **Walking people;** bushes, vineyards and flowers outside Budapest.
+5. **Trams:** board and drive them; wires. Then H5, the Keleti–Kelenföld line, one world.
+
+New runtime files in S-13:
+- `web/src/vfx.js`: particles and the starling murmuration;
+- `web/src/trams.js`: Budapest's trams.
+
+New tools:
+- `bake_trams.py`, `fetch_bpfatar.py`, `bake_trees.py`;
+- queries: `q_trams`, `q_wells`, `q_fot`, `q_szentendre`, `q_s21_roads_{n,s}`.

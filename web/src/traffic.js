@@ -471,7 +471,16 @@ export class RoadTraffic {
    *  already there whose ends touch them re-linked, so traffic flows from
    *  the line's streets into the city's. Ways are never removed — a dropped
    *  tile's streets simply stop being drawn; vehicles there are culled. */
-  addWays(ways) {
+  addWays(ways, owner = null) {
+    // a tile that comes back revives its own entries: the indices stay put
+    // (vehicles and junction links hold them), so the array stops growing
+    this.owned = this.owned || new Map();
+    if (owner && this.owned.has(owner)) {
+      const ids = this.owned.get(owner);
+      for (const wi of ids) { this.ways[wi].dead = false; this.index(wi); }
+      for (const wi of ids) this.link(wi);
+      return;
+    }
     const first = this.ways.length;
     for (const w of ways) {
       if (w.cls > 5 || w.pts.length < 2) continue;
@@ -494,6 +503,31 @@ export class RoadTraffic {
     }
     for (let wi = first; wi < this.ways.length; wi++) this.link(wi);
     for (const wj of touched) this.link(wj);
+    if (owner) this.owned.set(owner, Array.from({ length: this.ways.length - first }, (_, i) => first + i));
+  }
+  /** A tile unloaded: its ways leave the grid (so nothing links or spawns
+   *  onto them) and the vehicles on them go; the entries wait, dead, in case
+   *  the tile comes back. */
+  removeOwner(owner) {
+    const ids = this.owned && this.owned.get(owner);
+    if (!ids) return;
+    const gone = new Set(ids);
+    for (const wi of ids) {
+      const w = this.ways[wi], cell = this.cell;
+      w.dead = true;
+      for (let k = 1; k < w.pts.length; k++) {
+        const a = w.pts[k - 1], b = w.pts[k];
+        const i0 = Math.floor(Math.min(a[0], b[0]) / cell), i1 = Math.floor(Math.max(a[0], b[0]) / cell);
+        const j0 = Math.floor(Math.min(a[1], b[1]) / cell), j1 = Math.floor(Math.max(a[1], b[1]) / cell);
+        for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+          const kk = this.gk(i, j), L = this.grid.get(kk);
+          if (!L) continue;
+          const keep = L.filter(e => e[0] !== wi);
+          if (keep.length) this.grid.set(kk, keep); else this.grid.delete(kk);
+        }
+      }
+    }
+    for (let i = this.vehicles.length - 1; i >= 0; i--) if (gone.has(this.vehicles[i].wi)) this.vehicles.splice(i, 1);
   }
 
   /** A vehicle has reached an end of its way: carry on into a joining way,
@@ -508,14 +542,30 @@ export class RoadTraffic {
     const choices = [];
     for (const [wj, sAt] of opts) {
       const u = this.ways[wj];
+      if (u.dead) continue;                        // its tile has gone
       if (u.cls > v.type.cls) continue;            // a bus does not take a farm track
       const base = (CW[u.cls] || 0.02) * (u.cls === w.cls ? 2.5 : 1);
       if (sAt < u.len - 3) choices.push({ wj, s: sAt, dir: 1, w: base });
       if (sAt > 3 && !u.oneway) choices.push({ wj, s: sAt, dir: -1, w: base });
     }
     if (!choices.length) {                          // dead end
-      // a one-way cannot be driven back up: the vehicle leaves the scene and
-      // the streamer replaces it somewhere else
+      // Most ends without a junction are not cul-de-sacs: the bake cut the
+      // road off (about 60% of way ends). A U-turn at every one looked silly
+      // (the owner: let them "continue on false terrain until either getting
+      // back on road or timing out"). So most carry on straight over the
+      // ground and look for a road that lines up; the rest turn round.
+      // (only on through roads: a residential or service road that stops is
+      // usually a real cul-de-sac, and a third of all traffic ended up in fields)
+      // Only when there is a road to reach: one lining up within 70 m ahead
+      // (a gap in the mapped network). Where the bake simply cut the road
+      // off, there is nothing to find, and a car heading into the fields for
+      // eight seconds is worse than a U-turn.
+      const q = this.place(v);
+      if (w.cls <= 4 && this.roadAhead(q, v.wi, v.type.cls)) {
+        v.free = { x: q.x, z: q.z, fx: q.fx, fz: q.fz, t: 0, look: 0 };
+        v.v = Math.max(5, Math.min(v.v, 11));
+        return;
+      }
       if (w.oneway) { v.gone = true; return; }
       v.dir = -v.dir; v.s = atEnd ? w.len : 0; return;
     }
@@ -542,6 +592,7 @@ export class RoadTraffic {
     const near = [];
     for (let wi = 0; wi < this.ways.length; wi++) {
       const w = this.ways[wi];
+      if (w.dead) continue;
       // closest approach of this way to the camera, and where along it
       let bd = 1e12, bs = 0;
       const stride = Math.max(1, (w.pts.length / 24) | 0);
@@ -589,6 +640,7 @@ export class RoadTraffic {
     const byWay = new Map(near.map(o => [o.wi, o]));
     // drop anything that has wandered out of range or off a way we dropped
     this.vehicles = this.vehicles.filter(v => {
+      if (v.free) return Math.hypot(v.free.x - cx, v.free.z - cz) < radius * 1.2;
       const o = byWay.get(v.wi);
       if (!o) return false;
       return Math.abs(v.s - o.s) < radius * 1.2;
@@ -642,10 +694,52 @@ export class RoadTraffic {
    *  bus or lorry. `v.lane` is the lateral position, 1 in its own lane and
    *  -1 in the other, eased so the move across is visible.
    */
+  /** A vehicle off the end of its road: straight on over the ground, and
+   *  every 0.4 s a look for a road within 6 m running within 40° of its
+   *  heading, which it joins. After 8 s it gives up and goes. */
+  roadAhead(q, notWi, maxCls) {
+    for (let d = 10; d <= 70; d += 10) {
+      const x = q.x + q.fx * d, z = q.z + q.fz * d;
+      for (const [wj, k] of this.grid.get(this.gk(Math.floor(x / this.cell), Math.floor(z / this.cell))) || []) {
+        const u = this.ways[wj];
+        if (wj === notWi || u.dead || u.cls > maxCls) continue;
+        const a = u.pts[k - 1], b = u.pts[k], ex = b[0] - a[0], ez = b[1] - a[1], ll = Math.hypot(ex, ez);
+        if (ll < 1 || Math.abs((ex * q.fx + ez * q.fz) / ll) < 0.77) continue;
+        const t = Math.max(0, Math.min(1, ((x - a[0]) * ex + (z - a[1]) * ez) / (ll * ll)));
+        if (Math.hypot(a[0] + ex * t - x, a[1] + ez * t - z) < 8) return true;
+      }
+    }
+    return false;
+  }
+  stepFree(v, dt) {
+    const f = v.free;
+    f.t += dt; f.x += f.fx * v.v * dt; f.z += f.fz * v.v * dt;
+    if (f.t > 8) { v.gone = true; return; }
+    if ((f.look -= dt) > 0) return;
+    f.look = 0.4;
+    const cell = this.cell, cand = this.grid.get(this.gk(Math.floor(f.x / cell), Math.floor(f.z / cell))) || [];
+    for (const [wj, k] of cand) {
+      const u = this.ways[wj];
+      if (u.dead || u.cls > v.type.cls || (wj === v.wi && f.t < 3)) continue;
+      const a = u.pts[k - 1], b = u.pts[k];
+      const ex = b[0] - a[0], ez = b[1] - a[1], ll = Math.hypot(ex, ez);
+      if (ll < 1) continue;
+      const t = Math.max(0, Math.min(1, ((f.x - a[0]) * ex + (f.z - a[1]) * ez) / (ll * ll)));
+      if (Math.hypot(a[0] + ex * t - f.x, a[1] + ez * t - f.z) > 6) continue;
+      const c = (ex * f.fx + ez * f.fz) / ll;
+      if (Math.abs(c) < 0.77) continue;                   // more than 40° off
+      const dir = c > 0 ? 1 : -1;
+      if (u.oneway && dir < 0) continue;
+      v.wi = wj; v.s = u.cum[k - 1] + t * ll; v.dir = dir; v.free = null; v.lane = 1;
+      return;
+    }
+  }
   step(dt, closed) {
     const turning = [];
     const byWay = new Map();
+    for (const v of this.vehicles) if (v.free) this.stepFree(v, dt);
     for (const v of this.vehicles) {
+      if (v.free) continue;
       if (!byWay.has(v.wi)) byWay.set(v.wi, { up: [], down: [] });
       byWay.get(v.wi)[v.dir > 0 ? "up" : "down"].push(v);
     }
@@ -758,11 +852,12 @@ export class RoadTraffic {
       }
     }
     for (const v of turning) this.turnAtEnd(v, v.s >= this.ways[v.wi].len - 0.01);
-    if (turning.some(v => v.gone)) this.vehicles = this.vehicles.filter(v => !v.gone);
+    if (this.vehicles.some(v => v.gone)) this.vehicles = this.vehicles.filter(v => !v.gone);
   }
 
   /** world position and heading of a vehicle */
   place(v) {
+    if (v.free) return { x: v.free.x, z: v.free.z, fx: v.free.fx, fz: v.free.fz, i: null, u: 0 };
     const w = this.ways[v.wi];
     let i = 1;
     while (i < w.cum.length - 1 && w.cum[i] < v.s) i++;
@@ -815,15 +910,16 @@ export function buildRoadTraffic(rt, camX, camZ, demAt, night, reach, surfaceAt,
   for (const v of rt.vehicles) {
     // A car at half a kilometre is three pixels. Simulating it is cheap;
     // rebuilding its geometry every frame is not, so cull before place().
-    const w0 = rt.ways[v.wi];
-    const p0 = w0.pts[Math.min(w0.pts.length - 1, (v.s / w0.len * (w0.pts.length - 1)) | 0)];
+    const w0 = v.free ? {} : rt.ways[v.wi];
+    const p0 = v.free ? [v.free.x, v.free.z] : w0.pts[Math.min(w0.pts.length - 1, (v.s / w0.len * (w0.pts.length - 1)) | 0)];
     const R = reach || 560;
     if (Math.abs(p0[0] - camX) > R + 60 || Math.abs(p0[1] - camZ) > R + 60) continue;
     const q = rt.place(v);
     if (Math.hypot(q.x - camX, q.z - camZ) > R) continue;
 
     // Elevation: on ground roads use demRidge + offset; on bridges ride the elevated deck
-    let y = surfaceAt ? surfaceAt(q.x, q.z) : demRidge(demAt, q.x, q.z) + 0.345;
+    let y = v.free ? demAt(q.x, q.z) + 0.05
+          : surfaceAt ? surfaceAt(q.x, q.z) : demRidge(demAt, q.x, q.z) + 0.345;
     // The road mesh is flat between its points; the ground under the car is
     // not. In a dip the car sat under the drawn road and vanished from above,
     // so it rides the higher of the two: the ground, or the road's chord.

@@ -234,7 +234,7 @@ export class Sound {
       droneOscs.push({ o, mult });
     }
 
-    this.nodes = { master, rollGain, rollFilt, tract, oscs, cicGain, cicFilt,
+    this.nodes = { master, rollGain, rollFilt, tract, tfilt, oscs, cicGain, cicFilt,
                    windGain, windFilt, noiseBuf, rainGain, rainFilt,
                    gustGain, gustFilt, sqGain, sqFilt, sqFilt2,
                    vvGain, vvFilt, vvOscs, hornGain, hornOscs,
@@ -517,6 +517,22 @@ export class Sound {
   }
 
   /** speed m/s, throttle 0..1, sunAlt radians, dayOfYear, inCutting 0..1 */
+  /** A crash: a sub-bass thump sweeping down and a low roar of filtered
+   *  noise, quieter with distance (metres). */
+  boom(dist = 60) {
+    if (!this.on || !this.ctx) return;
+    const ctx = this.ctx, now = ctx.currentTime, n = this.nodes;
+    const att = Math.max(0.05, Math.min(1, 1 / (1 + dist * 0.012)));
+    const o = ctx.createOscillator(), og = ctx.createGain();
+    o.frequency.setValueAtTime(130, now); o.frequency.exponentialRampToValueAtTime(28, now + 0.9);
+    og.gain.setValueAtTime(0.9 * att, now); og.gain.exponentialRampToValueAtTime(0.001, now + 1.7);
+    o.connect(og).connect(n.master); o.start(now); o.stop(now + 1.8);
+    const src = ctx.createBufferSource(); src.buffer = n.noiseBuf;
+    const f = ctx.createBiquadFilter(); f.type = "lowpass";
+    f.frequency.setValueAtTime(380, now); f.frequency.exponentialRampToValueAtTime(60, now + 2.2);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.8 * att, now); g.gain.exponentialRampToValueAtTime(0.001, now + 2.5);
+    src.connect(f).connect(g).connect(n.master); src.start(now); src.stop(now + 2.6);
+  }
   update(v, throttle, brake, sunAlt, day, dt, paused) {
     if (!this.on || !this.ctx) return;
     if (paused) {
@@ -527,6 +543,7 @@ export class Sound {
       return;
     }
     const n = this.nodes, t = this.ctx.currentTime, k = 0.12;
+    this.dt = dt;
     const set = (p, x) => p.setTargetAtTime(x, t, k);
 
     const sp = Math.min(v / 33, 1.4);
@@ -541,13 +558,30 @@ export class Sound {
 
     // traction sings under power and falls away when coasting
     const load = throttle * Math.max(0.15, 1 - v / 40);
-    set(n.tract.gain, load * 0.085);
-    for (const { o, mult } of n.oscs)
-      o.frequency.setTargetAtTime((55 + v * 7.5) * mult, t, k);
+    if (this.diesel) {
+      // A diesel-hydraulic railcar (the S21's MÁV 416): the engine's speed
+      // follows the throttle, not the road speed — the gearbox takes up the
+      // difference — so you hear it rev up at the platform and hold its note.
+      // The fundamental is the firing frequency of a six: 30 Hz at 600 rpm
+      // idle, ~90 Hz flat out; the sawtooth stack gives the chug.
+      this.rpm = this.rpm || 600;
+      const want = 600 + 1200 * Math.min(1, throttle);
+      this.rpm += (want - this.rpm) * Math.min(1, 0.9 * (this.dt || 0.016));
+      const fire = this.rpm / 20;
+      set(n.tract.gain, 0.035 + throttle * 0.075);
+      n.tfilt.frequency.setTargetAtTime(320 + throttle * 700, t, 0.2);
+      for (const { o, mult } of n.oscs) o.frequency.setTargetAtTime(fire * mult, t, 0.12);
+    } else {
+      set(n.tract.gain, load * 0.085);
+      n.tfilt.frequency.setTargetAtTime(1600, t, 0.2);
+      for (const { o, mult } of n.oscs)
+        o.frequency.setTargetAtTime((55 + v * 7.5) * mult, t, k);
+    }
 
     // VVVF: the carrier steps up in stages and then goes synchronous, which
     // is the rising staircase you hear leaving a platform in a Stadler
-    if (n.vvGain) {
+    if (n.vvGain && this.diesel) set(n.vvGain.gain, 0);   // no inverter on a diesel
+    else if (n.vvGain) {
       const kmh = v * 3.6;
       const carrier = kmh < 12 ? 300 + kmh * 12
                     : kmh < 24 ? 600 + (kmh - 12) * 8

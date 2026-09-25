@@ -27,6 +27,10 @@ CITY = os.environ.get("CITY") == "1"
 if CITY:
     LINE = "line70"
 CITY_BOX = (47.39, 18.93, 47.58, 19.25)
+# Szentendre, the island's south end and Budakalász, across the river from
+# line 70 (q_szentendre.ql): kept whatever their distance from the line
+def in_szentendre(lat, lon):
+    return 47.585 <= lat <= 47.720 and 19.020 <= lon <= 19.110
 def in_city(lat, lon):
     return CITY_BOX[0] <= lat <= CITY_BOX[2] and CITY_BOX[1] <= lon <= CITY_BOX[3]
 EXCLUDE_CITY = (not CITY and os.path.exists("web/data/city/index.json")
@@ -202,9 +206,12 @@ def main():
     # public mirrors, so the Budapest end gets a plain bounding box of its
     # own and the two are merged here, de-duplicated by way id.
     EXTRA = (("data/raw/context_bp.json", "data/raw/eszakpest_osm.json", "data/raw/downtown_osm.json",
-              "data/raw/industry_osm.json")
+              "data/raw/industry_osm.json", "data/raw/fot_osm.json",     # Fót, M0/M3 (q_fot.ql)
+              "data/raw/szentendre_osm.json")                             # q_szentendre.ql
              if LINE == "line70" else (f"data/raw/context_{LINE}_osm.json", "data/raw/eszakpest_osm.json",
-                                       "data/raw/esztergom_osm.json", "data/raw/downtown_osm.json"))
+                                       "data/raw/esztergom_osm.json", "data/raw/downtown_osm.json",
+                                       # roads out to 1.5 km (q_s21_roads_*.ql)
+                                       f"data/raw/{LINE}_roads_n.json", f"data/raw/{LINE}_roads_s.json"))
     for fname in (() if CITY else EXTRA):
         try:
             extra = json.load(open(fname, encoding="utf-8"))["elements"]
@@ -525,6 +532,7 @@ def main():
         else:
             _, off, _ = DOWN.snap(lat, lon)
             r_limit = CITY_R if lat < 47.65 else BUILD_R
+            if LINE == "line70" and in_szentendre(lat, lon): r_limit = 8000.0
             if off > r_limit:
                 skipped += 1
                 continue
@@ -848,6 +856,17 @@ def main():
         else:
             _, off, _ = DOWN.snap(mid["lat"], mid["lon"])
             limit = CITY_ROAD_R if mid["lat"] < 47.65 else (NARROW_R if RCLS[hw] >= 5 else ROAD_R)
+            # The other lines' towns had houses and no streets (owner: "missing
+            # roads in Esztergom, and near and after Dabas"): the buildings are
+            # kept to 3 km, the roads were cut at 600 m (420 for small ones).
+            # Keep them as far as the extracts reach, and in the Esztergom –
+            # Párkány box as far as the buildings.
+            if LINE == "line70" and in_szentendre(mid["lat"], mid["lon"]):
+                limit = 8000.0
+            if LINE != "line70":
+                limit = max(limit, 1600.0 if RCLS[hw] <= 4 else 900.0)
+                if 47.770 <= mid["lat"] <= 47.825 and 18.690 <= mid["lon"] <= 18.775:
+                    limit = BUILD_R
         # A big bridge is visible from much further than a street is. Margit
         # híd was downloaded and then dropped here — 1.9 km out against a
         # 600 m road limit — which left the Danube with no bridge on it at
@@ -1132,6 +1151,17 @@ def main():
 
 
 
+    # Erzsébet híd (1964): a white single-span suspension bridge. Anchored on
+    # its OSM deck (the far pair of its ways in downtown_osm.json, 499 m with
+    # the Pest ramp); the model finds the river along the axis and stands its
+    # pylons on the two banks (landmarks.js "erzsebet")
+    ea, eb = xy(47.4921407, 19.052848), xy(47.4900993, 19.046942)
+    anchors.append({"key": "erzsebet", "name": "Erzsébet híd",
+                    "x": round((ea[0] + eb[0]) / 2, 2), "y": round((ea[1] + eb[1]) / 2, 2),
+                    "ang": round(math.atan2(eb[1] - ea[1], eb[0] - ea[0]), 5),
+                    "hu": round(math.hypot(eb[0] - ea[0], eb[1] - ea[1]) / 2, 1), "hv": 14.0, "h": 40.0})
+    print(f"  landmark  erzsebet     Erzsébet híd")
+
     # Megyeri híd (M0 Danube Cable-Stayed Bridge, km 12.2)
     anchors.append({"key": "megyeri", "name": "Megyeri híd",
                     "x": round(from70(23594.3, 16934.5)[0], 2), "y": round(from70(23594.3, 16934.5)[1], 2),
@@ -1217,6 +1247,21 @@ def main():
             anchors.append(rec)
         rec.update({"x": round((a_[0] + b_[0]) / 2, 2), "y": round((a_[1] + b_[1]) / 2, 2),
                     "ang": round(math.atan2(b_[1] - a_[1], b_[0] - a_[0]), 5), "hu": round(d / 2, 1)})
+        # Megyeri híd: the cable-stayed part is tagged bridge:structure=
+        # suspension in OSM; its middle is the middle of the 300 m main span,
+        # where the model's two pylons belong (they were placed from the
+        # widest wet run along the axis, and stood off the bridge)
+        if key == "megyeri":
+            cs = [xy(p["lat"], p["lon"]) for e in LMW if e["type"] == "way"
+                  and e["tags"].get("name") == nm and e["tags"].get("bridge:structure") in ("suspension", "cable-stayed")
+                  for p in e.get("geometry", [])]
+            if len(cs) >= 2 and far_pair(cs)[0] < 900:     # (OSM tags nearly the whole 1.8 km: no help)
+                _, c0, c1 = far_pair(cs)
+                mx, my = (c0[0] + c1[0]) / 2, (c0[1] + c1[1]) / 2
+                ca, sa = math.cos(rec["ang"]), math.sin(rec["ang"])
+                rec["mu"] = round((mx - rec["x"]) * ca + (my - rec["y"]) * sa, 1)
+                rec["mv"] = round(-(mx - rec["x"]) * sa + (my - rec["y"]) * ca, 1)
+                print(f"  megyeri main span centre at u {rec['mu']}, v {rec['mv']}")
         print(f"  anchored  {key:12s} to OSM: {d:.0f} m")
     # The Northern Railway Bridge is two bridges: the Danube crossing from
     # Óbuda to Népsziget, and a second one over the Újpest bay (the Népsziget

@@ -1139,6 +1139,8 @@ export const TRACK_FS = `#version 300 es
 precision highp float;
 in vec3 vCol; in float vDist; in vec3 vWorld; in vec3 vNrm; in vec4 vBld; out vec4 fc;
 uniform vec3 uEye;
+uniform vec4 uSeason;     // leaf, autumn, fresh, crop (as TERRAIN_FS)
+uniform float uGround;    // 1 while the corridor mesh draws: its grass has seasons
 uniform vec3 uSunDir, uSunCol, uSkyCol, uFogCol;
 uniform float uFogDensity, uDither, uSnow, uWet, uLift;
 uniform vec4 uCloudDeck, uCloudShape, uCloudWind;
@@ -1210,6 +1212,20 @@ void main(){
   // body seen from inside wants the side facing us
   if (dot(vNrm, vNrm) > 0.25 && dot(n, uEye - vWorld) < 0.0) n = -n;
   vec3 base = vCol;
+  // The corridor (the ground 124 m either side of the line) is vertex
+  // coloured by land cover and was summer green all year while the terrain
+  // beyond it turned. Its vegetated fragments now take the terrain's own
+  // seasonal shift, plus winter dormancy; ballast, cess and paths are not
+  // green and are left alone.
+  if (uGround > 0.5) {
+    float green = clamp((vCol.g - max(vCol.r, vCol.b)) * 9.0, 0.0, 1.0);
+    vec3 b2 = base;
+    b2 = mix(b2, b2 * vec3(1.10,1.02,0.80), uSeason.y * 0.85);
+    b2 = mix(b2, b2 * vec3(0.86,0.88,0.94), (1.0 - uSeason.x) * 0.55);
+    b2 = mix(b2, b2 * vec3(1.02,1.14,0.86), uSeason.z * 0.40);
+    b2 = mix(b2, vec3(0.40, 0.38, 0.30) * (0.9 + 0.2 * fract(vCol.r * 91.0)), (1.0 - uSeason.x) * 0.45);
+    base = mix(base, b2, green);
+  }
   base *= mix(1.0, 0.60, uWet);
   // Snow lies on the ballast, the sleepers and the cess, but never on the
   // railhead — a running line is burnished clean by every wheel that passes.
@@ -1525,9 +1541,11 @@ void main(){
   } else if (sp == 5) {     // pine: a spire, needled nearly to the ground
     base_ = 0.38; tip = 0.03; power = 0.85; lobeAmp = 0.072; lobeFreq = 30.0;
     canopyFrom = 0.10; trunkW = 0.048;
-  } else if (sp == 6) {     // poplar: a column
-    base_ = 0.22; tip = 0.06; power = 1.30; lobeAmp = 0.026; lobeFreq = 24.0;
-    canopyFrom = 0.10; trunkW = 0.038;
+  } else if (sp == 6) {     // a column (Lombardy poplar, fastigiate hornbeam or oak):
+    // a narrow flame, fullest a third of the way up, on a short visible bole.
+    // It was a spike to the ground: base 0.22 tapering to 0.06 from 10%.
+    base_ = 0.30; tip = 0.09; power = 1.9; lobeAmp = 0.040; lobeFreq = 17.0;
+    canopyFrom = 0.15; trunkW = 0.040;
   } else if (sp == 7) {     // willow: broad, and it weeps
     base_ = 0.48; tip = 0.32; power = 0.70; lobeAmp = 0.095; lobeFreq = 12.0;
     canopyFrom = 0.20; trunkW = 0.085;
@@ -1667,7 +1685,21 @@ void main(){
             : sp == 4 ? vec3(0.30,0.24,0.17)      // locust, deeply furrowed
             : sp == 7 ? vec3(0.24,0.20,0.15)
                       : vec3(0.21,0.17,0.13);
+  // bark reads as wood against the leaves: a touch lighter and greyer than
+  // the crown, which it was the same value as (the owner: trunks and
+  // branches did not separate from the leaves)
+  bark = mix(bark * 1.30, vec3(0.42, 0.40, 0.37), 0.25);
   vec3 col = mix(bark, leafCol, canopy);
+  // the inside of a crown is in its own shade: darker round the stem and
+  // low down, so a tree has volume and structure in full leaf too
+  if (sp != 16 && sp != 11) {
+    float inner = smoothstep(0.22, 0.0, abs(p.x)) * smoothstep(canopyFrom + 0.42, canopyFrom, y);
+    col *= 1.0 - 0.26 * inner * canopy;
+    // and the main limbs show through the gaps near the stem
+    float limb = smoothstep(0.022, 0.0, abs(abs(p.x) - (y - canopyFrom) * 0.55
+                 - 0.015 * sin(y * 13.0 + vSeed * 21.0))) * step(canopyFrom, y) * step(y, canopyFrom + 0.38);
+    col = mix(col, bark * 0.8, limb * canopy * 0.55 * smoothstep(0.30, 0.0, abs(p.x)));
+  }
   if (uSnow > 0.001)
     col = mix(col, vec3(0.86,0.89,0.93),
               clamp(uSnow * canopy * (0.30 + 0.70 * y) * (evergreen ? 1.0 : leaf),
@@ -1780,11 +1812,15 @@ void main(){
   // from the depth, through last frame's camera), and a smear along the way
   if (uFx.x > 0.0) {
     float dz = texture(uDepth, vUv).r;
-    if (linDepth(vUv) > uFx.z) {
+    // Not the sky (depth 1: "where it was" is a point at infinity, and a
+    // pitch of the camera threw it across the screen — the pixels "pushed
+    // together" when tilting), and not a point that was behind last frame's
+    // camera (w <= 0 inverts the projection).
+    if (linDepth(vUv) > uFx.z && dz < 0.99998) {
       vec4 wp = uInvVP * vec4(vUv * 2.0 - 1.0, dz * 2.0 - 1.0, 1.0);
       wp /= wp.w;
       vec4 pp = uPrevVP * wp;
-      vec2 vel = (vUv - (pp.xy / pp.w * 0.5 + 0.5)) * uFx.x;
+      vec2 vel = pp.w > 0.01 ? (vUv - (pp.xy / pp.w * 0.5 + 0.5)) * uFx.x : vec2(0.0);
       float L = length(vel);
       if (L > 0.05) vel *= 0.05 / L;
       if (L > 0.0015) {
@@ -2500,4 +2536,98 @@ void main(){
   vec3 col = base * (uSunCol * lam * 0.9 + uSkyCol * (0.55 + uLift * 0.38) + 0.06 + uLift * 0.085);
   float fg = 1.0 - exp(-vDist * uFogDensity);
   fc = vec4(mix(col, uFogCol, clamp(fg, 0.0, 1.0)), 1.0);
+}`;
+
+// Particles (vfx.js): camera-facing quads, sparks stretched along their
+// velocity; fire and fireballs coloured by temperature (a blackbody ramp,
+// cooling with age), smoke lit by the sun and the sky, vapour white. Drawn
+// blended over the opaque scene without writing depth; the edge is broken by
+// the same 4×4 ordered dither as the trees, so it keeps the game's look.
+export const VFX_VS = `#version 300 es
+layout(location = 0) in vec2 aCorner;
+layout(location = 1) in vec4 aPosSize;     // world xyz, size (m)
+layout(location = 2) in vec4 aVelLife;     // velocity, life 0..1
+layout(location = 3) in vec4 aParams;      // type, rotation, seed, temperature
+out vec2 vUv; out vec4 vP; out float vDist;
+uniform mat4 uVP; uniform vec3 uEye, uCamRight, uCamUp;
+void main(){
+  vec3 wp = aPosSize.xyz; float size = aPosSize.w; vec3 vel = aVelLife.xyz;
+  // a far bird is a dot: never smaller than ~0.4% of its distance, or a
+  // murmuration at half a kilometre drops below a pixel and thins out
+  if (aParams.x > 4.5) size = max(size, length(wp - uEye) * 0.004);
+  vec3 off;
+  if ((aParams.x > 1.5 && aParams.x < 2.5) || aParams.x > 4.5) {
+    // a spark: a streak along its motion
+    vec3 toEye = normalize(uEye - wp);
+    float sp = length(vel);
+    vec3 dir = sp > 0.1 ? vel / sp : uCamUp;
+    vec3 side = normalize(cross(toEye, dir));
+    off = side * aCorner.x * size * 0.5 + dir * aCorner.y * size * clamp(sp * 0.06, 1.0, 6.0) * 0.5;
+  } else {
+    float c = cos(aParams.y), s = sin(aParams.y);
+    vec2 r = vec2(aCorner.x * c - aCorner.y * s, aCorner.x * s + aCorner.y * c);
+    off = (uCamRight * r.x + uCamUp * r.y) * size;
+  }
+  vec3 p = wp + off;
+  vUv = aCorner * 0.5 + 0.5;
+  vP = vec4(aParams.x, aVelLife.w, aParams.z, aParams.w);
+  vDist = length(p - uEye);
+  gl_Position = uVP * vec4(p, 1.0);
+}`;
+export const VFX_FS = `#version 300 es
+precision highp float;
+in vec2 vUv; in vec4 vP; in float vDist; out vec4 fc;
+uniform vec3 uSunCol, uSkyCol, uFogCol, uSunDir;
+uniform float uFogDensity;
+float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float n2(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(h21(i), h21(i + vec2(1,0)), u.x), mix(h21(i + vec2(0,1)), h21(i + vec2(1,1)), u.x), u.y); }
+vec3 blackbody(float k){ float t = clamp(k / 4000.0, 0.0, 1.0);
+  vec3 c = vec3(clamp(t * 1.8, 0.0, 1.0), clamp((t - 0.25) * 1.6, 0.0, 1.0), clamp((t - 0.65) * 2.5, 0.0, 1.0));
+  return c * c; }
+void main(){
+  float type = vP.x, life = vP.y, seed = vP.z, temp = vP.w;
+  vec2 c = vUv - 0.5; float r2 = dot(c, c);
+  if (r2 > 0.25) discard;
+  vec3 col; float a;
+  if (type < 0.5) {                           // smoke
+    float n = n2(vUv * 4.5 + vec2(life * 0.5, seed * 10.0));
+    float body = smoothstep(0.35, 0.85, (1.0 - sqrt(r2) * 2.0) * (0.6 + 0.4 * n));
+    float lit = clamp(dot(normalize(vec3(c.x, 0.8, c.y)), uSunDir) * 0.4 + 0.6, 0.0, 1.0);
+    // burning fuel smokes black; it greys and thins as it rises and spreads
+    vec3 base = mix(vec3(0.05, 0.05, 0.055), vec3(0.22, 0.22, 0.23), lit) * mix(0.8, 1.9, life);
+    col = base * (uSunCol * 0.6 + uSkyCol * 0.35);
+    a = body * (1.0 - life * life) * 0.95;
+  } else if (type < 1.5) {                    // flame
+    vec2 q = vUv + (n2(vUv * 6.0 - vec2(0.0, life * 3.0)) - 0.5) * 0.22;
+    float d = length(q - 0.5);
+    if (d > 0.5) discard;
+    col = blackbody(mix(temp, 800.0, life * 0.85 + d * 0.6)) * 1.8;
+    a = (1.0 - smoothstep(0.1, 0.5, d)) * (1.0 - life * 0.6);
+  } else if (type < 2.5) {                    // spark
+    float d = c.x * c.x * 16.0 + c.y * c.y;
+    if (d > 0.25) discard;
+    col = mix(vec3(1.6, 0.95, 0.35), vec3(1.0, 0.25, 0.06), life);
+    a = (1.0 - d * 4.0) * (1.0 - life * life);
+  } else if (type < 3.5) {                    // fireball, rolling into soot
+    float sh = n2(vUv * 8.0 + vec2(life * 2.0));
+    float core = (1.0 - sqrt(r2) * 2.0) * (0.7 + 0.3 * sh);
+    float k = mix(4500.0, 600.0, pow(life, 0.45));
+    col = mix(blackbody(k) * (k > 2500.0 ? 2.6 : 1.3), vec3(0.08, 0.07, 0.07), smoothstep(0.3, 0.8, life));
+    a = smoothstep(0.1, 0.6, core) * (1.0 - life * 0.8);
+  } else if (type > 4.5) {                    // a starling: a small dark swept shape
+    if (vDist < 120.0 && abs(c.y) > 0.12 + (0.5 - abs(c.x)) * 0.25) discard;   // wings only up close
+    col = vec3(0.06, 0.06, 0.07);
+    a = 1.0;
+  } else {                                    // vapour / contrail puff
+    float body = 1.0 - smoothstep(0.1, 0.5, sqrt(r2) * 2.0);
+    col = vec3(0.92, 0.94, 0.97) * (uSunCol * 0.5 + uSkyCol * 0.6);
+    a = body * (1.0 - life) * 0.55;
+  }
+  float f = clamp(1.0 - exp(-vDist * uFogDensity), 0.0, 1.0);
+  col = mix(col, uFogCol, f);
+  int bx = int(mod(gl_FragCoord.x, 4.0)), by = int(mod(gl_FragCoord.y, 4.0));
+  float thr[16] = float[16](0.06,0.56,0.19,0.69, 0.81,0.31,0.94,0.44, 0.25,0.75,0.12,0.62, 1.00,0.50,0.88,0.38);
+  if (a < thr[by * 4 + bx] * 0.35) discard;
+  fc = vec4(col, clamp(a * 1.2, 0.0, 1.0));
 }`;

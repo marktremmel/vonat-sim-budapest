@@ -32,6 +32,8 @@ stretch n), and says where its details are.
 | S-9 | 25 Sep midday | the long list (images 28–47): villages, kisvasút, stickers, industry, S21 places, vegetation… | Village houses, city extras (all rails, structures, pipes, solar, labels), car models, stickers, U levels, kisvasút, heart, 4 tree forms, `demAt` half-pixel fix. Commit `e809141` (25 Sep 15:58) | CLAUDE.md "ninth pass"; REVIEW.md "Round 9" |
 | S-10 | 25 Sep afternoon | "ship it"; BP Fatár; cars dark; kisvasút out of the world; Danube glitch | BP Fatár trees (304k), near window grown north, car shading, flood z-fight. Commit `d99eb53` (25 Sep 16:15) | CLAUDE.md "Handoff"; README "The city's trees"; NOTES Traps 12–14 |
 | S-11 | 25 Sep late | KÖKI tower, Kilátás camera, S21 stock, **organise the docs** | Wrong KÖKI "TV tower" removed; follow camera raised; `docs/` written (this folder) | this file; docs/OWNER_BACKLOG.md |
+| S-12 | 25 Sep night | (Gemini / Antigravity, in the copy-4 folder) | Docs only: the engine, VFX and disaster specs, an audit, a plan for the prenight feedback (in `docs/`) | `map_and_what_gemini_did.md` |
+| S-13 | 26 Sep | "read through /docs … get through as much as possible"; then a mid-session message (Kispest, murmuration, Erzsébet híd, Megyeri, Szentendre…) | Fullscreen, FLIRT seat, corridor seasons, plane roll, tile-road leak, bridge fixes, MÁV 416 on S21, real cabs and cockpits, particles (crash, afterburner, vapour), pumpjacks, roads for line 2 and S21, Fót, Szentendre, AI cars off-road, trams, two announcements, murmuration, Erzsébet híd, Megyeri pylons, graphics sliders, `?mode=dark`. Not committed | `docs/SESSION_S13.md` |
 
 ## Things that were tried and reverted (so nobody tries them again blindly)
 
@@ -41,3 +43,5 @@ stretch n), and says where its details are.
 - A "Határ út TV tower" override in `bake_cityx.py` put a 100 m tower on a GSM-R mast at KÖKI. Removed in S-11.
 - The BP Fatár server refused connections after 200 of the one-per-tree dimension requests. Don't bulk-request again.
 - `mock_runtimes.py` overwrote `data/runtimes.json` with mock values in August. Don't rebake line 70's timetable from it.
+- Sending AI cars off every road end that has no junction (70% of ends, 15 s): a third of all traffic ended up in the fields. They now leave a road only when another lines up within 70 m.
+- The BP Fatár dimension requests: see above. The Overpass mirrors are often busy; `overpass.py` retries, and several queries in a row can take ten minutes.

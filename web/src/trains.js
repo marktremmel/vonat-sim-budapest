@@ -13,14 +13,14 @@
 // speckle. Every surface here is cut into abutting pieces instead, so nothing
 // is ever coplanar with anything else.
 
-export const CAR_LEN = { KISS: 25.0, FLIRT: 18.5, EC: 26.4, FREIGHT: 14.5 };
-export const CAR_H   = { KISS: 4.60, FLIRT: 4.12, EC: 4.05, FREIGHT: 3.90 };
+export const CAR_LEN = { KISS: 25.0, FLIRT: 18.5, EC: 26.4, FREIGHT: 14.5, M416: 22.9 };
+export const CAR_H   = { KISS: 4.60, FLIRT: 4.12, EC: 4.05, FREIGHT: 3.90, M416: 3.89 };
 const LOCO_LEN = 19.5;
 
 // How much of its own length a vehicle gives up to the gap at each end. A
 // Stadler unit is close-coupled with a gangway and reads as one train; screw
 // couplings and buffers leave a real gap you can see daylight through.
-const COUPLE = { KISS: 0.494, FLIRT: 0.494, EC: 0.481, FREIGHT: 0.472 };
+const COUPLE = { KISS: 0.494, FLIRT: 0.494, EC: 0.481, FREIGHT: 0.472, M416: 0.492 };
 
 // MÁV liveries. The suburban Stadlers are white over blue with yellow doors —
 // the doors are the most recognisable thing about them at any distance.
@@ -29,6 +29,10 @@ const LIVERY = {
           skirt: [0.40,0.42,0.45], roof: [0.34,0.36,0.38] },
   FLIRT:{ upper: [0.90,0.92,0.94], lower: [0.08,0.36,0.68], door: [0.97,0.78,0.10],
           skirt: [0.40,0.42,0.45], roof: [0.36,0.38,0.40] },
+  // MÁV 416 in MÁV-START colours (owner's photos 48–49): pale grey-white
+  // over a blue band, yellow doors, a light grey roof
+  M416: { upper: [0.86,0.87,0.88], lower: [0.12,0.30,0.64], door: [0.96,0.78,0.12],
+          skirt: [0.46,0.47,0.49], roof: [0.58,0.59,0.60] },
   EC:   { upper: [0.74,0.77,0.81], lower: [0.13,0.20,0.36], door: [0.62,0.66,0.70],
           skirt: [0.22,0.23,0.26], roof: [0.36,0.37,0.39] },
   // V43: blue body over a grey lower band, and a yellow cab front
@@ -138,7 +142,7 @@ export function buildTrains(traffic, downPts, upPts, player, night = 0, hollow =
 
       // gangway: what makes a Stadler unit read as one train rather than a
       // line of separate boxes
-      if ((stock === "KISS" || stock === "FLIRT") && k < t.cars - 1) {
+      if ((stock === "KISS" || stock === "FLIRT" || stock === "M416") && k < t.cars - 1) {
         const gy0 = 0.85, gy1 = 3.10, gw = 0.92, ext = L * (0.5 - COUPLE[stock]) + 0.02;
         for (const sgn of [-1, 1])
           quad(P(-half - ext, sgn*gw, gy0), P(-half, sgn*gw, gy0),
@@ -167,7 +171,7 @@ function buildCoach(quad, P, half, stock, k, cars, frontEnd, rearEnd, glass, nig
   const SEAT_BLUE = [0.12, 0.32, 0.62], FLOOR_GREY = [0.32, 0.33, 0.35];
   const W = 1.42, Wt = 1.06;
   const doubleDeck = stock === "KISS";
-  const floor = doubleDeck ? 0.62 : (stock === "FLIRT" ? 0.60 : 1.05);
+  const floor = doubleDeck ? 0.62 : (stock === "FLIRT" ? 0.60 : stock === "M416" ? 1.12 : 1.05);
   const roofHi = CAR_H[stock];
   // A KISS roof is one continuous line at full height, nose to tail. What is
   // single-level over the bogies is the floor inside, not the roof: there the
@@ -176,7 +180,8 @@ function buildCoach(quad, P, half, stock, k, cars, frontEnd, rearEnd, glass, nig
   // hump on every car.
   const endTop = roofHi;
   const step = doubleDeck ? half * 0.56 : half;
-  const nose = (frontEnd || rearEnd) ? (stock === "FLIRT" ? 1.30 : 1.05) : 0;
+  // (the 416's front is nearly upright: a short nose)
+  const nose = (frontEnd || rearEnd) ? (stock === "FLIRT" ? 1.30 : stock === "M416" ? 0.45 : 1.05) : 0;
   const e0 = -half + (rearEnd ? nose : 0);
   const e1 =  half - (frontEnd ? nose : 0);
 
@@ -326,6 +331,15 @@ function cabEnd(quad, P, ee, out, W, Wt, topH, floor, liv, nose, glass, night, s
          P(tip, sgn * wTip, topH - 0.9), P(ee, sgn * W, topH - 0.9), front);
   quad(P(tip, -wTip, floor - 0.32), P(tip, wTip, floor - 0.32),
        P(tip, wTip, 0.38), P(tip, -wTip, 0.38), DARK);
+  if (stock === "M416") {
+    // the blue band under the windscreen, and the red coupler box low in the
+    // middle (both on the owner's photos of 416 021 and 416 031)
+    const fo = tip + out * 0.02;
+    quad(P(fo, -wTip, topH - 1.95), P(fo, wTip, topH - 1.95),
+         P(fo, wTip, topH - 1.60), P(fo, -wTip, topH - 1.60), liv.lower);
+    quad(P(fo, -0.26, 0.55), P(fo, 0.26, 0.55), P(fo, 0.26, 0.98), P(fo, -0.26, 0.98), [0.78, 0.10, 0.10]);
+    quad(P(fo, -wTip, 0.38), P(fo, wTip, 0.38), P(fo, wTip, 0.55), P(fo, -wTip, 0.55), [0.30, 0.31, 0.33]);
+  }
 
   // ---- Train-Specific 3D Driver's Cockpit & Interior Architecture
   const cabBack = ee - out * (stock === "LOCO" || stock === "EC" ? 1.4 : 1.8);

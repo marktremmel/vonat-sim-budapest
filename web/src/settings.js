@@ -99,6 +99,17 @@ export function bindSettings(state, {
       const p = loadPrefs(); p.gfx = p.gfx || {}; p.gfx[key] = el.checked; savePrefs(p);
     });
   }
+  // and how strong each is (DOF as the aperture, motion blur and AO as a gain)
+  for (const [id, key] of [["gfxDofAmt", "dofAmt"], ["gfxMotionAmt", "motionAmt"], ["gfxAOAmt", "aoAmt"]]) {
+    const el = document.getElementById(id); if (!el) continue;
+    const p0 = loadPrefs();
+    if (p0.gfx && p0.gfx[key] != null) el.value = p0.gfx[key];
+    state.gfx[key] = +el.value;
+    el.addEventListener("input", () => {
+      state.gfx[key] = +el.value;
+      const p = loadPrefs(); p.gfx = p.gfx || {}; p.gfx[key] = +el.value; savePrefs(p);
+    });
+  }
   const qs0 = document.getElementById("qualSel");
   if (qs0 && document.body.classList.contains("touch")) qs0.value = "low";
   const KEPT = ["qualSel", "resSlider", "expSlider", "bloomSlider", "grainSlider", "chromaSlider",

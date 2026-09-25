@@ -11,7 +11,7 @@
   #wrap{position:fixed;inset:0}
   canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
   #hud{pointer-events:none}
-  #panel{position:absolute;left:14px;top:12px;z-index:5;font-size:12px;
+  #panel{position:absolute;left:14px;top:12px;z-index:9;font-size:12px;
     background:rgba(8,16,22,.6);border:1px solid rgba(120,160,180,.22);
     border-radius:3px;padding:10px 12px;backdrop-filter:blur(3px);max-width:272px}
   #panel h1{font-size:15px;margin:0 0 6px;font-weight:700;letter-spacing:-.02em}
@@ -100,8 +100,10 @@
   #panel.folded h1{margin:0}
   #panel .chk{justify-content:flex-start}
   #panel .chk input{accent-color:#3fcbd2;margin:0}
-  #attrib{position:absolute;right:8px;bottom:2px;z-index:6;font:9px "IBM Plex Mono",monospace;
-    color:rgba(150,180,196,.55);pointer-events:auto}
+  #attrib{position:absolute;right:8px;bottom:2px;z-index:6;font:8px "IBM Plex Mono",monospace;
+    color:rgba(150,180,196,.45);pointer-events:auto;max-width:62vw;text-align:right;line-height:1.25}
+  /* phones: the short form, out of the way of the touch buttons */
+  @media (max-width:760px){#attrib{font-size:7px;max-width:48vw} #attrib .long{display:none}}
   #attrib a{color:inherit}
   body.bare #attrib{opacity:.4}
   #help{position:absolute;inset:0;z-index:30;display:none;place-items:center;background:rgba(3,7,10,.55)}
@@ -422,6 +424,9 @@
     <label class="chk"><input id="gfxDof" type="checkbox" checked> <span data-en="Depth of field (outside views)">Mélységélesség (külső nézetek)</span></label>
     <label class="chk"><input id="gfxMotion" type="checkbox"> <span data-en="Motion blur">Mozgási elmosás</span></label>
     <label class="chk"><input id="gfxAO" type="checkbox" checked> <span data-en="Shading in corners (AO)">Árnyék a zugokban (AO)</span></label>
+    <label><span data-en="Depth of field amount">Mélységélesség mértéke</span> <input id="gfxDofAmt" type="range" min="0.1" max="1.2" step="0.02" value="0.35"></label>
+    <label><span data-en="Motion blur amount">Elmosás mértéke</span> <input id="gfxMotionAmt" type="range" min="0.2" max="2.5" step="0.05" value="1"></label>
+    <label><span data-en="Corner shading amount">Zugárnyék mértéke</span> <input id="gfxAOAmt" type="range" min="0.2" max="2" step="0.05" value="1"></label>
     <label><span data-en="Volume">Hangerő</span> <input id="volSlider" type="range" min="0" max="1" step="0.02" value="0.7"></label>
     <label><span data-en="Animation">Animáció</span> <select id="cineSel">
         <option value="off" data-en="— still —">— áll —</option>
@@ -455,6 +460,7 @@
     <button data-act="photo" title="Fénykép (Z): a nevezetességek az albumba kerülnek" data-en-title="Photo (Z): landmarks go into the album" data-en="Photo">Fotó</button>
     <button data-act="bare" title="Felület elrejtése (U)" data-en-title="Hide the interface (U)" data-en="U">U</button>
     <button data-act="help" title="Minden billentyű (?)" data-en-title="Every key (?)" data-en="?">?</button>
+    <button data-act="fs" id="fsBtn" title="Teljes képernyő (F11)" data-en-title="Full screen (F11)" data-en="⛶">⛶</button>
   </div>
   <div id="help"><div class="card" data-lang="hu">
     <h3>Vezetés</h3>
@@ -534,7 +540,7 @@
   </div></div>
   <div id="intro"><div class="n" id="iN"></div><div id="iText"></div>
     <div class="ib"><button id="iSkip" data-en="Skip">Kihagyom</button><button id="iNext">Tovább</button></div></div>
-  <div id="attrib" data-en-html='v0.1 alpha · map © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors · terrain: Mapzen/AWS Terrain Tiles'>v0.1 alpha · térkép: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> közreműködők · domborzat: Mapzen/AWS Terrain Tiles</div>
+  <div id="attrib" data-en-html='v0.1 alpha · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a><span class="long"> contributors</span> · <span class="long">terrain: </span>Mapzen/AWS · <span class="long">trees: </span>BP Fatár (FŐKERT)'>v0.1 alpha · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a><span class="long"> közreműködők</span> · <span class="long">domborzat: </span>Mapzen/AWS · <span class="long">fák: </span>BP Fatár (FŐKERT)</div>
   <div id="err"></div>
   <div id="menu">
     <img id="mBanner" alt="">
@@ -674,6 +680,14 @@
     bare: () => key("KeyU"), manual: () => key("KeyM"), map: () => key("Tab"), disp: () => key("KeyQ"),
     help: () => document.getElementById("help").classList.toggle("on"),
     photo: () => window.__photoMode && window.__photoMode(true),
+    // full screen, for recording and for phones: the page itself, so the
+    // panels and buttons come along (F11 alone would do the browser's own)
+    fs: () => {
+      const d = document, el = d.documentElement;
+      if (!(d.fullscreenElement || d.webkitFullscreenElement)) {
+        (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el);
+      } else (d.exitFullscreen || d.webkitExitFullscreen || (() => {})).call(d);
+    },
   };
   // The first run's four hints (once per browser; ? shows them all later).
   const EN = window.LANG === "en";
@@ -715,6 +729,7 @@
     document.getElementById("help").classList.remove("on"));
   addEventListener("keydown", e => {
     if (e.code === "Slash" || e.code === "F1") { e.preventDefault(); act.help(); }
+    if (e.code === "F11") { e.preventDefault(); act.fs(); }
     if (e.code === "Escape") document.getElementById("help").classList.remove("on");
   });
   // ---- touch: each button holds its key down while pressed
@@ -722,16 +737,21 @@
   if (touch) document.body.classList.add("touch");
   const TOUCH = {
     auto:   [[], [["M", "KeyM", 0, "gold big", "Kézi"]]],
-    train:  [[["▼", "KeyS", 0, "big", "Fék"], ["▲", "KeyW", 0, "big", "Vontat"]],
+    train:  [[["▼\uFE0E", "KeyS", 0, "big", "Fék"], ["▲\uFE0E", "KeyW", 0, "big", "Vontat"]],
              [["0", "Digit0", 1, "", "Nulla"], ["ÉBER", "KeyE", 0, "gold", ""], ["VÉSZ", "Backspace", 0, "red", ""]]],
-    car:    [[["◀", "KeyA"], ["▶", "KeyD"]], [["fék", "KeyS", 0, "big"], ["gáz", "KeyW", 0, "big"], ["kézi", "Space", 0, "red"]]],
-    plane:  [[["◀", "KeyA"], ["▶", "KeyD"], ["▲", "KeyS", 0, "", "Húz"], ["▼", "KeyW", 0, "", "Nyom"]],
-             [["gáz+", "KeyR"], ["gáz−", "KeyF"], ["kabin", "KeyC"]]],
-    drone:  [[["◀", "KeyA"], ["▶", "KeyD"], ["▲", "KeyW"], ["▼", "KeyS"]], [["fel", "Space", 0, "big"], ["le", "KeyC"]]],
-    free:   [[["◀", "KeyA"], ["▶", "KeyD"], ["▲", "KeyW"], ["▼", "KeyS"]], [["fel", "KeyR"], ["le", "KeyF"]]],
+    car:    [[["◀\uFE0E", "KeyA"], ["▶\uFE0E", "KeyD"]], [["fék", "KeyS", 0, "big"], ["gáz", "KeyW", 0, "big"], ["kézi", "Space", 0, "red"]]],
+    plane:  [[["◀\uFE0E", "KeyA"], ["▶\uFE0E", "KeyD"], ["▲\uFE0E", "KeyS", 0, "", "Húz"], ["▼\uFE0E", "KeyW", 0, "", "Nyom"]],
+             [["gáz+", "KeyR"], ["gáz−", "KeyF"], ["kabin", "KeyC"], ["gép", "PlaneCycle", 0, "", "Cessna · Gripen · helikopter"]]],
+    drone:  [[["◀\uFE0E", "KeyA"], ["▶\uFE0E", "KeyD"], ["▲\uFE0E", "KeyW"], ["▼\uFE0E", "KeyS"]], [["fel", "Space", 0, "big"], ["le", "KeyC"]]],
+    free:   [[["◀\uFE0E", "KeyA"], ["▶\uFE0E", "KeyD"], ["▲\uFE0E", "KeyW"], ["▼\uFE0E", "KeyS"]], [["fel", "KeyR"], ["le", "KeyF"]]],
   };
   let touchMode = null;
-  const press = (code, shift, down) => dispatchEvent(new KeyboardEvent(down ? "keydown" : "keyup", { code, shiftKey: !!shift }));
+  let planeI = 0;
+  const press = (code, shift, down) => {
+    // "gép": the next aircraft (the keys are 1, 2, 3)
+    if (code === "PlaneCycle") { if (!down) return; planeI = (planeI + 1) % 3; code = "Digit" + (planeI + 1); press(code, 0, true); press(code, 0, false); return; }
+    dispatchEvent(new KeyboardEvent(down ? "keydown" : "keyup", { code, shiftKey: !!shift }));
+  };
   const layTouch = (mode) => {
     if (mode === touchMode) return; touchMode = mode;
     const [L, R] = TOUCH[mode] || [[], []];

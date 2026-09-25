@@ -104,6 +104,12 @@ export const STOCKS = {
   EC:    { name: "V43 + 5 kocsi", massT: 80 + 5 * 48, pCont: 2.9e6, teStart: 2.5e5,
            vMax: 120 / 3.6, lengthM: 19.5 + 5 * 26.4, bServ: 0.75, bEmerg: 1.1, rot: 1.06, cdA: 11,
            driven: 80 / 320, ed: false, tauApply: 3.2, tauRelease: 6.0, stock: "EC", cars: 6 },
+  // MÁV 416 "Uzsgyi": the two-car Metrowagonmash diesel-hydraulic set of the
+  // Lajosmizse line (S21). 45.8 m, two 315 kW engines, 100 km/h (hu.wikipedia).
+  // Hydraulic drive: no electric brake, and the air brake is a DMU's.
+  M416:  { name: "MÁV 416 Uzsgyi", massT: 98, pCont: 0.52e6, teStart: 0.95e5,
+           vMax: 100 / 3.6, lengthM: 45.8, bServ: 0.85, bEmerg: 1.2, rot: 1.08, cdA: 9,
+           driven: 0.5, ed: false, tauApply: 2.0, tauRelease: 3.4, stock: "M416", cars: 2, diesel: true },
   FREIGHT: { name: "V43 + tehervonat", massT: 80 + 20 * 60, pCont: 2.9e6, teStart: 2.8e5,
            vMax: 80 / 3.6, lengthM: 19.5 + 20 * 14.5, bServ: 0.45, bEmerg: 0.7, rot: 1.05, cdA: 18,
            driven: 80 / 1280, ed: false, tauApply: 6.0, tauRelease: 14.0, stock: "FREIGHT", cars: 21 },

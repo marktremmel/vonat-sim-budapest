@@ -11,7 +11,7 @@
   #wrap{position:fixed;inset:0}
   canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
   #hud{pointer-events:none}
-  #panel{position:absolute;left:14px;top:12px;z-index:5;font-size:12px;
+  #panel{position:absolute;left:14px;top:12px;z-index:9;font-size:12px;
     background:rgba(8,16,22,.6);border:1px solid rgba(120,160,180,.22);
     border-radius:3px;padding:10px 12px;backdrop-filter:blur(3px);max-width:272px}
   #panel h1{font-size:15px;margin:0 0 6px;font-weight:700;letter-spacing:-.02em}
@@ -100,8 +100,10 @@
   #panel.folded h1{margin:0}
   #panel .chk{justify-content:flex-start}
   #panel .chk input{accent-color:#3fcbd2;margin:0}
-  #attrib{position:absolute;right:8px;bottom:2px;z-index:6;font:9px "IBM Plex Mono",monospace;
-    color:rgba(150,180,196,.55);pointer-events:auto}
+  #attrib{position:absolute;right:8px;bottom:2px;z-index:6;font:8px "IBM Plex Mono",monospace;
+    color:rgba(150,180,196,.45);pointer-events:auto;max-width:62vw;text-align:right;line-height:1.25}
+  /* phones: the short form, out of the way of the touch buttons */
+  @media (max-width:760px){#attrib{font-size:7px;max-width:48vw} #attrib .long{display:none}}
   #attrib a{color:inherit}
   body.bare #attrib{opacity:.4}
   #help{position:absolute;inset:0;z-index:30;display:none;place-items:center;background:rgba(3,7,10,.55)}
@@ -423,6 +425,9 @@
     <label class="chk"><input id="gfxDof" type="checkbox" checked> <span data-en="Depth of field (outside views)">Mélységélesség (külső nézetek)</span></label>
     <label class="chk"><input id="gfxMotion" type="checkbox"> <span data-en="Motion blur">Mozgási elmosás</span></label>
     <label class="chk"><input id="gfxAO" type="checkbox" checked> <span data-en="Shading in corners (AO)">Árnyék a zugokban (AO)</span></label>
+    <label><span data-en="Depth of field amount">Mélységélesség mértéke</span> <input id="gfxDofAmt" type="range" min="0.1" max="1.2" step="0.02" value="0.35"></label>
+    <label><span data-en="Motion blur amount">Elmosás mértéke</span> <input id="gfxMotionAmt" type="range" min="0.2" max="2.5" step="0.05" value="1"></label>
+    <label><span data-en="Corner shading amount">Zugárnyék mértéke</span> <input id="gfxAOAmt" type="range" min="0.2" max="2" step="0.05" value="1"></label>
     <label><span data-en="Volume">Hangerő</span> <input id="volSlider" type="range" min="0" max="1" step="0.02" value="0.7"></label>
     <label><span data-en="Animation">Animáció</span> <select id="cineSel">
         <option value="off" data-en="— still —">— áll —</option>
@@ -456,6 +461,7 @@
     <button data-act="photo" title="Fénykép (Z): a nevezetességek az albumba kerülnek" data-en-title="Photo (Z): landmarks go into the album" data-en="Photo">Fotó</button>
     <button data-act="bare" title="Felület elrejtése (U)" data-en-title="Hide the interface (U)" data-en="U">U</button>
     <button data-act="help" title="Minden billentyű (?)" data-en-title="Every key (?)" data-en="?">?</button>
+    <button data-act="fs" id="fsBtn" title="Teljes képernyő (F11)" data-en-title="Full screen (F11)" data-en="⛶">⛶</button>
   </div>
   <div id="help"><div class="card" data-lang="hu">
     <h3>Vezetés</h3>
@@ -535,7 +541,7 @@
   </div></div>
   <div id="intro"><div class="n" id="iN"></div><div id="iText"></div>
     <div class="ib"><button id="iSkip" data-en="Skip">Kihagyom</button><button id="iNext">Tovább</button></div></div>
-  <div id="attrib" data-en-html='v0.1 alpha · map © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors · terrain: Mapzen/AWS Terrain Tiles'>v0.1 alpha · térkép: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> közreműködők · domborzat: Mapzen/AWS Terrain Tiles</div>
+  <div id="attrib" data-en-html='v0.1 alpha · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a><span class="long"> contributors</span> · <span class="long">terrain: </span>Mapzen/AWS · <span class="long">trees: </span>BP Fatár (FŐKERT)'>v0.1 alpha · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a><span class="long"> közreműködők</span> · <span class="long">domborzat: </span>Mapzen/AWS · <span class="long">fák: </span>BP Fatár (FŐKERT)</div>
   <div id="err"></div>
   <div id="menu">
     <img id="mBanner" alt="">
@@ -675,6 +681,14 @@
     bare: () => key("KeyU"), manual: () => key("KeyM"), map: () => key("Tab"), disp: () => key("KeyQ"),
     help: () => document.getElementById("help").classList.toggle("on"),
     photo: () => window.__photoMode && window.__photoMode(true),
+    // full screen, for recording and for phones: the page itself, so the
+    // panels and buttons come along (F11 alone would do the browser's own)
+    fs: () => {
+      const d = document, el = d.documentElement;
+      if (!(d.fullscreenElement || d.webkitFullscreenElement)) {
+        (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el);
+      } else (d.exitFullscreen || d.webkitExitFullscreen || (() => {})).call(d);
+    },
   };
   // The first run's four hints (once per browser; ? shows them all later).
   const EN = window.LANG === "en";
@@ -716,6 +730,7 @@
     document.getElementById("help").classList.remove("on"));
   addEventListener("keydown", e => {
     if (e.code === "Slash" || e.code === "F1") { e.preventDefault(); act.help(); }
+    if (e.code === "F11") { e.preventDefault(); act.fs(); }
     if (e.code === "Escape") document.getElementById("help").classList.remove("on");
   });
   // ---- touch: each button holds its key down while pressed
@@ -723,16 +738,21 @@
   if (touch) document.body.classList.add("touch");
   const TOUCH = {
     auto:   [[], [["M", "KeyM", 0, "gold big", "Kézi"]]],
-    train:  [[["▼", "KeyS", 0, "big", "Fék"], ["▲", "KeyW", 0, "big", "Vontat"]],
+    train:  [[["▼\uFE0E", "KeyS", 0, "big", "Fék"], ["▲\uFE0E", "KeyW", 0, "big", "Vontat"]],
              [["0", "Digit0", 1, "", "Nulla"], ["ÉBER", "KeyE", 0, "gold", ""], ["VÉSZ", "Backspace", 0, "red", ""]]],
-    car:    [[["◀", "KeyA"], ["▶", "KeyD"]], [["fék", "KeyS", 0, "big"], ["gáz", "KeyW", 0, "big"], ["kézi", "Space", 0, "red"]]],
-    plane:  [[["◀", "KeyA"], ["▶", "KeyD"], ["▲", "KeyS", 0, "", "Húz"], ["▼", "KeyW", 0, "", "Nyom"]],
-             [["gáz+", "KeyR"], ["gáz−", "KeyF"], ["kabin", "KeyC"]]],
-    drone:  [[["◀", "KeyA"], ["▶", "KeyD"], ["▲", "KeyW"], ["▼", "KeyS"]], [["fel", "Space", 0, "big"], ["le", "KeyC"]]],
-    free:   [[["◀", "KeyA"], ["▶", "KeyD"], ["▲", "KeyW"], ["▼", "KeyS"]], [["fel", "KeyR"], ["le", "KeyF"]]],
+    car:    [[["◀\uFE0E", "KeyA"], ["▶\uFE0E", "KeyD"]], [["fék", "KeyS", 0, "big"], ["gáz", "KeyW", 0, "big"], ["kézi", "Space", 0, "red"]]],
+    plane:  [[["◀\uFE0E", "KeyA"], ["▶\uFE0E", "KeyD"], ["▲\uFE0E", "KeyS", 0, "", "Húz"], ["▼\uFE0E", "KeyW", 0, "", "Nyom"]],
+             [["gáz+", "KeyR"], ["gáz−", "KeyF"], ["kabin", "KeyC"], ["gép", "PlaneCycle", 0, "", "Cessna · Gripen · helikopter"]]],
+    drone:  [[["◀\uFE0E", "KeyA"], ["▶\uFE0E", "KeyD"], ["▲\uFE0E", "KeyW"], ["▼\uFE0E", "KeyS"]], [["fel", "Space", 0, "big"], ["le", "KeyC"]]],
+    free:   [[["◀\uFE0E", "KeyA"], ["▶\uFE0E", "KeyD"], ["▲\uFE0E", "KeyW"], ["▼\uFE0E", "KeyS"]], [["fel", "KeyR"], ["le", "KeyF"]]],
   };
   let touchMode = null;
-  const press = (code, shift, down) => dispatchEvent(new KeyboardEvent(down ? "keydown" : "keyup", { code, shiftKey: !!shift }));
+  let planeI = 0;
+  const press = (code, shift, down) => {
+    // "gép": the next aircraft (the keys are 1, 2, 3)
+    if (code === "PlaneCycle") { if (!down) return; planeI = (planeI + 1) % 3; code = "Digit" + (planeI + 1); press(code, 0, true); press(code, 0, false); return; }
+    dispatchEvent(new KeyboardEvent(down ? "keydown" : "keyup", { code, shiftKey: !!shift }));
+  };
   const layTouch = (mode) => {
     if (mode === touchMode) return; touchMode = mode;
     const [L, R] = TOUCH[mode] || [[], []];
@@ -1995,6 +2015,8 @@ const TRACK_FS = `#version 300 es
 precision highp float;
 in vec3 vCol; in float vDist; in vec3 vWorld; in vec3 vNrm; in vec4 vBld; out vec4 fc;
 uniform vec3 uEye;
+uniform vec4 uSeason;     // leaf, autumn, fresh, crop (as TERRAIN_FS)
+uniform float uGround;    // 1 while the corridor mesh draws: its grass has seasons
 uniform vec3 uSunDir, uSunCol, uSkyCol, uFogCol;
 uniform float uFogDensity, uDither, uSnow, uWet, uLift;
 uniform vec4 uCloudDeck, uCloudShape, uCloudWind;
@@ -2066,6 +2088,20 @@ void main(){
   // body seen from inside wants the side facing us
   if (dot(vNrm, vNrm) > 0.25 && dot(n, uEye - vWorld) < 0.0) n = -n;
   vec3 base = vCol;
+  // The corridor (the ground 124 m either side of the line) is vertex
+  // coloured by land cover and was summer green all year while the terrain
+  // beyond it turned. Its vegetated fragments now take the terrain's own
+  // seasonal shift, plus winter dormancy; ballast, cess and paths are not
+  // green and are left alone.
+  if (uGround > 0.5) {
+    float green = clamp((vCol.g - max(vCol.r, vCol.b)) * 9.0, 0.0, 1.0);
+    vec3 b2 = base;
+    b2 = mix(b2, b2 * vec3(1.10,1.02,0.80), uSeason.y * 0.85);
+    b2 = mix(b2, b2 * vec3(0.86,0.88,0.94), (1.0 - uSeason.x) * 0.55);
+    b2 = mix(b2, b2 * vec3(1.02,1.14,0.86), uSeason.z * 0.40);
+    b2 = mix(b2, vec3(0.40, 0.38, 0.30) * (0.9 + 0.2 * fract(vCol.r * 91.0)), (1.0 - uSeason.x) * 0.45);
+    base = mix(base, b2, green);
+  }
   base *= mix(1.0, 0.60, uWet);
   // Snow lies on the ballast, the sleepers and the cess, but never on the
   // railhead — a running line is burnished clean by every wheel that passes.
@@ -2381,9 +2417,11 @@ void main(){
   } else if (sp == 5) {     // pine: a spire, needled nearly to the ground
     base_ = 0.38; tip = 0.03; power = 0.85; lobeAmp = 0.072; lobeFreq = 30.0;
     canopyFrom = 0.10; trunkW = 0.048;
-  } else if (sp == 6) {     // poplar: a column
-    base_ = 0.22; tip = 0.06; power = 1.30; lobeAmp = 0.026; lobeFreq = 24.0;
-    canopyFrom = 0.10; trunkW = 0.038;
+  } else if (sp == 6) {     // a column (Lombardy poplar, fastigiate hornbeam or oak):
+    // a narrow flame, fullest a third of the way up, on a short visible bole.
+    // It was a spike to the ground: base 0.22 tapering to 0.06 from 10%.
+    base_ = 0.30; tip = 0.09; power = 1.9; lobeAmp = 0.040; lobeFreq = 17.0;
+    canopyFrom = 0.15; trunkW = 0.040;
   } else if (sp == 7) {     // willow: broad, and it weeps
     base_ = 0.48; tip = 0.32; power = 0.70; lobeAmp = 0.095; lobeFreq = 12.0;
     canopyFrom = 0.20; trunkW = 0.085;
@@ -2523,7 +2561,21 @@ void main(){
             : sp == 4 ? vec3(0.30,0.24,0.17)      // locust, deeply furrowed
             : sp == 7 ? vec3(0.24,0.20,0.15)
                       : vec3(0.21,0.17,0.13);
+  // bark reads as wood against the leaves: a touch lighter and greyer than
+  // the crown, which it was the same value as (the owner: trunks and
+  // branches did not separate from the leaves)
+  bark = mix(bark * 1.30, vec3(0.42, 0.40, 0.37), 0.25);
   vec3 col = mix(bark, leafCol, canopy);
+  // the inside of a crown is in its own shade: darker round the stem and
+  // low down, so a tree has volume and structure in full leaf too
+  if (sp != 16 && sp != 11) {
+    float inner = smoothstep(0.22, 0.0, abs(p.x)) * smoothstep(canopyFrom + 0.42, canopyFrom, y);
+    col *= 1.0 - 0.26 * inner * canopy;
+    // and the main limbs show through the gaps near the stem
+    float limb = smoothstep(0.022, 0.0, abs(abs(p.x) - (y - canopyFrom) * 0.55
+                 - 0.015 * sin(y * 13.0 + vSeed * 21.0))) * step(canopyFrom, y) * step(y, canopyFrom + 0.38);
+    col = mix(col, bark * 0.8, limb * canopy * 0.55 * smoothstep(0.30, 0.0, abs(p.x)));
+  }
   if (uSnow > 0.001)
     col = mix(col, vec3(0.86,0.89,0.93),
               clamp(uSnow * canopy * (0.30 + 0.70 * y) * (evergreen ? 1.0 : leaf),
@@ -2636,11 +2688,15 @@ void main(){
   // from the depth, through last frame's camera), and a smear along the way
   if (uFx.x > 0.0) {
     float dz = texture(uDepth, vUv).r;
-    if (linDepth(vUv) > uFx.z) {
+    // Not the sky (depth 1: "where it was" is a point at infinity, and a
+    // pitch of the camera threw it across the screen — the pixels "pushed
+    // together" when tilting), and not a point that was behind last frame's
+    // camera (w <= 0 inverts the projection).
+    if (linDepth(vUv) > uFx.z && dz < 0.99998) {
       vec4 wp = uInvVP * vec4(vUv * 2.0 - 1.0, dz * 2.0 - 1.0, 1.0);
       wp /= wp.w;
       vec4 pp = uPrevVP * wp;
-      vec2 vel = (vUv - (pp.xy / pp.w * 0.5 + 0.5)) * uFx.x;
+      vec2 vel = pp.w > 0.01 ? (vUv - (pp.xy / pp.w * 0.5 + 0.5)) * uFx.x : vec2(0.0);
       float L = length(vel);
       if (L > 0.05) vel *= 0.05 / L;
       if (L > 0.0015) {
@@ -3358,6 +3414,100 @@ void main(){
   fc = vec4(mix(col, uFogCol, clamp(fg, 0.0, 1.0)), 1.0);
 }`;
 
+// Particles (vfx.js): camera-facing quads, sparks stretched along their
+// velocity; fire and fireballs coloured by temperature (a blackbody ramp,
+// cooling with age), smoke lit by the sun and the sky, vapour white. Drawn
+// blended over the opaque scene without writing depth; the edge is broken by
+// the same 4×4 ordered dither as the trees, so it keeps the game's look.
+const VFX_VS = `#version 300 es
+layout(location = 0) in vec2 aCorner;
+layout(location = 1) in vec4 aPosSize;     // world xyz, size (m)
+layout(location = 2) in vec4 aVelLife;     // velocity, life 0..1
+layout(location = 3) in vec4 aParams;      // type, rotation, seed, temperature
+out vec2 vUv; out vec4 vP; out float vDist;
+uniform mat4 uVP; uniform vec3 uEye, uCamRight, uCamUp;
+void main(){
+  vec3 wp = aPosSize.xyz; float size = aPosSize.w; vec3 vel = aVelLife.xyz;
+  // a far bird is a dot: never smaller than ~0.4% of its distance, or a
+  // murmuration at half a kilometre drops below a pixel and thins out
+  if (aParams.x > 4.5) size = max(size, length(wp - uEye) * 0.004);
+  vec3 off;
+  if ((aParams.x > 1.5 && aParams.x < 2.5) || aParams.x > 4.5) {
+    // a spark: a streak along its motion
+    vec3 toEye = normalize(uEye - wp);
+    float sp = length(vel);
+    vec3 dir = sp > 0.1 ? vel / sp : uCamUp;
+    vec3 side = normalize(cross(toEye, dir));
+    off = side * aCorner.x * size * 0.5 + dir * aCorner.y * size * clamp(sp * 0.06, 1.0, 6.0) * 0.5;
+  } else {
+    float c = cos(aParams.y), s = sin(aParams.y);
+    vec2 r = vec2(aCorner.x * c - aCorner.y * s, aCorner.x * s + aCorner.y * c);
+    off = (uCamRight * r.x + uCamUp * r.y) * size;
+  }
+  vec3 p = wp + off;
+  vUv = aCorner * 0.5 + 0.5;
+  vP = vec4(aParams.x, aVelLife.w, aParams.z, aParams.w);
+  vDist = length(p - uEye);
+  gl_Position = uVP * vec4(p, 1.0);
+}`;
+const VFX_FS = `#version 300 es
+precision highp float;
+in vec2 vUv; in vec4 vP; in float vDist; out vec4 fc;
+uniform vec3 uSunCol, uSkyCol, uFogCol, uSunDir;
+uniform float uFogDensity;
+float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float n2(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(h21(i), h21(i + vec2(1,0)), u.x), mix(h21(i + vec2(0,1)), h21(i + vec2(1,1)), u.x), u.y); }
+vec3 blackbody(float k){ float t = clamp(k / 4000.0, 0.0, 1.0);
+  vec3 c = vec3(clamp(t * 1.8, 0.0, 1.0), clamp((t - 0.25) * 1.6, 0.0, 1.0), clamp((t - 0.65) * 2.5, 0.0, 1.0));
+  return c * c; }
+void main(){
+  float type = vP.x, life = vP.y, seed = vP.z, temp = vP.w;
+  vec2 c = vUv - 0.5; float r2 = dot(c, c);
+  if (r2 > 0.25) discard;
+  vec3 col; float a;
+  if (type < 0.5) {                           // smoke
+    float n = n2(vUv * 4.5 + vec2(life * 0.5, seed * 10.0));
+    float body = smoothstep(0.35, 0.85, (1.0 - sqrt(r2) * 2.0) * (0.6 + 0.4 * n));
+    float lit = clamp(dot(normalize(vec3(c.x, 0.8, c.y)), uSunDir) * 0.4 + 0.6, 0.0, 1.0);
+    // burning fuel smokes black; it greys and thins as it rises and spreads
+    vec3 base = mix(vec3(0.05, 0.05, 0.055), vec3(0.22, 0.22, 0.23), lit) * mix(0.8, 1.9, life);
+    col = base * (uSunCol * 0.6 + uSkyCol * 0.35);
+    a = body * (1.0 - life * life) * 0.95;
+  } else if (type < 1.5) {                    // flame
+    vec2 q = vUv + (n2(vUv * 6.0 - vec2(0.0, life * 3.0)) - 0.5) * 0.22;
+    float d = length(q - 0.5);
+    if (d > 0.5) discard;
+    col = blackbody(mix(temp, 800.0, life * 0.85 + d * 0.6)) * 1.8;
+    a = (1.0 - smoothstep(0.1, 0.5, d)) * (1.0 - life * 0.6);
+  } else if (type < 2.5) {                    // spark
+    float d = c.x * c.x * 16.0 + c.y * c.y;
+    if (d > 0.25) discard;
+    col = mix(vec3(1.6, 0.95, 0.35), vec3(1.0, 0.25, 0.06), life);
+    a = (1.0 - d * 4.0) * (1.0 - life * life);
+  } else if (type < 3.5) {                    // fireball, rolling into soot
+    float sh = n2(vUv * 8.0 + vec2(life * 2.0));
+    float core = (1.0 - sqrt(r2) * 2.0) * (0.7 + 0.3 * sh);
+    float k = mix(4500.0, 600.0, pow(life, 0.45));
+    col = mix(blackbody(k) * (k > 2500.0 ? 2.6 : 1.3), vec3(0.08, 0.07, 0.07), smoothstep(0.3, 0.8, life));
+    a = smoothstep(0.1, 0.6, core) * (1.0 - life * 0.8);
+  } else if (type > 4.5) {                    // a starling: a small dark swept shape
+    if (vDist < 120.0 && abs(c.y) > 0.12 + (0.5 - abs(c.x)) * 0.25) discard;   // wings only up close
+    col = vec3(0.06, 0.06, 0.07);
+    a = 1.0;
+  } else {                                    // vapour / contrail puff
+    float body = 1.0 - smoothstep(0.1, 0.5, sqrt(r2) * 2.0);
+    col = vec3(0.92, 0.94, 0.97) * (uSunCol * 0.5 + uSkyCol * 0.6);
+    a = body * (1.0 - life) * 0.55;
+  }
+  float f = clamp(1.0 - exp(-vDist * uFogDensity), 0.0, 1.0);
+  col = mix(col, uFogCol, f);
+  int bx = int(mod(gl_FragCoord.x, 4.0)), by = int(mod(gl_FragCoord.y, 4.0));
+  float thr[16] = float[16](0.06,0.56,0.19,0.69, 0.81,0.31,0.94,0.44, 0.25,0.75,0.12,0.62, 1.00,0.50,0.88,0.38);
+  if (a < thr[by * 4 + bx] * 0.35) discard;
+  fc = vec4(col, clamp(a * 1.2, 0.0, 1.0));
+}`;
+
 // ===== engine.js =====
 // --------------------------------------------------------------- gl helpers
 function compile(gl, vs, fs) {
@@ -3755,6 +3905,12 @@ const STOCKS = {
   EC:    { name: "V43 + 5 kocsi", massT: 80 + 5 * 48, pCont: 2.9e6, teStart: 2.5e5,
            vMax: 120 / 3.6, lengthM: 19.5 + 5 * 26.4, bServ: 0.75, bEmerg: 1.1, rot: 1.06, cdA: 11,
            driven: 80 / 320, ed: false, tauApply: 3.2, tauRelease: 6.0, stock: "EC", cars: 6 },
+  // MÁV 416 "Uzsgyi": the two-car Metrowagonmash diesel-hydraulic set of the
+  // Lajosmizse line (S21). 45.8 m, two 315 kW engines, 100 km/h (hu.wikipedia).
+  // Hydraulic drive: no electric brake, and the air brake is a DMU's.
+  M416:  { name: "MÁV 416 Uzsgyi", massT: 98, pCont: 0.52e6, teStart: 0.95e5,
+           vMax: 100 / 3.6, lengthM: 45.8, bServ: 0.85, bEmerg: 1.2, rot: 1.08, cdA: 9,
+           driven: 0.5, ed: false, tauApply: 2.0, tauRelease: 3.4, stock: "M416", cars: 2, diesel: true },
   FREIGHT: { name: "V43 + tehervonat", massT: 80 + 20 * 60, pCont: 2.9e6, teStart: 2.8e5,
            vMax: 80 / 3.6, lengthM: 19.5 + 20 * 14.5, bServ: 0.45, bEmerg: 0.7, rot: 1.05, cdA: 18,
            driven: 80 / 1280, ed: false, tauApply: 6.0, tauRelease: 14.0, stock: "FREIGHT", cars: 21 },
@@ -4335,6 +4491,10 @@ function prepareUnderpasses(ways, widths, demAt, railDistAt) {
   return out;
 }
 
+// Where a bridge model hangs its deck from cables (the Erzsébet híd, one
+// 290 m span), the road layer must not stand its own piers in the river.
+let noPierAt = null;
+function setNoPierAt(fn) { noPierAt = fn; }
 function buildRoads(ways, widths, demAt, waterAt, railDistAt) {
   // Where a road runs near the line it must sit on the CORRIDOR, not on the
   // raw DEM. The corridor is graded to rail level and the DEM is not, so the
@@ -4577,7 +4737,7 @@ function buildRoads(ways, widths, demAt, waterAt, railDistAt) {
           const gnd = way.wet ? Math.min(groundAt(bx, by), way.waterY) - 3 : groundAt(bx, by) - 0.5;
           const rd = railDistAt ? railDistAt(bx, by) : null;
           const onRail = rd && isFinite(rd.d) && rd.d < 5.5;
-          if (top - gnd > 3 && !onRail) {
+          if (top - gnd > 3 && !onRail && !(noPierAt && noPierAt(bx, by))) {
             const ux = (bx - ax) / L, uy = (by - ay) / L;
             const tw = way.wet ? 2.6 : 0.8, pw = way.wet ? hw * 0.8 : Math.min(hw * 0.7, 3);
             const PC = way.wet ? [0.60, 0.58, 0.54] : [0.56, 0.56, 0.55];
@@ -5755,7 +5915,10 @@ function buildBufferStops(ends) {
  * which TRACK_FS turns into dark glass that catches the sun.
  */
 const SOLAR = [0.020, 0.030, 0.050];
-function buildCityExtras(x, tx, demAt, waterAt, railDistAt) {
+// skipAt(x, y): true where a hand-modelled railway bridge already carries the
+// track (landmarks.js); the extras' own ballast deck there was a second
+// bridge z-fighting under the truss (the Northern Railway Bridge on line 70)
+function buildCityExtras(x, tx, demAt, waterAt, railDistAt, skipAt = null) {
   const V = [], C = [];
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
   const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
@@ -5773,6 +5936,7 @@ function buildCityExtras(x, tx, demAt, waterAt, railDistAt) {
       const a = P[i], b = P[i + 1];
       const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
       if (railDistAt) { const r = railDistAt(mx, my); if (r && r.d < 6) continue; }
+      if (bridge && skipAt && skipAt(mx, my)) continue;
       const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
       const nx = -dy / L, ny = dx / L;
       const ya = yOf(a), yb = yOf(b);
@@ -5892,14 +6056,14 @@ function buildParkThings(list, demAt) {
 // speckle. Every surface here is cut into abutting pieces instead, so nothing
 // is ever coplanar with anything else.
 
-const CAR_LEN = { KISS: 25.0, FLIRT: 18.5, EC: 26.4, FREIGHT: 14.5 };
-const CAR_H   = { KISS: 4.60, FLIRT: 4.12, EC: 4.05, FREIGHT: 3.90 };
+const CAR_LEN = { KISS: 25.0, FLIRT: 18.5, EC: 26.4, FREIGHT: 14.5, M416: 22.9 };
+const CAR_H   = { KISS: 4.60, FLIRT: 4.12, EC: 4.05, FREIGHT: 3.90, M416: 3.89 };
 const LOCO_LEN = 19.5;
 
 // How much of its own length a vehicle gives up to the gap at each end. A
 // Stadler unit is close-coupled with a gangway and reads as one train; screw
 // couplings and buffers leave a real gap you can see daylight through.
-const COUPLE = { KISS: 0.494, FLIRT: 0.494, EC: 0.481, FREIGHT: 0.472 };
+const COUPLE = { KISS: 0.494, FLIRT: 0.494, EC: 0.481, FREIGHT: 0.472, M416: 0.492 };
 
 // MÁV liveries. The suburban Stadlers are white over blue with yellow doors —
 // the doors are the most recognisable thing about them at any distance.
@@ -5908,6 +6072,10 @@ const LIVERY = {
           skirt: [0.40,0.42,0.45], roof: [0.34,0.36,0.38] },
   FLIRT:{ upper: [0.90,0.92,0.94], lower: [0.08,0.36,0.68], door: [0.97,0.78,0.10],
           skirt: [0.40,0.42,0.45], roof: [0.36,0.38,0.40] },
+  // MÁV 416 in MÁV-START colours (owner's photos 48–49): pale grey-white
+  // over a blue band, yellow doors, a light grey roof
+  M416: { upper: [0.86,0.87,0.88], lower: [0.12,0.30,0.64], door: [0.96,0.78,0.12],
+          skirt: [0.46,0.47,0.49], roof: [0.58,0.59,0.60] },
   EC:   { upper: [0.74,0.77,0.81], lower: [0.13,0.20,0.36], door: [0.62,0.66,0.70],
           skirt: [0.22,0.23,0.26], roof: [0.36,0.37,0.39] },
   // V43: blue body over a grey lower band, and a yellow cab front
@@ -6017,7 +6185,7 @@ function buildTrains(traffic, downPts, upPts, player, night = 0, hollow = false,
 
       // gangway: what makes a Stadler unit read as one train rather than a
       // line of separate boxes
-      if ((stock === "KISS" || stock === "FLIRT") && k < t.cars - 1) {
+      if ((stock === "KISS" || stock === "FLIRT" || stock === "M416") && k < t.cars - 1) {
         const gy0 = 0.85, gy1 = 3.10, gw = 0.92, ext = L * (0.5 - COUPLE[stock]) + 0.02;
         for (const sgn of [-1, 1])
           quad(P(-half - ext, sgn*gw, gy0), P(-half, sgn*gw, gy0),
@@ -6046,7 +6214,7 @@ function buildCoach(quad, P, half, stock, k, cars, frontEnd, rearEnd, glass, nig
   const SEAT_BLUE = [0.12, 0.32, 0.62], FLOOR_GREY = [0.32, 0.33, 0.35];
   const W = 1.42, Wt = 1.06;
   const doubleDeck = stock === "KISS";
-  const floor = doubleDeck ? 0.62 : (stock === "FLIRT" ? 0.60 : 1.05);
+  const floor = doubleDeck ? 0.62 : (stock === "FLIRT" ? 0.60 : stock === "M416" ? 1.12 : 1.05);
   const roofHi = CAR_H[stock];
   // A KISS roof is one continuous line at full height, nose to tail. What is
   // single-level over the bogies is the floor inside, not the roof: there the
@@ -6055,7 +6223,8 @@ function buildCoach(quad, P, half, stock, k, cars, frontEnd, rearEnd, glass, nig
   // hump on every car.
   const endTop = roofHi;
   const step = doubleDeck ? half * 0.56 : half;
-  const nose = (frontEnd || rearEnd) ? (stock === "FLIRT" ? 1.30 : 1.05) : 0;
+  // (the 416's front is nearly upright: a short nose)
+  const nose = (frontEnd || rearEnd) ? (stock === "FLIRT" ? 1.30 : stock === "M416" ? 0.45 : 1.05) : 0;
   const e0 = -half + (rearEnd ? nose : 0);
   const e1 =  half - (frontEnd ? nose : 0);
 
@@ -6205,6 +6374,15 @@ function cabEnd(quad, P, ee, out, W, Wt, topH, floor, liv, nose, glass, night, s
          P(tip, sgn * wTip, topH - 0.9), P(ee, sgn * W, topH - 0.9), front);
   quad(P(tip, -wTip, floor - 0.32), P(tip, wTip, floor - 0.32),
        P(tip, wTip, 0.38), P(tip, -wTip, 0.38), DARK);
+  if (stock === "M416") {
+    // the blue band under the windscreen, and the red coupler box low in the
+    // middle (both on the owner's photos of 416 021 and 416 031)
+    const fo = tip + out * 0.02;
+    quad(P(fo, -wTip, topH - 1.95), P(fo, wTip, topH - 1.95),
+         P(fo, wTip, topH - 1.60), P(fo, -wTip, topH - 1.60), liv.lower);
+    quad(P(fo, -0.26, 0.55), P(fo, 0.26, 0.55), P(fo, 0.26, 0.98), P(fo, -0.26, 0.98), [0.78, 0.10, 0.10]);
+    quad(P(fo, -wTip, 0.38), P(fo, wTip, 0.38), P(fo, wTip, 0.55), P(fo, -wTip, 0.55), [0.30, 0.31, 0.33]);
+  }
 
   // ---- Train-Specific 3D Driver's Cockpit & Interior Architecture
   const cabBack = ee - out * (stock === "LOCO" || stock === "EC" ? 1.4 : 1.8);
@@ -6972,7 +7150,16 @@ class RoadTraffic {
    *  already there whose ends touch them re-linked, so traffic flows from
    *  the line's streets into the city's. Ways are never removed — a dropped
    *  tile's streets simply stop being drawn; vehicles there are culled. */
-  addWays(ways) {
+  addWays(ways, owner = null) {
+    // a tile that comes back revives its own entries: the indices stay put
+    // (vehicles and junction links hold them), so the array stops growing
+    this.owned = this.owned || new Map();
+    if (owner && this.owned.has(owner)) {
+      const ids = this.owned.get(owner);
+      for (const wi of ids) { this.ways[wi].dead = false; this.index(wi); }
+      for (const wi of ids) this.link(wi);
+      return;
+    }
     const first = this.ways.length;
     for (const w of ways) {
       if (w.cls > 5 || w.pts.length < 2) continue;
@@ -6995,6 +7182,31 @@ class RoadTraffic {
     }
     for (let wi = first; wi < this.ways.length; wi++) this.link(wi);
     for (const wj of touched) this.link(wj);
+    if (owner) this.owned.set(owner, Array.from({ length: this.ways.length - first }, (_, i) => first + i));
+  }
+  /** A tile unloaded: its ways leave the grid (so nothing links or spawns
+   *  onto them) and the vehicles on them go; the entries wait, dead, in case
+   *  the tile comes back. */
+  removeOwner(owner) {
+    const ids = this.owned && this.owned.get(owner);
+    if (!ids) return;
+    const gone = new Set(ids);
+    for (const wi of ids) {
+      const w = this.ways[wi], cell = this.cell;
+      w.dead = true;
+      for (let k = 1; k < w.pts.length; k++) {
+        const a = w.pts[k - 1], b = w.pts[k];
+        const i0 = Math.floor(Math.min(a[0], b[0]) / cell), i1 = Math.floor(Math.max(a[0], b[0]) / cell);
+        const j0 = Math.floor(Math.min(a[1], b[1]) / cell), j1 = Math.floor(Math.max(a[1], b[1]) / cell);
+        for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+          const kk = this.gk(i, j), L = this.grid.get(kk);
+          if (!L) continue;
+          const keep = L.filter(e => e[0] !== wi);
+          if (keep.length) this.grid.set(kk, keep); else this.grid.delete(kk);
+        }
+      }
+    }
+    for (let i = this.vehicles.length - 1; i >= 0; i--) if (gone.has(this.vehicles[i].wi)) this.vehicles.splice(i, 1);
   }
 
   /** A vehicle has reached an end of its way: carry on into a joining way,
@@ -7009,14 +7221,30 @@ class RoadTraffic {
     const choices = [];
     for (const [wj, sAt] of opts) {
       const u = this.ways[wj];
+      if (u.dead) continue;                        // its tile has gone
       if (u.cls > v.type.cls) continue;            // a bus does not take a farm track
       const base = (CW[u.cls] || 0.02) * (u.cls === w.cls ? 2.5 : 1);
       if (sAt < u.len - 3) choices.push({ wj, s: sAt, dir: 1, w: base });
       if (sAt > 3 && !u.oneway) choices.push({ wj, s: sAt, dir: -1, w: base });
     }
     if (!choices.length) {                          // dead end
-      // a one-way cannot be driven back up: the vehicle leaves the scene and
-      // the streamer replaces it somewhere else
+      // Most ends without a junction are not cul-de-sacs: the bake cut the
+      // road off (about 60% of way ends). A U-turn at every one looked silly
+      // (the owner: let them "continue on false terrain until either getting
+      // back on road or timing out"). So most carry on straight over the
+      // ground and look for a road that lines up; the rest turn round.
+      // (only on through roads: a residential or service road that stops is
+      // usually a real cul-de-sac, and a third of all traffic ended up in fields)
+      // Only when there is a road to reach: one lining up within 70 m ahead
+      // (a gap in the mapped network). Where the bake simply cut the road
+      // off, there is nothing to find, and a car heading into the fields for
+      // eight seconds is worse than a U-turn.
+      const q = this.place(v);
+      if (w.cls <= 4 && this.roadAhead(q, v.wi, v.type.cls)) {
+        v.free = { x: q.x, z: q.z, fx: q.fx, fz: q.fz, t: 0, look: 0 };
+        v.v = Math.max(5, Math.min(v.v, 11));
+        return;
+      }
       if (w.oneway) { v.gone = true; return; }
       v.dir = -v.dir; v.s = atEnd ? w.len : 0; return;
     }
@@ -7043,6 +7271,7 @@ class RoadTraffic {
     const near = [];
     for (let wi = 0; wi < this.ways.length; wi++) {
       const w = this.ways[wi];
+      if (w.dead) continue;
       // closest approach of this way to the camera, and where along it
       let bd = 1e12, bs = 0;
       const stride = Math.max(1, (w.pts.length / 24) | 0);
@@ -7090,6 +7319,7 @@ class RoadTraffic {
     const byWay = new Map(near.map(o => [o.wi, o]));
     // drop anything that has wandered out of range or off a way we dropped
     this.vehicles = this.vehicles.filter(v => {
+      if (v.free) return Math.hypot(v.free.x - cx, v.free.z - cz) < radius * 1.2;
       const o = byWay.get(v.wi);
       if (!o) return false;
       return Math.abs(v.s - o.s) < radius * 1.2;
@@ -7143,10 +7373,52 @@ class RoadTraffic {
    *  bus or lorry. `v.lane` is the lateral position, 1 in its own lane and
    *  -1 in the other, eased so the move across is visible.
    */
+  /** A vehicle off the end of its road: straight on over the ground, and
+   *  every 0.4 s a look for a road within 6 m running within 40° of its
+   *  heading, which it joins. After 8 s it gives up and goes. */
+  roadAhead(q, notWi, maxCls) {
+    for (let d = 10; d <= 70; d += 10) {
+      const x = q.x + q.fx * d, z = q.z + q.fz * d;
+      for (const [wj, k] of this.grid.get(this.gk(Math.floor(x / this.cell), Math.floor(z / this.cell))) || []) {
+        const u = this.ways[wj];
+        if (wj === notWi || u.dead || u.cls > maxCls) continue;
+        const a = u.pts[k - 1], b = u.pts[k], ex = b[0] - a[0], ez = b[1] - a[1], ll = Math.hypot(ex, ez);
+        if (ll < 1 || Math.abs((ex * q.fx + ez * q.fz) / ll) < 0.77) continue;
+        const t = Math.max(0, Math.min(1, ((x - a[0]) * ex + (z - a[1]) * ez) / (ll * ll)));
+        if (Math.hypot(a[0] + ex * t - x, a[1] + ez * t - z) < 8) return true;
+      }
+    }
+    return false;
+  }
+  stepFree(v, dt) {
+    const f = v.free;
+    f.t += dt; f.x += f.fx * v.v * dt; f.z += f.fz * v.v * dt;
+    if (f.t > 8) { v.gone = true; return; }
+    if ((f.look -= dt) > 0) return;
+    f.look = 0.4;
+    const cell = this.cell, cand = this.grid.get(this.gk(Math.floor(f.x / cell), Math.floor(f.z / cell))) || [];
+    for (const [wj, k] of cand) {
+      const u = this.ways[wj];
+      if (u.dead || u.cls > v.type.cls || (wj === v.wi && f.t < 3)) continue;
+      const a = u.pts[k - 1], b = u.pts[k];
+      const ex = b[0] - a[0], ez = b[1] - a[1], ll = Math.hypot(ex, ez);
+      if (ll < 1) continue;
+      const t = Math.max(0, Math.min(1, ((f.x - a[0]) * ex + (f.z - a[1]) * ez) / (ll * ll)));
+      if (Math.hypot(a[0] + ex * t - f.x, a[1] + ez * t - f.z) > 6) continue;
+      const c = (ex * f.fx + ez * f.fz) / ll;
+      if (Math.abs(c) < 0.77) continue;                   // more than 40° off
+      const dir = c > 0 ? 1 : -1;
+      if (u.oneway && dir < 0) continue;
+      v.wi = wj; v.s = u.cum[k - 1] + t * ll; v.dir = dir; v.free = null; v.lane = 1;
+      return;
+    }
+  }
   step(dt, closed) {
     const turning = [];
     const byWay = new Map();
+    for (const v of this.vehicles) if (v.free) this.stepFree(v, dt);
     for (const v of this.vehicles) {
+      if (v.free) continue;
       if (!byWay.has(v.wi)) byWay.set(v.wi, { up: [], down: [] });
       byWay.get(v.wi)[v.dir > 0 ? "up" : "down"].push(v);
     }
@@ -7259,11 +7531,12 @@ class RoadTraffic {
       }
     }
     for (const v of turning) this.turnAtEnd(v, v.s >= this.ways[v.wi].len - 0.01);
-    if (turning.some(v => v.gone)) this.vehicles = this.vehicles.filter(v => !v.gone);
+    if (this.vehicles.some(v => v.gone)) this.vehicles = this.vehicles.filter(v => !v.gone);
   }
 
   /** world position and heading of a vehicle */
   place(v) {
+    if (v.free) return { x: v.free.x, z: v.free.z, fx: v.free.fx, fz: v.free.fz, i: null, u: 0 };
     const w = this.ways[v.wi];
     let i = 1;
     while (i < w.cum.length - 1 && w.cum[i] < v.s) i++;
@@ -7316,15 +7589,16 @@ function buildRoadTraffic(rt, camX, camZ, demAt, night, reach, surfaceAt, models
   for (const v of rt.vehicles) {
     // A car at half a kilometre is three pixels. Simulating it is cheap;
     // rebuilding its geometry every frame is not, so cull before place().
-    const w0 = rt.ways[v.wi];
-    const p0 = w0.pts[Math.min(w0.pts.length - 1, (v.s / w0.len * (w0.pts.length - 1)) | 0)];
+    const w0 = v.free ? {} : rt.ways[v.wi];
+    const p0 = v.free ? [v.free.x, v.free.z] : w0.pts[Math.min(w0.pts.length - 1, (v.s / w0.len * (w0.pts.length - 1)) | 0)];
     const R = reach || 560;
     if (Math.abs(p0[0] - camX) > R + 60 || Math.abs(p0[1] - camZ) > R + 60) continue;
     const q = rt.place(v);
     if (Math.hypot(q.x - camX, q.z - camZ) > R) continue;
 
     // Elevation: on ground roads use demRidge + offset; on bridges ride the elevated deck
-    let y = surfaceAt ? surfaceAt(q.x, q.z) : demRidge(demAt, q.x, q.z) + 0.345;
+    let y = v.free ? demAt(q.x, q.z) + 0.05
+          : surfaceAt ? surfaceAt(q.x, q.z) : demRidge(demAt, q.x, q.z) + 0.345;
     // The road mesh is flat between its points; the ground under the car is
     // not. In a dip the car sat under the drawn road and vanished from above,
     // so it rides the higher of the two: the ground, or the road's chord.
@@ -8394,6 +8668,9 @@ function groundContact(pl, T, demAt, speed) {
 }
 // a crash: a message (main.js shows pl.crashWhy), and a restart 400 m up
 function crash(pl, T, g, why) {
+  // where it happened, for the fireball and the burning wreck (main.js)
+  pl.crashAt = [pl.p[0], Math.max(g, Math.min(pl.p[1], g + 60)), pl.p[2]];
+  pl.crashHeading = [Math.sin(pl.yaw), -Math.cos(pl.yaw)];
   pl.crashed = 2.5; pl.ground = false; pl.crashWhy = why; pl.crashes = (pl.crashes || 0) + 1;
   pl.p[1] = g + 400; pl.pitch = 0; pl.roll = 0; pl.stall = 0;
   const v0 = T.heli ? 0 : (PLANES[pl.type] || PLANES.cessna).start;
@@ -8497,8 +8774,11 @@ function buildAircraft(air, plane, car = null) {
     }
     quad(P(0, 0.7, -2.6), P(0, 3.2, -5.6), P(0, 3.2, -6.4), P(0, 0.7, -6.4), G);   // fin
     quad(P(0, 0.7, -6.4), P(0, 3.2, -6.4), P(0, 3.2, -5.6), P(0, 0.7, -2.6), G2);
+    // the nozzle: a dark can; with the afterburner lit only its throat
+    // glows, and the flame itself is particles (main.js), not this box
     const burn = a.throttle > 0.92;
-    box(P, -0.45, 0.45, -0.45, 0.45, -7.4, -6.5, burn ? [1.6, 0.9, 0.4] : DARKG);
+    box(P, -0.45, 0.45, -0.45, 0.45, -7.4, -6.5, DARKG);
+    if (burn) quad(P(-0.32, -0.32, -7.41), P(0.32, -0.32, -7.41), P(0.32, 0.32, -7.41), P(-0.32, 0.32, -7.41), [1.9, 1.1, 0.5]);
   };
   if (car && !car.cockpit) carGeometry(car, quad);
   if (plane && plane.active && !plane.cockpit) {
@@ -8508,6 +8788,88 @@ function buildAircraft(air, plane, car = null) {
   }
   return { verts: new Float32Array(V), cols: new Float32Array(C),
            nrms: new Float32Array(N), count: V.length / 3 };
+}
+
+// ------------------------------------------------------------- cockpit
+// What you sit in when you press C in the air (the owner: "the flight cockpit
+// could be better"; it was nothing: the sky from a point in space). Built
+// round the eye in the aeroplane's own frame (f forward, r right, u up, all
+// banked with it), drawn by the train cab's program (CAB_VS/FS), so the same
+// short projection keeps it from being clipped. Plain surfaces only (uv -1).
+//   cessna: high wing overhead, a windscreen with a centre strut and doors
+//           with windows, the six-pack of round dials, a yoke;
+//   gripen: a bubble canopy's bow and sills, three screens, the HUD glass
+//           with its green marker, a centre stick;
+//   heli:   a glass nose to the floor, a centre post, an overhead panel.
+function buildCockpit(eye, f, r, u, type = "cessna") {
+  const V = [], C = [], U = [];
+  const P = (x, y, z) => [eye[0] + r[0]*x + u[0]*y + f[0]*z,
+                          eye[1] + r[1]*x + u[1]*y + f[1]*z,
+                          eye[2] + r[2]*x + u[2]*y + f[2]*z];
+  const quad = (a, b, c, d, col) => {
+    for (const p of [a, b, c, a, c, d]) { V.push(p[0], p[1], p[2]); C.push(col[0], col[1], col[2]); U.push(-1, -1); }
+  };
+  const box = (x0, x1, y0, y1, z0, z1, col, top) => {
+    quad(P(x0, y0, z1), P(x1, y0, z1), P(x1, y1, z1), P(x0, y1, z1), col);      // face towards you… or away
+    quad(P(x0, y0, z0), P(x1, y0, z0), P(x1, y1, z0), P(x0, y1, z0), col);
+    quad(P(x0, y1, z0), P(x1, y1, z0), P(x1, y1, z1), P(x0, y1, z1), top || col);
+    quad(P(x0, y0, z0), P(x0, y1, z0), P(x0, y1, z1), P(x0, y0, z1), col);
+    quad(P(x1, y0, z0), P(x1, y1, z0), P(x1, y1, z1), P(x1, y0, z1), col);
+  };
+  const DARK = [0.10, 0.10, 0.11], PANEL = [0.16, 0.17, 0.18], FRAME = [0.20, 0.21, 0.22];
+  const DIAL = [0.03, 0.03, 0.035], RIM = [0.55, 0.56, 0.58], WHITE_ = [0.86, 0.87, 0.88];
+  if (type === "gripen") {
+    const GREY = [0.30, 0.33, 0.35];
+    // coaming and panel: low, so the view is all canopy
+    box(-0.42, 0.42, -0.62, -0.30, 0.55, 0.95, GREY, [0.12, 0.13, 0.14]);
+    for (const [x0, x1, col] of [[-0.40, -0.15, [0.05, 0.16, 0.10]], [-0.12, 0.12, [0.04, 0.12, 0.16]], [0.15, 0.40, [0.05, 0.16, 0.10]]])
+      quad(P(x0, -0.56, 0.549), P(x1, -0.56, 0.549), P(x1, -0.36, 0.549), P(x0, -0.36, 0.549), col);
+    // HUD: two slim posts, a tinted glass edge and the green flight-path marker
+    for (const sx of [-0.10, 0.10]) box(sx - 0.008, sx + 0.008, -0.30, -0.08, 0.62, 0.64, FRAME);
+    quad(P(-0.10, -0.08, 0.63), P(0.10, -0.08, 0.63), P(0.10, -0.075, 0.63), P(-0.10, -0.075, 0.63), FRAME);
+    const G = [0.25, 1.4, 0.45];
+    quad(P(-0.022, -0.155, 0.625), P(0.022, -0.155, 0.625), P(0.022, -0.149, 0.625), P(-0.022, -0.149, 0.625), G);
+    quad(P(-0.003, -0.170, 0.625), P(0.003, -0.170, 0.625), P(0.003, -0.134, 0.625), P(-0.003, -0.134, 0.625), G);
+    // canopy: the bow over your head and the sills
+    for (let i = 0; i < 12; i++) {
+      const a0 = Math.PI * i / 12, a1 = Math.PI * (i + 1) / 12;
+      const R = 0.52, bx = (a) => -Math.cos(a) * R, by = (a) => -0.25 + Math.sin(a) * R * 0.95;
+      quad(P(bx(a0), by(a0), 0.18), P(bx(a1), by(a1), 0.18), P(bx(a1), by(a1), 0.24), P(bx(a0), by(a0), 0.24), FRAME);
+    }
+    for (const sg of [-1, 1]) box(sg * 0.52 - 0.03, sg * 0.52 + 0.03, -0.32, -0.25, -0.6, 0.9, FRAME);
+    box(-0.025, 0.025, -0.75, -0.42, 0.28, 0.33, DARK);                    // the stick
+  } else if (type === "heli") {
+    box(-0.55, 0.55, -0.62, -0.42, 0.55, 0.85, PANEL, [0.12, 0.12, 0.13]);
+    box(-0.03, 0.03, -0.42, 0.55, 0.95, 1.0, FRAME);                        // centre post
+    box(-0.55, 0.55, 0.52, 0.60, -0.2, 0.7, [0.22, 0.23, 0.25]);            // overhead panel / roof
+    for (const sg of [-1, 1]) box(sg * 0.62 - 0.03, sg * 0.62 + 0.03, -0.9, 0.58, 0.60, 0.66, FRAME);
+    for (let i = 0; i < 4; i++) {
+      const x = -0.42 + i * 0.28;
+      quad(P(x - 0.08, -0.56, 0.549), P(x + 0.08, -0.56, 0.549), P(x + 0.08, -0.46, 0.549), P(x - 0.08, -0.46, 0.549), [0.05, 0.12, 0.15]);
+    }
+  } else {
+    // Cessna 172: the wing sits on the cabin roof; you see its root at the
+    // top of the side windows
+    box(-0.60, 0.60, -0.55, -0.20, 0.62, 0.92, PANEL, DARK);               // panel and glareshield
+    // the six-pack: two rows of three round dials (squares with a rim here)
+    for (let row = 0; row < 2; row++) for (let c = 0; c < 3; c++) {
+      const x = -0.46 + c * 0.13, y = -0.30 - row * 0.12;
+      quad(P(x - 0.052, y - 0.052, 0.618), P(x + 0.052, y - 0.052, 0.618), P(x + 0.052, y + 0.052, 0.618), P(x - 0.052, y + 0.052, 0.618), RIM);
+      quad(P(x - 0.044, y - 0.044, 0.616), P(x + 0.044, y - 0.044, 0.616), P(x + 0.044, y + 0.044, 0.616), P(x - 0.044, y + 0.044, 0.616), DIAL);
+      quad(P(x - 0.004, y, 0.614), P(x + 0.004, y, 0.614), P(x + 0.004, y + 0.036, 0.614), P(x - 0.004, y + 0.036, 0.614), WHITE_);
+    }
+    box(-0.02, 0.02, 0.02, 0.62, 0.70, 0.74, FRAME);                        // windscreen centre strut
+    for (const sg of [-1, 1]) {
+      box(sg * 0.60 - 0.04, sg * 0.60 + 0.04, -0.55, 0.62, 0.55, 0.62, FRAME); // door pillars
+      box(sg * 0.66, sg * 0.70, -0.9, -0.22, -0.8, 0.6, [0.40, 0.40, 0.42]);  // door below the window
+      box(sg * 0.64, sg * 5.2, 0.62, 0.70, -0.9, 0.7, [0.86, 0.87, 0.88]);  // the wing overhead, out to each side
+    }
+    box(-0.62, 0.62, 0.62, 0.70, -0.9, 0.62, [0.62, 0.62, 0.60]);          // cabin roof
+    // the yoke in front of you
+    box(-0.20, -0.14, -0.42, -0.36, 0.36, 0.60, DARK);
+    box(-0.30, -0.04, -0.33, -0.30, 0.34, 0.37, DARK);
+  }
+  return { verts: new Float32Array(V), cols: new Float32Array(C), uvs: new Float32Array(U), count: V.length / 3 };
 }
 
 // ===== catenary.js =====
@@ -8740,7 +9102,7 @@ function buildYardWires(ways, railYAt) {
 // and a radius.
 
 const CLS_CHIMNEY = 0, CLS_SILO = 1, CLS_TANK = 2, CLS_WATER = 3,
-      CLS_LATTICE = 4, CLS_LIGHT = 5, CLS_CRANE = 6, CLS_PYLON = 7, CLS_TV = 8;
+      CLS_LATTICE = 4, CLS_LIGHT = 5, CLS_CRANE = 6, CLS_PYLON = 7, CLS_TV = 8, CLS_WELL = 9;
 
 const ST_BRICK  = [0.42, 0.29, 0.24];
 const ST_BAND   = [0.72, 0.71, 0.68];
@@ -8939,6 +9301,33 @@ function buildStructures(list, demAt) {
         quad([s.x - 1.5, gy + s.h, s.y + 0.5], [s.x + 1.5, gy + s.h, s.y + 0.5],
              [s.x + 1.5, gy + s.h + 0.9, s.y + 0.5], [s.x - 1.5, gy + s.h + 0.9, s.y + 0.5],
              ST_STEEL);
+        break;
+      }
+      case CLS_WELL: {
+        // an oil well's pumpjack ("bólogató"): a concrete pad, the A-frame
+        // samson post, the walking beam tilted a little, the horse head over
+        // the wellhead, and the crank with its counterweights at the back
+        const a = ((s.x * 0.021 + s.y * 0.013) % (Math.PI * 2));
+        const ca = Math.cos(a), sa = Math.sin(a);
+        const P = (u, v, h) => [s.x + u * ca - v * sa, gy + h, s.y + u * sa + v * ca];
+        const beam = (p0, p1, w, col) => {
+          quad([p0[0] - w, p0[1], p0[2]], [p1[0] - w, p1[1], p1[2]], [p1[0] + w, p1[1], p1[2]], [p0[0] + w, p0[1], p0[2]], col);
+          quad([p0[0], p0[1], p0[2] - w], [p1[0], p1[1], p1[2] - w], [p1[0], p1[1], p1[2] + w], [p0[0], p0[1], p0[2] + w], col);
+        };
+        const PAD = [0.58, 0.57, 0.54], FRAME_W = [0.30, 0.34, 0.30], HEAD = [0.78, 0.62, 0.12], WEIGHT = [0.20, 0.21, 0.22];
+        quad(P(-4.5, -1.6, 0.25), P(4.0, -1.6, 0.25), P(4.0, 1.6, 0.25), P(-4.5, 1.6, 0.25), PAD);
+        beam(P(-4, 0, 0.5), P(3.5, 0, 0.5), 0.25, FRAME_W);                      // skid
+        for (const v of [-1.1, 1.1]) { beam(P(-0.8, v, 0.5), P(0, 0, 5.2), 0.14, FRAME_W); beam(P(0.9, v, 0.5), P(0, 0, 5.2), 0.14, FRAME_W); }
+        beam(P(-3.6, 0, 4.7), P(3.4, 0, 5.8), 0.30, HEAD);                      // walking beam
+        quad(P(3.2, -0.35, 6.4), P(4.1, -0.35, 5.6), P(4.1, -0.35, 3.8), P(3.3, -0.35, 4.6), HEAD);   // horse head
+        quad(P(3.3, 0.35, 4.6), P(4.1, 0.35, 3.8), P(4.1, 0.35, 5.6), P(3.2, 0.35, 6.4), HEAD);
+        beam(P(4.0, 0, 3.8), P(4.0, 0, 0.9), 0.04, ST_CABLE);                    // the bridle to the rod
+        drum(s.x + 4.0 * ca, s.y + 4.0 * sa, gy, 0.35, 0.3, 0, 1.2, ST_STEEL2, 6);   // wellhead
+        for (const v of [-0.7, 0.7]) {
+          quad(P(-3.9, v, 1.2), P(-2.6, v, 1.2), P(-2.6, v, 2.6), P(-3.9, v, 2.6), WEIGHT);   // counterweights on the crank
+          beam(P(-3.3, v, 1.9), P(-3.4, v, 4.7), 0.08, FRAME_W);                 // pitman arms
+        }
+        drum(s.x - 3.2 * ca, s.y - 3.2 * sa, gy, 0.6, 0.6, 0.4, 1.4, WEIGHT, 6);   // gearbox
         break;
       }
       case CLS_TV: {
@@ -9285,7 +9674,7 @@ class Sound {
       droneOscs.push({ o, mult });
     }
 
-    this.nodes = { master, rollGain, rollFilt, tract, oscs, cicGain, cicFilt,
+    this.nodes = { master, rollGain, rollFilt, tract, tfilt, oscs, cicGain, cicFilt,
                    windGain, windFilt, noiseBuf, rainGain, rainFilt,
                    gustGain, gustFilt, sqGain, sqFilt, sqFilt2,
                    vvGain, vvFilt, vvOscs, hornGain, hornOscs,
@@ -9568,6 +9957,22 @@ class Sound {
   }
 
   /** speed m/s, throttle 0..1, sunAlt radians, dayOfYear, inCutting 0..1 */
+  /** A crash: a sub-bass thump sweeping down and a low roar of filtered
+   *  noise, quieter with distance (metres). */
+  boom(dist = 60) {
+    if (!this.on || !this.ctx) return;
+    const ctx = this.ctx, now = ctx.currentTime, n = this.nodes;
+    const att = Math.max(0.05, Math.min(1, 1 / (1 + dist * 0.012)));
+    const o = ctx.createOscillator(), og = ctx.createGain();
+    o.frequency.setValueAtTime(130, now); o.frequency.exponentialRampToValueAtTime(28, now + 0.9);
+    og.gain.setValueAtTime(0.9 * att, now); og.gain.exponentialRampToValueAtTime(0.001, now + 1.7);
+    o.connect(og).connect(n.master); o.start(now); o.stop(now + 1.8);
+    const src = ctx.createBufferSource(); src.buffer = n.noiseBuf;
+    const f = ctx.createBiquadFilter(); f.type = "lowpass";
+    f.frequency.setValueAtTime(380, now); f.frequency.exponentialRampToValueAtTime(60, now + 2.2);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.8 * att, now); g.gain.exponentialRampToValueAtTime(0.001, now + 2.5);
+    src.connect(f).connect(g).connect(n.master); src.start(now); src.stop(now + 2.6);
+  }
   update(v, throttle, brake, sunAlt, day, dt, paused) {
     if (!this.on || !this.ctx) return;
     if (paused) {
@@ -9578,6 +9983,7 @@ class Sound {
       return;
     }
     const n = this.nodes, t = this.ctx.currentTime, k = 0.12;
+    this.dt = dt;
     const set = (p, x) => p.setTargetAtTime(x, t, k);
 
     const sp = Math.min(v / 33, 1.4);
@@ -9592,13 +9998,30 @@ class Sound {
 
     // traction sings under power and falls away when coasting
     const load = throttle * Math.max(0.15, 1 - v / 40);
-    set(n.tract.gain, load * 0.085);
-    for (const { o, mult } of n.oscs)
-      o.frequency.setTargetAtTime((55 + v * 7.5) * mult, t, k);
+    if (this.diesel) {
+      // A diesel-hydraulic railcar (the S21's MÁV 416): the engine's speed
+      // follows the throttle, not the road speed — the gearbox takes up the
+      // difference — so you hear it rev up at the platform and hold its note.
+      // The fundamental is the firing frequency of a six: 30 Hz at 600 rpm
+      // idle, ~90 Hz flat out; the sawtooth stack gives the chug.
+      this.rpm = this.rpm || 600;
+      const want = 600 + 1200 * Math.min(1, throttle);
+      this.rpm += (want - this.rpm) * Math.min(1, 0.9 * (this.dt || 0.016));
+      const fire = this.rpm / 20;
+      set(n.tract.gain, 0.035 + throttle * 0.075);
+      n.tfilt.frequency.setTargetAtTime(320 + throttle * 700, t, 0.2);
+      for (const { o, mult } of n.oscs) o.frequency.setTargetAtTime(fire * mult, t, 0.12);
+    } else {
+      set(n.tract.gain, load * 0.085);
+      n.tfilt.frequency.setTargetAtTime(1600, t, 0.2);
+      for (const { o, mult } of n.oscs)
+        o.frequency.setTargetAtTime((55 + v * 7.5) * mult, t, k);
+    }
 
     // VVVF: the carrier steps up in stages and then goes synchronous, which
     // is the rising staircase you hear leaving a platform in a Stadler
-    if (n.vvGain) {
+    if (n.vvGain && this.diesel) set(n.vvGain.gain, 0);   // no inverter on a diesel
+    else if (n.vvGain) {
       const kmh = v * 3.6;
       const carrier = kmh < 12 ? 300 + kmh * 12
                     : kmh < 24 ? 600 + (kmh - 12) * 8
@@ -10167,8 +10590,12 @@ const LM_ZINC   = [0.55, 0.58, 0.60];
 // road — which the cars drive on — stays on top and the model supplies the
 // piers, towers, chains and arches. Placed on the DEM instead, the model's
 // deck floated a couple of metres off the real one: two bridges.
-const BRIDGE_TOP = { lanchid: 12.0, megyeri: 14.8,
+const BRIDGE_TOP = { lanchid: 12.0, megyeri: 14.8, erzsebet: 11.2,
                      eszakivasut: 11.2, maria_valeria: 10.0 };
+
+let landmarkIsWater = null;
+/** (x, north) → true over water (main.js hands in the cover raster) */
+function setLandmarkWater(fn) { landmarkIsWater = fn; }
 
 function buildLandmarks(anchors, demAt, waterAt, railNear) {
   const V = [], C = [];
@@ -10187,7 +10614,7 @@ function buildLandmarks(anchors, demAt, waterAt, railNear) {
     if (rY !== null && isFinite(rY)) g = rY - BRIDGE_TOP[a.key] - 0.35;
     if (!isFinite(g)) continue;
     // u along the building's long axis, v across it, w up
-    const P = (u, v, w) => [a.x + u * ca - v * sa, g + w, a.y + u * sa + v * ca];
+    let P = (u, v, w) => [a.x + u * ca - v * sa, g + w, a.y + u * sa + v * ca];
     // a rectangular box in the local frame
     const box = (u0, u1, v0, v1, w0, w1, side, top) => {
       quad(P(u0,v0,w0), P(u1,v0,w0), P(u1,v0,w1), P(u0,v0,w1), side);
@@ -10866,12 +11293,18 @@ function buildLandmarks(anchors, demAt, waterAt, railNear) {
       let best = [0, 0], run0 = null;
       for (let u = -a.hu; u <= a.hu + 10; u += 10) {
         const q = P(u, 0, 0);
-        const wet = u <= a.hu && demAt(q[0], q[2]) < wy + 0.6;
+        // water from the land cover where the game has it: the DEM over the
+        // wide main channel is not reliably below the water plane, so the
+        // narrower Szentendre branch "won" and the pylons stood over it
+        const wet = u <= a.hu && (landmarkIsWater ? landmarkIsWater(q[0], q[2]) : demAt(q[0], q[2]) < wy + 0.6);
         if (wet && run0 === null) run0 = u;
         if (!wet && run0 !== null) { if (u - run0 > best[1] - best[0]) best = [run0, u]; run0 = null; }
       }
-      const mid = (best[0] + best[1]) / 2;
+      // (the bake knows the middle of the cable-stayed part from OSM: mu, mv)
+      const mid = a.mu != null ? a.mu : (best[0] + best[1]) / 2;
       const DECK = 14.8;
+      const P0 = P, mv = a.mv || 0;
+      P = (u, v, w) => P0(u, v + mv, w);
       for (const px of [mid - 150, mid + 150]) {
         box(px - 9, px + 9, -18, 18, 0, 8.0, FOOT, FOOT);
         const topH = 99.0;
@@ -10925,13 +11358,17 @@ function buildLandmarks(anchors, demAt, waterAt, railNear) {
           quad(P(x0 + 6.0, tv - 0.3, 10.5 + trussH), P(x1 - 6.0, tv - 0.3, 10.5 + trussH),
                P(x1 - 6.0, tv + 0.3, 10.5 + trussH), P(x0 + 6.0, tv + 0.3, 10.5 + trussH), TRUSS);
           // Diagonal lattice cross-braces (Warren truss triangles)
-          const N_BAYS = 4;
+          // a Warren truss: one diagonal per bay, alternating / \ / \ (both
+          // in every bay drew big X's), bays about as long as the truss is high
+          const N_BAYS = Math.max(4, Math.round(SPAN_W / 11));
           for (let b = 0; b < N_BAYS; b++) {
             const bx0 = x0 + b * (SPAN_W / N_BAYS), bx1 = x0 + (b + 1) * (SPAN_W / N_BAYS);
-            quad(P(bx0, tv, 10.5), P(bx0 + 0.6, tv, 10.5),
-                 P(bx1, tv, 10.5 + trussH), P(bx1 - 0.6, tv, 10.5 + trussH), TRUSS);
-            quad(P(bx1, tv, 10.5), P(bx1 + 0.6, tv, 10.5),
-                 P(bx0, tv, 10.5 + trussH), P(bx0 - 0.6, tv, 10.5 + trussH), TRUSS);
+            if (b % 2 === 0)
+              quad(P(bx0, tv, 10.5), P(bx0 + 0.6, tv, 10.5),
+                   P(bx1, tv, 10.5 + trussH), P(bx1 - 0.6, tv, 10.5 + trussH), TRUSS);
+            else
+              quad(P(bx1, tv, 10.5), P(bx1 - 0.6, tv, 10.5),
+                   P(bx0, tv, 10.5 + trussH), P(bx0 + 0.6, tv, 10.5 + trussH), TRUSS);
           }
         }
         // Overhead wind bracing portal frames
@@ -10941,6 +11378,50 @@ function buildLandmarks(anchors, demAt, waterAt, railNear) {
         }
       }
       box(a.hu - 5, a.hu + 5, -7.5, 7.5, 0, 10.5, PIER, PIER);
+
+    } else if (a.key === "erzsebet") {
+      // Erzsébet híd (1964): one 290 m span hung from two white main cables;
+      // at each bank a pylon of two slim legs with a crossbeam over the road,
+      // the cables running on to anchorages behind them. The deck is the road
+      // layer's. Pylons stand where the river ends along the axis.
+      const WH = [0.93, 0.94, 0.95], WH2 = [0.80, 0.81, 0.83];
+      let u0 = null, u1 = null;
+      for (let u = -a.hu; u <= a.hu; u += 4) {
+        const q = P(u, 0, 0);
+        const wet = landmarkIsWater ? landmarkIsWater(q[0], q[2]) : false;
+        if (wet) { if (u0 === null) u0 = u; u1 = u; }
+      }
+      if (u0 === null) { u0 = -145; u1 = 145; }
+      const D = BRIDGE_TOP.erzsebet, TOP = D + 26, VW = 13.2;
+      const pyl = [u0 - 4, u1 + 4];
+      for (const px of pyl) {
+        for (const sv of [-VW - 1.2, VW + 1.2]) {
+          box(px - 1.6, px + 1.6, sv - 1.1, sv + 1.1, 0, TOP, WH, WH);
+        }
+        box(px - 1.4, px + 1.4, -VW - 1.2, VW + 1.2, TOP - 2.4, TOP, WH, WH);      // the crossbeam
+        box(px - 3.5, px + 3.5, -VW - 3, VW + 3, 0, D - 0.6, WH2, WH2);           // the pier under the road
+      }
+      // the main cables: anchorage behind each pylon, up to its top, and the
+      // sag over the river down to near the deck at mid-span
+      const L = pyl[1] - pyl[0], mid = (pyl[0] + pyl[1]) / 2;
+      const cableAt = (u) => {
+        if (u < pyl[0]) return D + (TOP - D) * (u - (pyl[0] - 45)) / 45;
+        if (u > pyl[1]) return D + (TOP - D) * ((pyl[1] + 45) - u) / 45;
+        const t = (u - mid) / (L / 2);
+        return D + 2.2 + (TOP - 1 - D - 2.2) * t * t;
+      };
+      for (const sv of [-VW, VW]) {
+        for (let u = pyl[0] - 45; u < pyl[1] + 45; u += 5) {
+          const y0 = cableAt(u), y1 = cableAt(u + 5);
+          quad(P(u, sv - 0.35, y0), P(u + 5, sv - 0.35, y1), P(u + 5, sv + 0.35, y1), P(u, sv + 0.35, y0), WH);
+          quad(P(u, sv, y0 - 0.35), P(u + 5, sv, y1 - 0.35), P(u + 5, sv, y1 + 0.35), P(u, sv, y0 + 0.35), WH);
+        }
+        // hangers every 10 m over the span
+        for (let u = pyl[0] + 10; u < pyl[1] - 5; u += 10)
+          quad(P(u - 0.08, sv, D), P(u + 0.08, sv, D), P(u + 0.08, sv, cableAt(u)), P(u - 0.08, sv, cableAt(u)), WH2);
+        // anchor blocks where the cables go into the ground
+        for (const ue of [pyl[0] - 45, pyl[1] + 45]) box(ue - 5, ue + 5, sv - 3, sv + 3, 0, D + 1, WH2, WH2);
+      }
 
     } else if (a.key === "arpadhid" || a.key === "margithid") {
       // Drawn by the road layer from their OSM ways, deck and piers: the
@@ -12333,7 +12814,17 @@ function roundRect(c, x, y, w, h, r) {
 // --------------------------------------------------------- cab geometry
 // Built fresh each frame in the train's own frame of reference, so it rides
 // with the vehicle and stays put when you turn your head.
-function buildCab(eye, fwd, right, up) {
+//
+// The owner: "not just peering through a grey box". It was one: thick flat
+// grey walls round a letterbox. Now each stock has its own cab:
+//   KISS/FLIRT: a tall raked one-piece windscreen on slim pillars, pale
+//     plastic, a charcoal desk;
+//   M416: a two-piece windscreen with a centre pillar, warm beige;
+//   EC/V43: two flat panes, a green-grey steel cab.
+// All share a sun blind, parked wipers, a rubber seal round the glass, side
+// windows with frames, a grab rail and the mirror outside. The instrument
+// face (faceA..D) stays where it was: clicks on the desk map through it.
+function buildCab(eye, fwd, right, up, stock = "KISS") {
   const V = [], C = [], U = [];
   const P = (r, u, f) => [
     eye[0] + right[0]*r + up[0]*u + fwd[0]*f,
@@ -12350,52 +12841,89 @@ function buildCab(eye, fwd, right, up) {
       U.push(uvs[i][0], uvs[i][1]);
     });
   };
-  const dark = [0.115, 0.125, 0.135];
-  const mid  = [0.185, 0.200, 0.215];
-  const desk = [0.145, 0.155, 0.170];
+  const loco = stock === "EC" || stock === "LOCO" || stock === "FREIGHT";
+  const dmu = stock === "M416";
+  const wall  = loco ? [0.34, 0.40, 0.36] : dmu ? [0.62, 0.58, 0.50] : [0.66, 0.68, 0.70];
+  const wallD = wall.map(x => x * 0.72);                 // lower down, in shadow
+  const roof  = loco ? [0.44, 0.48, 0.44] : dmu ? [0.72, 0.69, 0.62] : [0.78, 0.79, 0.80];
+  const desk  = loco ? [0.20, 0.26, 0.22] : dmu ? [0.26, 0.25, 0.24] : [0.13, 0.14, 0.16];
+  const deskT = desk.map(x => x * 1.35);
+  const seal = [0.05, 0.05, 0.06], floorC = [0.10, 0.10, 0.11];
+  const blind = [0.10, 0.12, 0.14], wiper = [0.06, 0.06, 0.07], rail = [0.92, 0.74, 0.14];
 
-  // The eye sat almost on the console. Push the whole cab forward and drop
-  // the desk so there is room to sit in it.
   const HW = 1.52, TOP = 0.86, BOT = -1.45, FRONT = 2.15, BACK = -1.25;
-  const DESK_Y = -0.80, DESK_F = 1.05, SILL = -0.66;
+  const DESK_Y = -0.80, DESK_F = 1.05, SILL = -0.60;
+  // the windscreen leans back at the top (Stadlers a lot, the V43 hardly)
+  const rake = loco ? 0.08 : dmu ? 0.18 : 0.42;
+  const WT = 0.70;                                        // top of the glass
+  const F = (u) => FRONT - rake * (u - SILL) / (WT - SILL);   // the glass plane's depth at height u
+  const pil = loco ? 0.22 : 0.10;                         // pillar width
 
-  // windscreen surround: header, two pillars, and a sill that reaches the
-  // desk. Without the sill there is a gap you can see the world through.
-  quad(P(-HW, TOP, FRONT), P(HW, TOP, FRONT), P(HW, 0.56, FRONT), P(-HW, 0.56, FRONT), mid);
-  for (const sg of [-1, 1]) {
-    quad(P(sg*HW, TOP, FRONT), P(sg*(HW-0.26), TOP, FRONT),
-         P(sg*(HW-0.26), SILL, FRONT), P(sg*HW, SILL, FRONT), mid);
+  // header over the glass, down to its top
+  quad(P(-HW, TOP, F(TOP)), P(HW, TOP, F(TOP)), P(HW, WT, F(WT)), P(-HW, WT, F(WT)), wall);
+  // corner pillars
+  for (const sg of [-1, 1])
+    quad(P(sg*HW, TOP, F(TOP)), P(sg*(HW-pil), TOP, F(TOP)),
+         P(sg*(HW-pil), SILL, F(SILL)), P(sg*HW, SILL, F(SILL)), wall);
+  // a centre pillar on the 416 and the V43
+  if (loco || dmu)
+    quad(P(-0.06, WT, F(WT)), P(0.06, WT, F(WT)), P(0.06, SILL, F(SILL)), P(-0.06, SILL, F(SILL)), wall);
+  // the rubber seal round the glass: a thin dark frame
+  const e = HW - pil, t = 0.035;
+  quad(P(-e, WT, F(WT)), P(e, WT, F(WT)), P(e, WT - t, F(WT - t)), P(-e, WT - t, F(WT - t)), seal);
+  quad(P(-e, SILL + t, F(SILL + t)), P(e, SILL + t, F(SILL + t)), P(e, SILL, F(SILL)), P(-e, SILL, F(SILL)), seal);
+  for (const sg of [-1, 1])
+    quad(P(sg*e, WT, F(WT)), P(sg*(e - t), WT, F(WT)), P(sg*(e - t), SILL, F(SILL)), P(sg*e, SILL, F(SILL)), seal);
+  // sun blind, half drawn over the top of the glass
+  quad(P(-e + 0.05, WT - 0.02, F(WT) - 0.06), P(e - 0.05, WT - 0.02, F(WT) - 0.06),
+       P(e - 0.05, WT - 0.20, F(WT - 0.20) - 0.06), P(-e + 0.05, WT - 0.20, F(WT - 0.20) - 0.06), blind);
+  // wipers, parked along the bottom of the glass, on the outside
+  for (const wx of loco || dmu ? [-0.75, 0.55] : [-0.55]) {
+    const wl = loco || dmu ? 0.62 : 1.05;
+    quad(P(wx, SILL + 0.05, F(SILL) + 0.03), P(wx + wl, SILL + 0.09, F(SILL) + 0.03),
+         P(wx + wl, SILL + 0.11, F(SILL) + 0.03), P(wx, SILL + 0.07, F(SILL) + 0.03), wiper);
   }
-  quad(P(-HW, SILL, FRONT), P(HW, SILL, FRONT),
-       P(HW, DESK_Y, FRONT), P(-HW, DESK_Y, FRONT), mid);
-  // and close the corner between the sill and the side walls
-  for (const sg of [-1, 1]) {
-    quad(P(sg*HW, SILL, FRONT), P(sg*HW, DESK_Y, FRONT),
-         P(sg*HW, DESK_Y, DESK_F), P(sg*HW, SILL, DESK_F), mid);
-  }
-  // roof and rear
-  quad(P(-HW, TOP, FRONT), P(HW, TOP, FRONT), P(HW, TOP, BACK), P(-HW, TOP, BACK), dark);
-  quad(P(HW, TOP, BACK), P(-HW, TOP, BACK), P(-HW, BOT, BACK), P(HW, BOT, BACK), dark);
-  // side walls with a window opening
+  // sill: from the bottom of the glass down to the desk
+  quad(P(-HW, SILL, F(SILL)), P(HW, SILL, F(SILL)), P(HW, DESK_Y, FRONT), P(-HW, DESK_Y, FRONT), wallD);
+  for (const sg of [-1, 1])
+    quad(P(sg*HW, SILL, FRONT), P(sg*HW, DESK_Y, FRONT), P(sg*HW, DESK_Y, DESK_F), P(sg*HW, SILL, DESK_F), wallD);
+  // roof (a lamp strip in it) and the back wall with its door
+  quad(P(-HW, TOP, F(TOP)), P(HW, TOP, F(TOP)), P(HW, TOP, BACK), P(-HW, TOP, BACK), roof);
+  quad(P(-0.35, TOP - 0.01, 0.9), P(0.35, TOP - 0.01, 0.9), P(0.35, TOP - 0.01, -0.3), P(-0.35, TOP - 0.01, -0.3), [0.95, 0.93, 0.86]);
+  quad(P(HW, TOP, BACK), P(-HW, TOP, BACK), P(-HW, BOT, BACK), P(HW, BOT, BACK), wallD);
+  quad(P(0.45, 0.55, BACK + 0.01), P(-0.45, 0.55, BACK + 0.01), P(-0.45, BOT, BACK + 0.01), P(0.45, BOT, BACK + 0.01), wall);
+  // side walls, each with a framed window (the side window slides on a real cab)
+  const SW0 = -0.30, SW1 = 0.46, SF0 = -0.95, SF1 = 1.25;
   for (const sg of [-1, 1]) {
     const x = sg * HW;
-    quad(P(x, TOP, FRONT), P(x, TOP, BACK), P(x, 0.38, BACK), P(x, 0.38, FRONT), mid);
-    quad(P(x, -0.34, FRONT), P(x, -0.34, BACK), P(x, BOT, BACK), P(x, BOT, FRONT), mid);
-    quad(P(x, 0.38, -0.10), P(x, 0.38, -0.36), P(x, -0.34, -0.36), P(x, -0.34, -0.10), mid);
+    quad(P(x, TOP, F(TOP)), P(x, TOP, BACK), P(x, SW1, BACK), P(x, SW1, FRONT), wall);
+    quad(P(x, SW0, FRONT), P(x, SW0, BACK), P(x, BOT, BACK), P(x, BOT, FRONT), wallD);
+    quad(P(x, SW1, SF0), P(x, SW1, BACK), P(x, SW0, BACK), P(x, SW0, SF0), wall);
+    quad(P(x, SW1, FRONT), P(x, SW1, SF1), P(x, SW0, SF1), P(x, SW0, FRONT), wall);
+    // frame and the sliding sash's upright
+    const xi = x - sg * 0.02;
+    quad(P(xi, SW1, SF0), P(xi, SW1, SF1), P(xi, SW1 - 0.04, SF1), P(xi, SW1 - 0.04, SF0), seal);
+    quad(P(xi, SW0 + 0.04, SF0), P(xi, SW0 + 0.04, SF1), P(xi, SW0, SF1), P(xi, SW0, SF0), seal);
+    quad(P(xi, SW1, 0.18), P(xi, SW1, 0.12), P(xi, SW0, 0.12), P(xi, SW0, 0.18), seal);
+    // the grab rail beside the door
+    quad(P(xi - sg * 0.03, 0.30, -0.95), P(xi - sg * 0.03, 0.30, -1.0), P(xi - sg * 0.03, -0.85, -1.0), P(xi - sg * 0.03, -0.85, -0.95), rail);
+    // the mirror, out in the air ahead of the side window
+    const xo = x + sg * 0.22;
+    quad(P(xo, 0.20, 1.30), P(xo, 0.20, 1.52), P(xo, -0.12, 1.52), P(xo, -0.12, 1.30), seal);
+    quad(P(x, 0.05, 1.40), P(xo, 0.05, 1.40), P(xo, 0.0, 1.40), P(x, 0.0, 1.40), seal);
   }
   // floor
-  quad(P(-HW, BOT, FRONT), P(HW, BOT, FRONT), P(HW, BOT, BACK), P(-HW, BOT, BACK), dark);
-  // desk: a sloped console with the instruments on its face
+  quad(P(-HW, BOT, FRONT), P(HW, BOT, FRONT), P(HW, BOT, BACK), P(-HW, BOT, BACK), floorC);
+  // desk: a sloped console with the instruments on its face, and its lip
   quad(P(-HW, DESK_Y, FRONT), P(HW, DESK_Y, FRONT),
        P(HW, DESK_Y, DESK_F), P(-HW, DESK_Y, DESK_F), desk);
-  // stand the instrument face up a little so a short glance down finds it
-  // A 3 m wide face only 0.5 m deep squashes the texture 6:1 and the labels
-  // turn to mush. Make it deeper and match the canvas aspect to it.
+  quad(P(-HW, DESK_Y + 0.02, DESK_F + 0.05), P(HW, DESK_Y + 0.02, DESK_F + 0.05),
+       P(HW, DESK_Y + 0.02, DESK_F - 0.02), P(-HW, DESK_Y + 0.02, DESK_F - 0.02), deskT);
   const faceA = P(-HW, DESK_Y, DESK_F), faceB = P(HW, DESK_Y, DESK_F);
   const faceC = P(HW, -1.16, 0.42), faceD = P(-HW, -1.16, 0.42);
   quad(faceA, faceB, faceC, faceD, desk, [[0,0],[1,0],[1,1],[0,1]]);
   quad(P(-HW, -1.16, 0.42), P(HW, -1.16, 0.42),
-       P(HW, BOT, 0.36), P(-HW, BOT, 0.36), dark);
+       P(HW, BOT, 0.36), P(-HW, BOT, 0.36), floorC);
 
   return { verts: new Float32Array(V), cols: new Float32Array(C),
            uvs: new Float32Array(U), count: V.length / 3,
@@ -13331,6 +13859,30 @@ function installInput(ctx) {
   cv.addEventListener("pointercancel", endDrag);
   cv.addEventListener("lostpointercapture", endDrag);
   addEventListener("blur", endDrag);
+  // Two fingers pinch the zoom, the way the wheel does. While two are down
+  // the one-finger look-around is off, or the view would spin as you pinch.
+  const fingers = new Map();
+  let pinch0 = 0;
+  cv.addEventListener("pointerdown", e => {
+    if (e.pointerType !== "touch") return;
+    fingers.set(e.pointerId, [e.clientX, e.clientY]);
+    if (fingers.size === 2) { const [a, b] = [...fingers.values()]; pinch0 = Math.hypot(a[0] - b[0], a[1] - b[1]); drag = null; }
+  });
+  cv.addEventListener("pointermove", e => {
+    if (!fingers.has(e.pointerId)) return;
+    fingers.set(e.pointerId, [e.clientX, e.clientY]);
+    if (fingers.size !== 2 || pinch0 <= 0) return;
+    const [a, b] = [...fingers.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    drag = null;
+    if (state.panel) {
+      const v = state.panelView;
+      v.zoom = Math.max(1, Math.min(14, v.zoom * d / pinch0));
+    } else state.zoom = Math.max(0.35, Math.min(6.0, state.zoom * d / pinch0));
+    pinch0 = d;
+  });
+  const lift = e => { fingers.delete(e.pointerId); if (fingers.size < 2) pinch0 = 0; };
+  cv.addEventListener("pointerup", lift);
+  cv.addEventListener("pointercancel", lift);
   cv.addEventListener("wheel", e => {
     e.preventDefault();
     if (state.panel) {
@@ -14012,6 +14564,303 @@ class Kisvasut {
   }
 }
 
+// ===== vfx.js =====
+// Particles: fire, smoke, sparks and vapour, as camera-facing quads drawn in
+// one instanced call (VFX_VS / VFX_FS in shaders.js). A small version of the
+// engine proposed in docs/MODERN_VFX_PARTICLE_ENGINE_SPEC.md: a fixed pool,
+// CPU physics, no allocation per frame, blackbody colour for fire, and a
+// dithered edge like the trees'.
+//
+// Used for: a plane crash (fireball, sparks, a wreck that burns and smokes),
+// the Gripen's afterburner, vapour off the wingtips in a hard pull.
+//
+// Types: 0 smoke, 1 fire, 2 spark, 3 fireball, 4 vapour.
+const VFX_MAX = 3072;
+const VFX_STRIDE = 12;     // pos xyz, size, vel xyz, life 0..1, type, rot, seed, temp
+
+class Particles {
+  constructor() {
+    this.n = 0;
+    this.p = new Float32Array(VFX_MAX * 16);   // x y z vx vy vz age life s0 s1 type rot rotv seed temp grav
+    this.out = new Float32Array(VFX_MAX * VFX_STRIDE);
+    this.count = 0;
+    this.emitters = [];                         // {x, y, z, until, rate, kind, acc}
+  }
+  spawn(type, x, y, z, vx, vy, vz, s0, s1, life, temp = 2000, grav = 0) {
+    if (this.n >= VFX_MAX) return;
+    const o = this.n++ * 16, P = this.p;
+    P[o] = x; P[o + 1] = y; P[o + 2] = z; P[o + 3] = vx; P[o + 4] = vy; P[o + 5] = vz;
+    P[o + 6] = 0; P[o + 7] = life; P[o + 8] = s0; P[o + 9] = s1; P[o + 10] = type;
+    P[o + 11] = Math.random() * 6.283; P[o + 12] = (Math.random() - 0.5) * 2.0;
+    P[o + 13] = Math.random(); P[o + 14] = temp; P[o + 15] = grav;
+  }
+  /** A fireball with sparks and a column of smoke, at world (x, y, z). */
+  explode(x, y, z, scale = 1) {
+    const R = Math.random;
+    for (let i = 0; i < 26 * scale; i++) {
+      const a = R() * 6.283, e = R() * 1.2, v = (6 + R() * 16) * scale;
+      this.spawn(3, x, y + 1, z, Math.cos(a) * Math.cos(e) * v, Math.sin(e) * v + 4, Math.sin(a) * Math.cos(e) * v,
+                 4 * scale, (13 + R() * 9) * scale, 1.2 + R() * 1.3, 4200, 2.0);
+    }
+    for (let i = 0; i < 40 * scale; i++) {
+      const a = R() * 6.283, v = 18 + R() * 40;
+      this.spawn(2, x, y + 1, z, Math.cos(a) * v, 8 + R() * 26, Math.sin(a) * v, 0.35, 0.1, 0.8 + R() * 1.4, 3000, -14);
+    }
+    for (let i = 0; i < 18 * scale; i++)
+      this.spawn(0, x + (R() - 0.5) * 8, y + 2, z + (R() - 0.5) * 8, (R() - 0.5) * 3, 3 + R() * 4, (R() - 0.5) * 3,
+                 6 * scale, (24 + R() * 12) * scale, 7 + R() * 5, 600, 1.2);
+  }
+  /** Something that keeps burning: flames and a smoke plume for `secs`. */
+  burn(x, y, z, secs = 30) { this.emitters.push({ x, y, z, until: secs, acc: 0 }); }
+  step(dt, wind = [1.5, 0, -0.8]) {
+    const R = Math.random;
+    for (let i = this.emitters.length - 1; i >= 0; i--) {
+      const e = this.emitters[i];
+      e.until -= dt;
+      if (e.until <= 0) { this.emitters.splice(i, 1); continue; }
+      const fade = Math.min(1, e.until / 8);
+      e.acc += dt * 18 * fade;
+      while (e.acc >= 1) {
+        e.acc -= 1;
+        this.spawn(1, e.x + (R() - 0.5) * 4, e.y + 0.3, e.z + (R() - 0.5) * 4, (R() - 0.5), 3 + R() * 3, (R() - 0.5),
+                   1.6, 3.6, 0.7 + R() * 0.6, 2300, 1.5);
+        if (R() < 0.7)
+          this.spawn(0, e.x + (R() - 0.5) * 3, e.y + 3, e.z + (R() - 0.5) * 3, wind[0] * 0.6, 5 + R() * 3, wind[2] * 0.6,
+                     4, 20 + R() * 12, 9 + R() * 6, 600, 1.2);
+      }
+    }
+    // integrate, and drop the dead by moving the last one into the hole
+    const P = this.p;
+    for (let i = 0; i < this.n; i++) {
+      const o = i * 16;
+      P[o + 6] += dt;
+      if (P[o + 6] >= P[o + 7]) {
+        const l = --this.n * 16;
+        for (let k = 0; k < 16; k++) P[o + k] = P[l + k];
+        i--; continue;
+      }
+      const t = P[o + 10];
+      // smoke keeps climbing on its buoyancy (drag 0.985 held it to 0.4 m/s:
+      // a blob, not a column); sparks fly; fire and vapour slow quickly
+      const drag = t === 2 ? 0.995 : t === 0 ? 0.993 : 0.96;
+      const d = Math.pow(drag, dt * 60);
+      P[o + 3] *= d; P[o + 5] *= d; P[o + 4] = P[o + 4] * d + P[o + 15] * dt;
+      if (t === 0 || t === 4) { P[o + 3] += (wind[0] - P[o + 3]) * dt * 0.3; P[o + 5] += (wind[2] - P[o + 5]) * dt * 0.3; }
+      P[o] += P[o + 3] * dt; P[o + 1] += P[o + 4] * dt; P[o + 2] += P[o + 5] * dt;
+      P[o + 11] += P[o + 12] * dt;
+    }
+    // pack for the GPU
+    const O = this.out;
+    for (let i = 0; i < this.n; i++) {
+      const o = i * 16, w = i * VFX_STRIDE, life = P[o + 6] / P[o + 7];
+      O[w] = P[o]; O[w + 1] = P[o + 1]; O[w + 2] = P[o + 2];
+      O[w + 3] = P[o + 8] + (P[o + 9] - P[o + 8]) * Math.sin(life * 1.5708);
+      O[w + 4] = P[o + 3]; O[w + 5] = P[o + 4]; O[w + 6] = P[o + 5]; O[w + 7] = life;
+      O[w + 8] = P[o + 10]; O[w + 9] = P[o + 11]; O[w + 10] = P[o + 13]; O[w + 11] = P[o + 14];
+    }
+    this.count = this.n;
+  }
+}
+
+// A starling murmuration: a homage to the one the owner once saw over
+// Kispest, hundreds of birds drawing huge shifting shapes in the sky at dusk.
+// A few hundred boids: each steers toward the flock's centre, matches its
+// neighbours' heading (sampled, not all pairs), keeps a little apart, and
+// the centre itself wanders on a slow figure so the whole cloud folds and
+// stretches. Drawn by the particle program as small dark birds (type 5).
+class Murmuration {
+  constructor(x, y, z, n = 900) {
+    this.home = [x, y, z];
+    this.b = new Float32Array(n * 6);            // x y z vx vy vz
+    this.n = n; this.t = 0;
+    for (let i = 0; i < n; i++) {
+      const o = i * 6;
+      this.b[o] = x + (Math.random() - 0.5) * 260; this.b[o + 1] = y + (Math.random() - 0.5) * 50;
+      this.b[o + 2] = z + (Math.random() - 0.5) * 200;
+      this.b[o + 3] = (Math.random() - 0.5) * 10; this.b[o + 4] = 0; this.b[o + 5] = (Math.random() - 0.5) * 10;
+    }
+  }
+  step(dt) {
+    this.t += dt;
+    const t = this.t, B = this.b, n = this.n, [hx, hy, hz] = this.home;
+    // the centre: a slow wandering loop 300 m across, rising and falling
+    const cx = hx + Math.sin(t * 0.07) * 160 + Math.sin(t * 0.19) * 60;
+    const cy = hy + Math.sin(t * 0.11) * 25;
+    const cz = hz + Math.cos(t * 0.05) * 140 + Math.cos(t * 0.23) * 50;
+    for (let i = 0; i < n; i++) {
+      const o = i * 6;
+      // weak pull to the centre (strong made a tight 30 m ball, not a cloud)
+      let ax = (cx - B[o]) * 0.0035, ay = (cy - B[o + 1]) * 0.012, az = (cz - B[o + 2]) * 0.0035;
+      // a few neighbours by index (the flock is well mixed, so it serves)
+      for (let k = 1; k <= 6; k++) {
+        const j = ((i + k * 37) % n) * 6;
+        const dx = B[j] - B[o], dy = B[j + 1] - B[o + 1], dz = B[j + 2] - B[o + 2];
+        const d2 = dx * dx + dy * dy + dz * dz;
+        ax += (B[j + 3] - B[o + 3]) * 0.08; ay += (B[j + 4] - B[o + 4]) * 0.08; az += (B[j + 5] - B[o + 5]) * 0.08;
+        if (d2 < 90) { ax -= dx * 0.25; ay -= dy * 0.25; az -= dz * 0.25; }
+      }
+      // a ripple through the flock: the waves of turning that run across it
+      const w = Math.sin(t * 0.7 + B[o] * 0.012 + B[o + 2] * 0.009) * 9;
+      ax += w * 0.35; az -= w * 0.25; ay += Math.cos(t * 0.5 + B[o] * 0.01) * 1.5;
+      B[o + 3] += ax * dt; B[o + 4] += ay * dt; B[o + 5] += az * dt;
+      const sp = Math.hypot(B[o + 3], B[o + 4], B[o + 5]), lim = 17;
+      if (sp > lim) { const k = lim / sp; B[o + 3] *= k; B[o + 4] *= k; B[o + 5] *= k; }
+      B[o] += B[o + 3] * dt; B[o + 1] += B[o + 4] * dt; B[o + 2] += B[o + 5] * dt;
+    }
+  }
+  /** write the birds into a particle output buffer after `from` entries */
+  pack(out, from, max) {
+    const B = this.b; let c = from;
+    for (let i = 0; i < this.n && c < max; i++, c++) {
+      const o = i * 6, w = c * 12;
+      out[w] = B[o]; out[w + 1] = B[o + 1]; out[w + 2] = B[o + 2]; out[w + 3] = 1.4;      // (a starling is 0.4 m; drawn larger so the cloud reads)
+      out[w + 4] = B[o + 3]; out[w + 5] = B[o + 4]; out[w + 6] = B[o + 5]; out[w + 7] = 0.5;
+      out[w + 8] = 5; out[w + 9] = 0; out[w + 10] = (i % 7) / 7; out[w + 11] = 0;
+    }
+    return c;
+  }
+}
+
+// ===== trams.js =====
+// Budapest's trams (tools/bake_trams.py → data/trams.json): lines 1, 2, 3, 4,
+// 6, 56 and 61 on their OSM routes, one relation per direction. The first
+// step of the "one world" plan (docs/UNIFIED_ENGINE_SPEC.md): the city's tram
+// tracks were drawn, and nothing ran on them.
+//
+// Each route runs a cycle that is the same every day: out at 9 m/s (about
+// 32 km/h, a fair average for a Budapest tram between stops), 20 s at each
+// stop, and at the end the tram leaves the scene; the next one is already
+// coming. The headway is per line (4/6 every 4 min, 1 every 6, the rest
+// every 8–10). Positions come from the clock, so they need no simulation and
+// agree after a jump in time.
+//
+// Models, all BKV yellow with a white band: a Siemens Combino (4/6, 54 m,
+// six sections), a CAF Urbos (1, 56 m), and the older two- and three-section
+// cars elsewhere. Built each frame within 3 km of the camera, as the trains.
+
+const TRAM_HEADWAY = { "4": 240, "6": 240, "1": 360, "2": 540, "3": 480, "56": 600, "61": 600 };
+const TRAM_MODEL = {   // [sections, section length, articulation gap, height]
+  "4": [6, 8.85, 0.25, 3.35], "6": [6, 8.85, 0.25, 3.35], "1": [5, 11.0, 0.3, 3.4],
+  "2": [2, 13.0, 0.4, 3.3], "3": [2, 13.5, 0.4, 3.3], "56": [3, 11.0, 0.35, 3.35], "61": [3, 11.0, 0.35, 3.35],
+};
+const TRAM_YEL = [0.96, 0.76, 0.08], TRAM_WHITE = [0.92, 0.92, 0.90], TRAM_WIN = [0.10, 0.12, 0.15],
+      TRAM_ROOF = [0.62, 0.63, 0.64], TRAM_SKIRT = [0.20, 0.20, 0.22], TRAM_LAMP = [2.2, 2.1, 1.8];
+const TRAM_V_CRUISE = 9.0, TRAM_DWELL = 20;
+
+class Trams {
+  /** @param coverIsWater (x, north) → true over the river (the cover raster) */
+  constructor(data, near, demAt, waterAt, coverIsWater) {
+    const [mlat, mlon] = metresPerDegree(near.frame_lat ?? (near.south + near.north) / 2);
+    this.routes = [];
+    for (const r of data.routes || []) {
+      const pts = r.pts.map(([la, lo]) => [(lo - near.west) * mlon, (la - near.south) * mlat]);
+      // resample to 5 m, so the height follows the ground and the bridges
+      const P = [];
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1], b = pts[i], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 5));
+        for (let k = 0; k < n; k++) P.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]);
+      }
+      P.push(pts[pts.length - 1]);
+      const cum = [0];
+      for (let i = 1; i < P.length; i++) cum.push(cum[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+      // height: the ground, or over the river a deck (the road bridges'
+      // plateau, water + 8.9 m), ramped at 5% either side
+      const ys = P.map(([x, n]) => {
+        const g = demAt(x, n);
+        return coverIsWater(x, n) ? Math.max(g, waterAt(n) + 8.9) : g + 0.3;
+      });
+      for (let pass = 0; pass < 2; pass++) {
+        for (let i = 1; i < ys.length; i++) ys[i] = Math.max(ys[i], ys[i - 1] - 0.25);
+        for (let i = ys.length - 2; i >= 0; i--) ys[i] = Math.max(ys[i], ys[i + 1] - 0.25);
+      }
+      if (ys.some(y => !isFinite(y))) continue;
+      const len = cum[cum.length - 1];
+      // the run: stops by distance, and the time it reaches and leaves each
+      const stops = (r.stops || []).filter(s => s > 5 && s < len - 5);
+      const events = [];                                // [t, s] breakpoints
+      let t = 0, s = 0;
+      for (const st of stops) {
+        t += (st - s) / TRAM_V_CRUISE; s = st; events.push([t, s]);
+        t += TRAM_DWELL; events.push([t, s]);
+      }
+      t += (len - s) / TRAM_V_CRUISE; events.push([t, len]);
+      this.routes.push({ ref: r.ref, to: r.to, P, cum, ys, len, run: t, events: [[0, 0], ...events],
+                         head: TRAM_HEADWAY[r.ref] || 600, model: TRAM_MODEL[r.ref] || TRAM_MODEL["2"],
+                         phase: (r.ref.charCodeAt(0) * 37 + r.len) % 600 });
+    }
+  }
+  at(r, s) {
+    s = Math.max(0, Math.min(r.len, s));
+    let lo = 1, hi = r.cum.length - 1;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (r.cum[m] < s) lo = m + 1; else hi = m; }
+    const i = lo, u = (s - r.cum[i - 1]) / Math.max(1e-6, r.cum[i] - r.cum[i - 1]);
+    const a = r.P[i - 1], b = r.P[i], dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+    return { x: a[0] + dx * u, n: a[1] + dy * u, y: r.ys[i - 1] + (r.ys[i] - r.ys[i - 1]) * u, fx: dx / L, fn: dy / L };
+  }
+  /** where along its route a tram that set out `age` seconds ago is */
+  sAt(r, age) {
+    const E = r.events;
+    let lo = 0, hi = E.length - 1;
+    while (lo < hi - 1) { const m = (lo + hi) >> 1; if (E[m][0] <= age) lo = m; else hi = m; }
+    const [t0, s0] = E[lo], [t1, s1] = E[hi];
+    return t1 > t0 ? s0 + (s1 - s0) * Math.min(1, (age - t0) / (t1 - t0)) : s0;
+  }
+  /** Every tram near (cx, cn) at time t (seconds of the day), as a mesh. */
+  build(t, cx, cn, reach = 3000, night = 0) {
+    const V = [], C = [];
+    const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
+    const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
+    const day0 = 4.5 * 3600, day1 = 24 * 3600;           // trams run from 4:30 to midnight
+    if (t < day0 || t > day1) return { verts: new Float32Array(0), cols: new Float32Array(0), count: 0 };
+    for (const r of this.routes) {
+      // quick reject: is any of this route near the camera?
+      const mid = r.P[(r.P.length / 2) | 0];
+      if (Math.hypot(mid[0] - cx, mid[1] - cn) > reach + r.len * 0.5) continue;
+      const [sec, secL, gap, H] = r.model;
+      for (let k = 0; ; k++) {
+        const age = ((t - day0 - r.phase) % r.head + r.head) % r.head + k * r.head;
+        if (age > r.run) break;
+        const front = this.sAt(r, age);
+        const q0 = this.at(r, front);
+        if (Math.hypot(q0.x - cx, q0.n - cn) > reach) continue;
+        for (let j = 0; j < sec; j++) {
+          const s1 = front - j * (secL + gap), s0 = s1 - secL;
+          if (s0 < 0) break;
+          const a = this.at(r, s0), b = this.at(r, s1);
+          const nx = -a.fn, nn = a.fx, W = 1.2;
+          const P = (q, o, up) => [q.x + nx * o, q.y + up, q.n + nn * o];
+          const band = (y0, y1, col) => {
+            quad(P(a, -W, y0), P(b, -W, y0), P(b, -W, y1), P(a, -W, y1), col);
+            quad(P(a, W, y0), P(b, W, y0), P(b, W, y1), P(a, W, y1), col);
+          };
+          band(0.30, 0.55, TRAM_SKIRT);
+          band(0.55, 1.05, TRAM_YEL);
+          band(1.05, 1.18, TRAM_WHITE);
+          band(1.18, 2.35, TRAM_WIN);
+          band(2.35, H - 0.25, TRAM_YEL);
+          quad(P(a, -W, H - 0.25), P(b, -W, H - 0.25), P(b, -W * 0.8, H), P(a, -W * 0.8, H), TRAM_ROOF);
+          quad(P(a, W, H - 0.25), P(b, W, H - 0.25), P(b, W * 0.8, H), P(a, W * 0.8, H), TRAM_ROOF);
+          quad(P(a, -W * 0.8, H), P(b, -W * 0.8, H), P(b, W * 0.8, H), P(a, W * 0.8, H), TRAM_ROOF);
+          // ends: the cab faces at the two ends, dark bellows between sections
+          const end = (q, col) => quad(P(q, -W, 0.3), P(q, W, 0.3), P(q, W, H - 0.25), P(q, -W, H - 0.25), col);
+          end(b, j === 0 ? TRAM_YEL : TRAM_SKIRT);
+          end(a, j === sec - 1 ? TRAM_YEL : TRAM_SKIRT);
+          if (j === 0) {
+            const f = this.at(r, s1 + 0.02);
+            quad(P(f, -W * 0.9, 1.25), P(f, W * 0.9, 1.25), P(f, W * 0.9, 2.45), P(f, -W * 0.9, 2.45), TRAM_WIN);
+            const lc = [TRAM_LAMP[0] * (0.4 + night), TRAM_LAMP[1] * (0.4 + night), TRAM_LAMP[2] * (0.4 + night)];
+            for (const o of [-0.8, 0.8]) quad(P(f, o - 0.14, 0.75), P(f, o + 0.14, 0.75), P(f, o + 0.14, 0.95), P(f, o - 0.14, 0.95), lc);
+            // the pantograph over the leading section
+            const m = this.at(r, s1 - secL * 0.5);
+            quad(P(m, -0.6, H + 0.05), P(m, 0.6, H + 0.05), P(m, 0.6, H + 0.65), P(m, -0.6, H + 0.65), TRAM_SKIRT);
+          }
+        }
+      }
+    }
+    return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+  }
+}
+
 // ===== settings.js =====
 
 function bindSettings(state, {
@@ -14112,6 +14961,17 @@ function bindSettings(state, {
     el.addEventListener("change", () => {
       state.gfx[key] = el.checked;
       const p = loadPrefs(); p.gfx = p.gfx || {}; p.gfx[key] = el.checked; savePrefs(p);
+    });
+  }
+  // and how strong each is (DOF as the aperture, motion blur and AO as a gain)
+  for (const [id, key] of [["gfxDofAmt", "dofAmt"], ["gfxMotionAmt", "motionAmt"], ["gfxAOAmt", "aoAmt"]]) {
+    const el = document.getElementById(id); if (!el) continue;
+    const p0 = loadPrefs();
+    if (p0.gfx && p0.gfx[key] != null) el.value = p0.gfx[key];
+    state.gfx[key] = +el.value;
+    el.addEventListener("input", () => {
+      state.gfx[key] = +el.value;
+      const p = loadPrefs(); p.gfx = p.gfx || {}; p.gfx[key] = +el.value; savePrefs(p);
     });
   }
   const qs0 = document.getElementById("qualSel");
@@ -14359,6 +15219,8 @@ function savePrefs(p) {
 
 
 
+
+
 const RES = { w: 512, h: 288 };            // internal render size, upscaled
 // nested square annuli: each ring has a hole exactly filled by the finer one,
 // so the plane is tiled once and ordinary depth testing sorts everything
@@ -14448,6 +15310,27 @@ async function boot(assets) {
   const pTrk = compile(gl, TRACK_VS, TRACK_FS);
   const pVeg = compile(gl, VEG_VS, VEG_FS);
   const pTree = compile(gl, TREE_VS, VEG_FS);     // the cadastre's trees, one instance each
+  // particles (vfx.js): one instanced draw of camera-facing quads
+  const pVfx = compile(gl, VFX_VS, VFX_FS);
+  const vfx = new Particles();
+  let murm = null;                                 // the Kispest starlings (vfx.js Murmuration)
+  const vfxVao = gl.createVertexArray();
+  const vfxInst = gl.createBuffer();
+  {
+    gl.bindVertexArray(vfxVao);
+    const q = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, q);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, vfxInst);
+    gl.bufferData(gl.ARRAY_BUFFER, VFX_MAX * 12 * 4, gl.DYNAMIC_DRAW);
+    for (let i = 0; i < 3; i++) {
+      gl.enableVertexAttribArray(1 + i);
+      gl.vertexAttribPointer(1 + i, 4, gl.FLOAT, false, 48, i * 16);
+      gl.vertexAttribDivisor(1 + i, 1);
+    }
+    gl.bindVertexArray(null);
+  }
   const pBld = compile(gl, BLDG_VS, BLDG_FS);
   const pBrd = compile(gl, BOARD_VS, BOARD_FS);
   const pCab = compile(gl, CAB_VS, CAB_FS);
@@ -14807,15 +15690,15 @@ async function boot(assets) {
   gl.bindVertexArray(cabVao);
   const cabPos = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, cabPos);
-  gl.bufferData(gl.ARRAY_BUFFER, 3 * 4 * 600, gl.DYNAMIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, 3 * 4 * 2400, gl.DYNAMIC_DRAW);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
   const cabCol = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, cabCol);
-  gl.bufferData(gl.ARRAY_BUFFER, 3 * 4 * 600, gl.DYNAMIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, 3 * 4 * 2400, gl.DYNAMIC_DRAW);
   gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 0, 0);
   const cabUv = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, cabUv);
-  gl.bufferData(gl.ARRAY_BUFFER, 2 * 4 * 600, gl.DYNAMIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, 2 * 4 * 2400, gl.DYNAMIC_DRAW);
   gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 0, 0);
   gl.bindVertexArray(null);
   let cabCount = 0;
@@ -14881,6 +15764,13 @@ async function boot(assets) {
   gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 24, 16); gl.vertexAttribDivisor(2, 1);
   gl.bindVertexArray(null);
 
+  {
+    const hung = (ctx.landmarks || []).filter(a => a.key === "erzsebet");
+    setNoPierAt(hung.length ? (x, y) => hung.some(a => {
+      const dx = x - a.x, dy = y - a.y, ca = Math.cos(a.ang), sa = Math.sin(a.ang);
+      return Math.abs(dx * ca + dy * sa) < a.hu && Math.abs(-dx * sa + dy * ca) < 25;
+    }) : null);
+  }
   const roadData = buildRoads(roadWays, (ctx.roads && ctx.roads.widths) ? ctx.roads.widths : [], demAt,
                               (north) => wA + wB * north, railDistAt);
   const roadMesh = colouredVao(roadData);
@@ -14939,6 +15829,14 @@ async function boot(assets) {
 
 
   // hand-modelled buildings, placed by their own OSM footprints
+  // where a modelled railway bridge stands (its footprint in the anchor's own
+  // frame), the extras layer must not lay a second deck
+  const modelBridges = (ctx.landmarks || []).filter(a => a.key === "eszakivasut");
+  const onModelBridge = (x, y) => modelBridges.some(a => {
+    const dx = x - a.x, dy = y - a.y, ca = Math.cos(a.ang), sa = Math.sin(a.ang);
+    return Math.abs(dx * ca + dy * sa) < a.hu + 30 && Math.abs(-dx * sa + dy * ca) < 14;
+  });
+  setLandmarkWater((x, n) => coverAt(x, n) === 9);
   const lmMesh = colouredVao(buildLandmarks(ctx.landmarks, demAt,
     (north) => ((world.water && world.water.a) || 104) + ((world.water && world.water.b) || 0) * north,
     (x, y) => {            // rail height of the player's line near a point, or null
@@ -15104,8 +16002,19 @@ async function boot(assets) {
     return Object.assign(portal, { spread });
   })();
   const catMesh = (() => {
-    const run = buildCatenary(routeData.track_down, routeData.track_up, yardSpan);
-    const yard = buildYardWires(railWays, railYAt);
+    // Where the line is wired. S21's Lajosmizse line has no overhead line
+    // past Kőbánya-Kispest (hence the diesel 416s); the other lines are
+    // electric end to end. The route data has no electrification field, so
+    // this is set here by line.
+    const lineC = new URLSearchParams(location.search).get("line") || "line70";
+    const koki = lineC === "s21" ? (routeData.stops || []).find(s => /Kőbánya-Kispest/.test(s.name)) : null;
+    const wiredTo = koki ? koki.km * 1000 + 250 : Infinity;
+    const cut = pts => pts.filter(p => p[3] <= wiredTo);
+    const run = buildCatenary(cut(routeData.track_down), cut(routeData.track_up), yardSpan);
+    const yard = buildYardWires(wiredTo === Infinity ? railWays : railWays.filter(w => {
+      const q = w.pts[(w.pts.length / 2) | 0], r = q && railDistAt(q[0], q[1]);
+      return !r || r.m <= wiredTo;
+    }), railYAt);
     const V = new Float32Array(run.verts.length + yard.verts.length);
     const C = new Float32Array(run.cols.length + yard.cols.length);
     V.set(run.verts); V.set(yard.verts, run.verts.length);
@@ -15327,14 +16236,14 @@ async function boot(assets) {
           if (keep.length) {
             out.roads = colouredVao(buildRoads(keep, widths, demAt, waterAt, railDistAt));
             out.ways = keep;
-            if (roadTraffic && roadTraffic.addWays) roadTraffic.addWays(keep);
+            if (roadTraffic && roadTraffic.addWays) roadTraffic.addWays(keep, T.t.file);
             addDriveWays(keep);
           }
         }
         // the extras (bake_cityx.py): rails, trams, pipelines, solar farms;
         // industrial structures and pylons; and names for the labels
         if (body.x) {
-          const ex = buildCityExtras(body.x, tx, demAt, waterAt, railDistAt);
+          const ex = buildCityExtras(body.x, tx, demAt, waterAt, railDistAt, onModelBridge);
           if (ex.count) out.x = colouredVao(ex);
           if (body.x.structs && body.x.structs.length) {
             const list = body.x.structs.map(([sx, sy, h, r, cls]) => { const [x, y] = tx(sx, sy); return { x, y, h, r, cls }; });
@@ -15379,6 +16288,9 @@ async function boot(assets) {
         }
         return out;
       }, (m) => { freeVao(m.polys); freeVao(m.parts); freeVao(m.roads); freeVao(m.lm); freeVao(m.x); freeVao(m.st); freeVao(m.tr); freeVao(m.pk);
+                  // the tile's roads leave the traffic and the car's grid too
+                  // (they piled up for as long as you flew about)
+                  if (m.ways) { if (roadTraffic && roadTraffic.removeOwner) roadTraffic.removeOwner(m.owner); removeDriveWays(m.ways); }
                   if (m.owner) solids.removeOwner(m.owner); });
       if (state.cityR) city.R = state.cityR;
       window.__setCityR = (r) => { city.R = r; };
@@ -15411,16 +16323,29 @@ async function boot(assets) {
       }
     }
   } catch (e) { console.warn("kisvasút unavailable", e); }
+  // Budapest's trams (trams.js): 1, 2, 3, 4, 6, 56, 61 on their OSM routes
+  let trams = null;
+  const tramDyn = dynamicVao();
+  try {
+    const td = await fetch(`${window.DATA_BASE || "data/"}trams.json`).then(r => r.ok ? r.json() : null);
+    if (td) trams = new Trams(td, assets.world.near, demAt, (n) => wA + wB * n, (x, n) => coverAt(x, n) === 9);
+  } catch (e) { console.warn("trams unavailable", e); }
   // the line's own extras (bake_linex.py): names along the whole line, the
   // quarries, solar farms and pipelines outside the city
-  let lineExtras = null;
+  let lineExtras = null, lineStructs = null;
   try {
     const line = new URLSearchParams(location.search).get("line") || "line70";
     const ex = await fetch(`${window.DATA_BASE || "data/"}extras${line === "line70" ? "" : "_" + line}.json`).then(r => r.ok ? r.json() : null);
     if (ex) {
       const waterAtL = (north) => wA + wB * north;
-      const m = buildCityExtras(ex, (x, y) => [x, y], demAt, waterAtL, railDistAt);
+      const m = buildCityExtras(ex, (x, y) => [x, y], demAt, waterAtL, railDistAt, onModelBridge);
       if (m.count) lineExtras = colouredVao(m);
+      // structures outside the city (the oil wells' pumpjacks by S21)
+      if (ex.structs && ex.structs.length) {
+        const list = ex.structs.map(([x, y, h, r, cls]) => ({ x, y, h, r, cls }));
+        const sm = buildStructures(list, demAt);
+        if (sm.count) lineStructs = colouredVao(sm);
+      }
       for (const [name, kind, x, y, rank] of ex.labels || []) {
         if (placeNames.has(name)) continue;
         placeNames.add(name);
@@ -15445,6 +16370,20 @@ async function boot(assets) {
           if (!driveGrid.has(key)) driveGrid.set(key, []);
           driveGrid.get(key).push([w, k, hw]);
         }
+      }
+    }
+  };
+  const removeDriveWays = (ways) => {
+    const gone = new Set(ways);
+    for (const w of ways) for (let k = 1; k < w.pts.length; k++) {
+      const a = w.pts[k - 1], b = w.pts[k];
+      const i0 = Math.floor(Math.min(a[0], b[0]) / 60), i1 = Math.floor(Math.max(a[0], b[0]) / 60);
+      const j0 = Math.floor(Math.min(a[1], b[1]) / 60), j1 = Math.floor(Math.max(a[1], b[1]) / 60);
+      for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+        const key = i + "," + j, L = driveGrid.get(key);
+        if (!L) continue;
+        const keep = L.filter(e => !gone.has(e[0]));
+        if (keep.length) driveGrid.set(key, keep); else driveGrid.delete(key);
       }
     }
   };
@@ -15996,6 +16935,23 @@ async function boot(assets) {
   window.__photoMode = photoMode;
   // what is under a point of the picture: march the view ray over the ground
   // and the roofs (a depth read-back is not possible in WebGL)
+  // The dark timeline, first step (docs/DARK_TIMELINE_DISASTER_SPEC.md; off
+  // unless the address says ?mode=dark): K strikes where the middle of the
+  // view meets the world. A fireball, sparks, a smoke column that burns for a
+  // minute, the boom and the shake. No crater and no damage yet.
+  if (new URLSearchParams(location.search).get("mode") === "dark") {
+    addEventListener("keydown", e => {
+      if (e.code !== "KeyK" || state.menu) return;
+      const t = distanceAt(0, 0), L = state.lastCam;
+      if (t == null || !L) return;
+      const d = norm(sub(M4.apply(L.invVP, [0, 0, 1, 1]).slice(0, 3).map((v, i, a) => v / M4.apply(L.invVP, [0, 0, 1, 1])[3]), L.eye));
+      const p = add(L.eye, scale(d, t));
+      vfx.explode(p[0], p[1], p[2], 6);
+      vfx.burn(p[0], p[1], p[2], 60);
+      state.shake = 1.4;
+      if (sound.boom) sound.boom(t);
+    });
+  }
   function distanceAt(sx, sy) {
     const L = state.lastCam; if (!L) return null;
     const m = L.invVP, P = (z) => { const v = [sx, sy, z, 1], o = [0, 0, 0, 0];
@@ -16170,13 +17126,16 @@ async function boot(assets) {
   // Hungarian voice, data/audio/ann/), else the browser's own hu-HU voice.
   const annSlug = n => n.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
                         .replace(/[^a-z0-9]/g, "_").replace(/^_+|_+$/g, "");
-  async function announce(name, end) {
+  // kind: "" "Következő állomás: X." · "_veg" the same at the terminus ·
+  // "_kov" "X következik." shortly before arriving
+  async function announce(name, end, kind = end ? "_veg" : "") {
     if (!state.sound) return;
-    const key = "ann_" + annSlug(name) + (end ? "_veg" : "");
+    const key = "ann_" + annSlug(name) + kind;
     if (sound.ctx && !sound.samples[key])
       await sound.loadSample(key, `${window.DATA_BASE || "data/"}audio/ann/${key.slice(4)}.m4a`).catch(() => {});
     if (sound.samples && sound.samples[key]) { setTimeout(() => sound.playSample(key, 0.9), 2500); return; }
-    const text = end ? `Következő állomás: ${name}, a vonat végállomása. Kérjük, minden utasunk szálljon ki.`
+    const text = kind === "_kov" ? `${name} következik.`
+               : end ? `Következő állomás: ${name}, a vonat végállomása. Kérjük, minden utasunk szálljon ki.`
                      : `Következő állomás: ${name}.`;
     if (!window.speechSynthesis) return;
     const v = speechSynthesis.getVoices().find(v => /^hu/i.test(v.lang));
@@ -16367,8 +17326,10 @@ async function boot(assets) {
     const stk = opts.mission && opts.mission.stock ? STOCKS[opts.mission.stock]
               : state.scenario === "EC" ? STOCKS.EC
               : state.scenario === "Freight" ? STOCKS.FREIGHT
-              : /^Z/.test(state.scenario) || state.scenario === "S72" || state.scenario === "S21" ? STOCKS.FLIRT : STOCKS.KISS;
+              : state.scenario === "S21" ? STOCKS.M416      // Lajosmizse: diesel, not wired past KÖKI
+              : /^Z/.test(state.scenario) || state.scenario === "S72" ? STOCKS.FLIRT : STOCKS.KISS;
     driver.s = stk;
+    sound.diesel = !!stk.diesel;         // the 416 has an engine, not an inverter
     playerTrain.stock = stk.stock; playerTrain.cars = stk.cars; playerTrain.length = stk.lengthM;
     driver.lever = 0; driver.emergency = false; driver.bcp = 0; driver.edb = 0;
     
@@ -16560,15 +17521,22 @@ async function boot(assets) {
         const nextStop = driver.targetStop();
         if (nextStop) {
           const dist = (nextStop.km * 1000 - driver.m) * route.dir;
-          // the arrival signal 1.5 km out
-          if (dist > 0 && dist < 1500 && state.last99SignalStation !== nextStop.name) {
+          const last = route.stops[route.dir > 0 ? route.stops.length - 1 : 0];
+          // Two announcements, as MÁV makes them: "Következő állomás: X"
+          // once the train is under way from the last stop, and "X
+          // következik" shortly before arriving (about 40 s, at least 350 m).
+          // Each after the chime; a local recording, else the browser's own
+          // Hungarian voice, else silence (never an English voice mangling
+          // the names).
+          if (dist > 350 && driver.v > 3 && state.lastAnnNext !== nextStop.name) {
+            state.lastAnnNext = nextStop.name;
+            if (sound.ctx) sound.playSample('szignal_99');
+            announce(nextStop.name, nextStop === last);
+          }
+          if (dist > 0 && dist < Math.max(350, driver.v * 40) && state.last99SignalStation !== nextStop.name) {
             state.last99SignalStation = nextStop.name;
             if (sound.ctx) sound.playSample('szignal_99');
-            // and the announcement after the chime, in the browser's own
-            // Hungarian voice (none is installed on some systems: then silence,
-            // rather than an English voice mangling the names)
-            const last = route.stops[route.dir > 0 ? route.stops.length - 1 : 0];
-            announce(nextStop.name, nextStop === last);
+            announce(nextStop.name, false, "_kov");
           }
         }
         // Passing a signal at danger: the signal ahead changes (you went past
@@ -16754,13 +17722,19 @@ async function boot(assets) {
                    && state.followShipIdx < 0;
     if (seated) {
       const ps = state.passenger;
-      const carLen = 25.0;
-      const mc = driver.m - route.dir * (carLen * ps.car + carLen * 0.5 + 1.5);
+      // per stock: the KISS seats you upstairs; a FLIRT or an EC coach is
+      // single-deck, and the upper-deck height put the eye in their roof
+      const stk = driver.s.stock || "KISS";
+      const carLen = CAR_LEN[stk] || 25.0;
+      const eyeY = stk === "KISS" ? 3.15 : stk === "FLIRT" ? 1.78 : 2.22;
+      // (a 416 has two cars: "car 2" was behind the train)
+      const carI = Math.min(ps.car, Math.max(0, (driver.s.cars || 6) - 1));
+      const mc = driver.m - route.dir * (carLen * carI + carLen * 0.5 + 1.5);
       const c = route.at(mc), t2 = route.tangent(mc);
       const tx = t2[0] * route.dir, ty = t2[1] * route.dir;
       const rx = ty, ry = -tx;                      // right of travel, east/north
-      const off = ps.side * 0.72;
-      eye = [c[0] + rx * off, c[2] + 3.15, -(c[1] + ry * off)];   // upper-deck window height
+      const off = ps.side * (stk === "KISS" ? 0.72 : 0.86);
+      eye = [c[0] + rx * off, c[2] + eyeY, -(c[1] + ry * off)];   // seated eye at the window
     }
     const fwdBase = [tan[0] * subjDir, 0, -tan[1] * subjDir];
     const cy = Math.cos(state.yaw), sy = Math.sin(state.yaw);
@@ -16769,6 +17743,7 @@ async function boot(assets) {
       : norm([fwdBase[0]*cy - fwdBase[2]*sy, state.pitch,
               fwdBase[0]*sy + fwdBase[2]*cy]);
     let camEye = eye;
+    let camRoll = 0;          // the view's bank (radians; + = right side down): the plane's
     // Zoom is two different things and only one of them was implemented. In
     // the cab it can only be the lens — you cannot lean out of the window —
     // and narrowing the field of view is right there. From outside it should
@@ -16829,11 +17804,67 @@ async function boot(assets) {
       if (pl.crashes !== pl.crashSeen) {
         pl.crashSeen = pl.crashes;
         if (pl.crashes) { state.messages = state.messages || [];
-          state.messages.push({ text: `${pl.crashWhy || "Lezuhantál"} — újra a levegőben`, t: 4, tone: "bad" }); }
+          state.messages.push({ text: `${pl.crashWhy || "Lezuhantál"} — újra a levegőben`, t: 4, tone: "bad" });
+          // the boom: a fireball and sparks where it hit, a wreck that burns
+          // and smokes for half a minute, and for the 2.5 s before the
+          // restart the camera stays on it (it used to cut straight to 400 m up)
+          if (pl.crashAt) {
+            const [cx, cy, cz] = pl.crashAt, h = pl.crashHeading || [0, -1];
+            vfx.explode(cx, cy, cz, pl.type === "gripen" ? 3.2 : 2.2);   // (1.0 was "minuscule")
+            vfx.burn(cx, cy, cz, 30);
+            let e = [cx - h[0] * 70 + h[1] * 25, cy + 28, cz - h[1] * 70 - h[0] * 25];
+            const g0 = demAt(e[0], -e[2]);
+            if (isFinite(g0) && e[1] < g0 + 12) e[1] = g0 + 12;
+            pl.crashCam = e;
+            state.shake = 0.8;
+            if (sound.boom) sound.boom(Math.hypot(e[0] - cx, e[1] - cy, e[2] - cz));
+          }
+        }
       }
-      if (pl.cockpit) {
+      // afterburner: the Gripen's flame out of the nozzle, full throttle
+      if (!state.paused && pl.type === "gripen" && pl.throttle > 0.92 && !(pl.crashed > 0)) {
+        for (let i = 0; i < 6; i++) {
+          const b = 6.6 + Math.random() * 0.6, jet = 25 + Math.random() * 20;
+          vfx.spawn(1, pl.p[0] - nose[0] * b, pl.p[1] - nose[1] * b, pl.p[2] - nose[2] * b,
+                    pl.vel[0] - nose[0] * jet, pl.vel[1] - nose[1] * jet, pl.vel[2] - nose[2] * jet,
+                    1.3, 0.45, 0.08 + Math.random() * 0.07, 3900, 0);
+        }
+      }
+      // vapour off the wingtips in a hard, fast pull (the nose swinging
+      // round quickly at speed)
+      {
+        const sp = Math.hypot(pl.vel[0], pl.vel[1], pl.vel[2]);
+        const prev = pl.noseWas || nose, turn = Math.acos(Math.max(-1, Math.min(1,
+          prev[0] * nose[0] + prev[1] * nose[1] + prev[2] * nose[2]))) / Math.max(1e-3, dtReal);
+        pl.noseWas = nose;
+        if (!state.paused && sp > 60 && turn > 0.20 && !(pl.crashed > 0)) {
+          // the wingtips where they are: banked with the aeroplane
+          const r0 = norm(cross(nose, [0, 1, 0])), u0 = norm(cross(r0, nose));
+          const cr = Math.cos(pl.roll), sr = Math.sin(pl.roll);
+          const rt = [r0[0] * cr - u0[0] * sr, r0[1] * cr - u0[1] * sr, r0[2] * cr - u0[2] * sr];
+          const span = pl.type === "gripen" ? 4.2 : 5.4, k = Math.min(1, (turn - 0.2) * 2);
+          for (const sg of [-1, 1]) for (let i = 0; i < 3; i++) {
+            const back = i * 0.8;
+            vfx.spawn(4, pl.p[0] + rt[0] * span * sg - nose[0] * back, pl.p[1] + rt[1] * span * sg - nose[1] * back,
+                      pl.p[2] + rt[2] * span * sg - nose[2] * back,
+                      pl.vel[0] * 0.25, pl.vel[1] * 0.25, pl.vel[2] * 0.25, 0.7 + k, 2.0 + 2 * k, 0.5 + 0.4 * k, 0, 0);
+          }
+        }
+      }
+      if (pl.crashed > 0 && pl.crashCam && pl.crashAt) {
+        camEye = pl.crashCam.slice();
+        fwd = norm(sub([pl.crashAt[0], pl.crashAt[1] + 6, pl.crashAt[2]], camEye));
+      } else if (pl.cockpit) {
         camEye = [pl.p[0] + nose[0] * 1.6, pl.p[1] + 0.55, pl.p[2] + nose[2] * 1.6];
         fwd = norm([nose[0], nose[1] + (state.pitch || 0), nose[2]]);
+        camRoll = pl.roll;     // in the cockpit the world banks with the aeroplane
+        {
+          // the aeroplane's own axes, banked, for the cockpit mesh
+          const bf = norm(nose), br0 = norm(cross(bf, [0, 1, 0])), bu0 = norm(cross(br0, bf));
+          const cr = Math.cos(pl.roll), sr = Math.sin(pl.roll);
+          const bu = [bu0[0] * cr + br0[0] * sr, bu0[1] * cr + br0[1] * sr, bu0[2] * cr + br0[2] * sr];
+          pl.cockBasis = { f: bf, r: norm(cross(bf, bu)), u: bu, eye: camEye.slice() };
+        }
       } else {
         // chase camera, orbited by the mouse; back to straight behind when
         // the drag is let go of for long enough (the plane is steered by keys)
@@ -16843,6 +17874,9 @@ async function boot(assets) {
         const ox = Math.sin(a), oz = -Math.cos(a);
         camEye = [pl.p[0] - ox * back * Math.cos(el), pl.p[1] + back * Math.sin(el), pl.p[2] - oz * back * Math.cos(el)];
         fwd = (state.yaw || state.pitch) ? norm(sub(pl.p, camEye)) : norm(sub(add(pl.p, scale(nose, 25)), camEye));
+        // the chase camera leans a third of the bank: enough to feel the
+        // turn, not so much that the horizon swings with every correction
+        if (!state.yaw && !state.pitch) camRoll = pl.roll * 0.33;
       }
     }
     // ---- FPV Drone Flight Simulator Mode
@@ -16987,8 +18021,19 @@ async function boot(assets) {
     state.camXZ = [camEye[0], -camEye[2]];
     if (city) city.update(camEye[0], -camEye[2]);
     state.camY = camEye[1];
+    if (state.shake > 0) {
+      const k = state.shake * 0.9;
+      camEye = [camEye[0] + (Math.random() - 0.5) * k, camEye[1] + (Math.random() - 0.5) * k, camEye[2] + (Math.random() - 0.5) * k];
+      state.shake = Math.max(0, state.shake - dtReal * 0.6);
+    }
     const at = add(camEye, fwd);
-    const view = M4.lookAt(camEye, at, [0, 1, 0]);
+    let camUp = [0, 1, 0];
+    if (camRoll) {
+      const rt = norm(cross(fwd, [0, 1, 0])), up0 = norm(cross(rt, fwd));
+      const cr = Math.cos(camRoll), sr = Math.sin(camRoll);
+      camUp = [up0[0] * cr + rt[0] * sr, up0[1] * cr + rt[1] * sr, up0[2] * cr + rt[2] * sr];
+    }
+    const view = M4.lookAt(camEye, at, camUp);
     // inside a carriage the walls are half a metre away, inside the usual
     // 1.2 m near plane
     const nearZ = seated ? 0.12 : 1.2;
@@ -17120,6 +18165,8 @@ async function boot(assets) {
       if (dobogo && Math.hypot(dobogo.xy[0] - camEye[0], dobogo.xy[1] + camEye[2]) < 9000)
         upload(heartDyn, buildHeart(dobogo.xy[0], dobogo.ele + 34, -dobogo.xy[1], performance.now() * 0.001));
       else heartDyn.count = 0;
+      if (trams && city) upload(tramDyn, trams.build(state.hour * 3600, camEye[0], -camEye[2], 3000, night));
+      else tramDyn.count = 0;
       if (kisvasut && Math.hypot(kisvasut.pts[0][0] - camEye[0], kisvasut.pts[0][1] + camEye[2]) < 16000)
         upload(kisDyn, kisvasut.train(state.hour * 3600));
       else kisDyn.count = 0;
@@ -17304,8 +18351,11 @@ async function boot(assets) {
       setStreetLights(pTrk);
       gl.enable(gl.POLYGON_OFFSET_FILL);
       gl.polygonOffset(-2.0, -4.0);
+      if (pTrk.u.uSeason) gl.uniform4fv(pTrk.u.uSeason, season4);
+      if (pTrk.u.uGround) gl.uniform1f(pTrk.u.uGround, 1);
       gl.bindVertexArray(corridor.vao);
       gl.drawArrays(gl.TRIANGLES, 0, corridor.count);
+      if (pTrk.u.uGround) gl.uniform1f(pTrk.u.uGround, 0);
       if (state.show.roads) {
         gl.polygonOffset(-9.0, -18.0);
         gl.bindVertexArray(roadMesh.vao);
@@ -17359,7 +18409,7 @@ async function boot(assets) {
       // snow lies on the ballast but not on a train that has been running,
       // and a signal head is heated
       gl.uniform1f(pTrk.u.uSnow, 0);
-      for (const d of [trainDyn, airDyn, sigDyn, xingDyn, carDyn, shipDyn, peopleDyn, lampDyn, heartDyn, bulbDyn, kisDyn]) {
+      for (const d of [trainDyn, airDyn, sigDyn, xingDyn, carDyn, shipDyn, peopleDyn, lampDyn, heartDyn, bulbDyn, kisDyn, tramDyn]) {
         if (!d.count) continue;
         if (pTrk.u.uPull) gl.uniform1f(pTrk.u.uPull, d === carDyn || d === peopleDyn ? 0.005 : 0.0);
         // The roads are drawn with a strong polygon offset (to win over the
@@ -17412,6 +18462,7 @@ async function boot(assets) {
           }
         });
         if (lineExtras) { gl.bindVertexArray(lineExtras.vao); gl.drawArrays(gl.TRIANGLES, 0, lineExtras.count); }
+        if (lineStructs) { gl.bindVertexArray(lineStructs.vao); gl.drawArrays(gl.TRIANGLES, 0, lineStructs.count); }
         if (kisTrack && kisTrack.count) { gl.bindVertexArray(kisTrack.vao); gl.drawArrays(gl.TRIANGLES, 0, kisTrack.count); }
         if (partsMesh.count) {
           gl.bindVertexArray(partsMesh.vao);
@@ -17585,6 +18636,48 @@ async function boot(assets) {
     gl.bindVertexArray(brdVao);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, stn.boards.length);
 
+    // ---- particles: fire, smoke, sparks, vapour (vfx.js)
+    if (!state.paused && !state.photo) vfx.step(Math.min(dtReal, 0.1) * Math.min(state.speedMul || 1, 4));
+    // the starlings over Kispest: autumn and winter, at dusk (the owner saw
+    // them once and never forgot it). Placed from lat/lon, so any line's
+    // world that reaches Kispest has them.
+    let vfxN = vfx.count;
+    {
+      const d = state.day, h = state.hour;
+      const season = d >= 270 || d <= 60, dusk = h > 15.5 && h < 18.5;
+      if (season && dusk) {
+        if (!murm) {
+          const W = assets.world.near, [mla, mlo] = [111132.92 - 559.82 * Math.cos(2 * (W.frame_lat ?? (W.south + W.north) / 2) * Math.PI / 180),
+            111412.84 * Math.cos((W.frame_lat ?? (W.south + W.north) / 2) * Math.PI / 180)];
+          const mx = (19.140 - W.west) * mlo, mn = (47.452 - W.south) * mla, g = demAt(mx, mn);
+          if (isFinite(g)) murm = new Murmuration(mx, g + 140, -mn, 900);
+        }
+        if (murm && Math.hypot(murm.home[0] - camEye[0], murm.home[2] - camEye[2]) < 7000) {
+          if (!state.paused && !state.photo) murm.step(Math.min(dtReal, 0.05));
+          vfxN = murm.pack(vfx.out, vfx.count, VFX_MAX);
+        }
+      }
+    }
+    if (vfxN) {
+      gl.useProgram(pVfx.p);
+      gl.uniformMatrix4fv(pVfx.u.uVP, false, vp);
+      gl.uniform3fv(pVfx.u.uEye, camEye);
+      gl.uniform3f(pVfx.u.uCamRight, view[0], view[4], view[8]);
+      gl.uniform3f(pVfx.u.uCamUp, view[1], view[5], view[9]);
+      gl.uniform3fv(pVfx.u.uSunDir, sunDir);
+      gl.uniform3fv(pVfx.u.uSunCol, pal.sun);
+      gl.uniform3fv(pVfx.u.uSkyCol, pal.zenith);
+      gl.uniform3fv(pVfx.u.uFogCol, pal.horizon);
+      gl.uniform1f(pVfx.u.uFogDensity, pal.fog);
+      gl.bindBuffer(gl.ARRAY_BUFFER, vfxInst);
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, vfx.out.subarray(0, vfxN * 12));
+      gl.bindVertexArray(vfxVao);
+      gl.enable(gl.DEPTH_TEST); gl.depthMask(false);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, vfxN);
+      gl.disable(gl.BLEND); gl.depthMask(true);
+    }
+
     // ---- flood: the raised Danube over everything lower than it (FLOOD_VS)
     if ((state.danube || 0) > 0.25) {
       gl.useProgram(pFlood.p);
@@ -17680,6 +18773,28 @@ async function boot(assets) {
       }
     }
 
+    // the aeroplane's cockpit (aircraft.js buildCockpit), through the cab's program
+    {
+      const pl = state.plane;
+      if (!inCab && pl && pl.active && pl.cockpit && pl.cockBasis && !state.photo && !(pl.crashed > 0)) {
+        const b = pl.cockBasis;
+        const mesh = buildCockpit(b.eye, b.f, b.r, b.u, pl.type);
+        gl.bindVertexArray(cabVao);
+        gl.bindBuffer(gl.ARRAY_BUFFER, cabPos); gl.bufferSubData(gl.ARRAY_BUFFER, 0, mesh.verts);
+        gl.bindBuffer(gl.ARRAY_BUFFER, cabCol); gl.bufferSubData(gl.ARRAY_BUFFER, 0, mesh.cols);
+        gl.bindBuffer(gl.ARRAY_BUFFER, cabUv); gl.bufferSubData(gl.ARRAY_BUFFER, 0, mesh.uvs);
+        const cp = M4.mul(M4.perspective(state.fov * Math.PI / 180, RES.w / RES.h, 0.05, 80), view);
+        gl.useProgram(pCab.p);
+        gl.uniformMatrix4fv(pCab.u.uVP, false, cp);
+        if (pCab.u.uOrigin) gl.uniform3fv(pCab.u.uOrigin, camEye);
+        gl.uniform3fv(pCab.u.uSunCol, pal.sun);
+        gl.uniform3fv(pCab.u.uSkyCol, pal.zenith);
+        gl.uniform3fv(pCab.u.uSunDir, sunDir);
+        gl.uniform1i(pCab.u.uPanel, 5);
+        gl.clear(gl.DEPTH_BUFFER_BIT);
+        gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
+      }
+    }
     // the cab, riding with the train
     if (inCab) {
       const railPt = route.at(driver.m);
@@ -17687,7 +18802,7 @@ async function boot(assets) {
       const f = [railTan[0] * route.dir, 0, -railTan[1] * route.dir];
       const rgt = norm(cross(f, [0, 1, 0]));
       const eyeC = [railPt[0], railPt[2] + 3.1, -railPt[1]];
-      const mesh = buildCab(eyeC, f, rgt, [0, 1, 0]);
+      const mesh = buildCab(eyeC, f, rgt, [0, 1, 0], driver.s.stock);
       cabCount = mesh.count;
       gl.bindVertexArray(cabVao);
       gl.bindBuffer(gl.ARRAY_BUFFER, cabPos);
@@ -17825,8 +18940,8 @@ async function boot(assets) {
     }
     state.focus = state.focus ? state.focus + ((state.focusWant || 300) - state.focus) * Math.min(1, dtReal * 3) : (state.focusWant || 300);
     if (ph) gl.uniform4f(pBlit.u.uDof, ph.dof, ph.focus, ph.aperture, ph.band);
-    else gl.uniform4f(pBlit.u.uDof, playDof ? 1 : 0, state.focus, 0.35, 0.45);
-    gl.uniform3f(pBlit.u.uFx, G.motion && !ph ? 1.0 : 0.0, G.ao ? 1.0 : 0.0, ph ? 0.0 : 3.0);
+    else gl.uniform4f(pBlit.u.uDof, playDof ? 1 : 0, state.focus, G.dofAmt || 0.35, 0.45);
+    gl.uniform3f(pBlit.u.uFx, G.motion && !ph ? (G.motionAmt || 1.0) : 0.0, G.ao ? (G.aoAmt || 1.0) : 0.0, ph ? 0.0 : 3.0);
     gl.uniformMatrix4fv(pBlit.u.uInvVP, false, invVP);
     gl.uniformMatrix4fv(pBlit.u.uPrevVP, false, state.prevVP || vp);
     state.prevVP = vp;
@@ -17909,7 +19024,7 @@ async function boot(assets) {
   // demAt and coverAt are exposed for the same reason tick is: when a thing
   // does not appear, the first question is always where the ground under it
   // is, and there is no other way to ask from outside.
-  window.SIM = { tick, step: stepFrames, solids, kisvasut: () => kisvasut, demAt, carModels: () => carModels, railDistAt, res: RES, driver, route, state, data: routeData, stations: stn, PLANES, roadWays, city: () => city, carSurf, cityTiles: () => city,
+  window.SIM = { tick, step: stepFrames, solids, kisvasut: () => kisvasut, trams: () => trams, demAt, vfx, carModels: () => carModels, railDistAt, res: RES, driver, route, state, data: routeData, stations: stn, PLANES, roadWays, city: () => city, carSurf, cityTiles: () => city,
                  demAt, coverAt,
                  traffic, playerTrain, sound, roadTraffic,
                  riverTraffic,

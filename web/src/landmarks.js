@@ -33,8 +33,12 @@ const LM_ZINC   = [0.55, 0.58, 0.60];
 // road — which the cars drive on — stays on top and the model supplies the
 // piers, towers, chains and arches. Placed on the DEM instead, the model's
 // deck floated a couple of metres off the real one: two bridges.
-const BRIDGE_TOP = { lanchid: 12.0, megyeri: 14.8,
+const BRIDGE_TOP = { lanchid: 12.0, megyeri: 14.8, erzsebet: 11.2,
                      eszakivasut: 11.2, maria_valeria: 10.0 };
+
+let landmarkIsWater = null;
+/** (x, north) → true over water (main.js hands in the cover raster) */
+export function setLandmarkWater(fn) { landmarkIsWater = fn; }
 
 export function buildLandmarks(anchors, demAt, waterAt, railNear) {
   const V = [], C = [];
@@ -53,7 +57,7 @@ export function buildLandmarks(anchors, demAt, waterAt, railNear) {
     if (rY !== null && isFinite(rY)) g = rY - BRIDGE_TOP[a.key] - 0.35;
     if (!isFinite(g)) continue;
     // u along the building's long axis, v across it, w up
-    const P = (u, v, w) => [a.x + u * ca - v * sa, g + w, a.y + u * sa + v * ca];
+    let P = (u, v, w) => [a.x + u * ca - v * sa, g + w, a.y + u * sa + v * ca];
     // a rectangular box in the local frame
     const box = (u0, u1, v0, v1, w0, w1, side, top) => {
       quad(P(u0,v0,w0), P(u1,v0,w0), P(u1,v0,w1), P(u0,v0,w1), side);
@@ -732,12 +736,18 @@ export function buildLandmarks(anchors, demAt, waterAt, railNear) {
       let best = [0, 0], run0 = null;
       for (let u = -a.hu; u <= a.hu + 10; u += 10) {
         const q = P(u, 0, 0);
-        const wet = u <= a.hu && demAt(q[0], q[2]) < wy + 0.6;
+        // water from the land cover where the game has it: the DEM over the
+        // wide main channel is not reliably below the water plane, so the
+        // narrower Szentendre branch "won" and the pylons stood over it
+        const wet = u <= a.hu && (landmarkIsWater ? landmarkIsWater(q[0], q[2]) : demAt(q[0], q[2]) < wy + 0.6);
         if (wet && run0 === null) run0 = u;
         if (!wet && run0 !== null) { if (u - run0 > best[1] - best[0]) best = [run0, u]; run0 = null; }
       }
-      const mid = (best[0] + best[1]) / 2;
+      // (the bake knows the middle of the cable-stayed part from OSM: mu, mv)
+      const mid = a.mu != null ? a.mu : (best[0] + best[1]) / 2;
       const DECK = 14.8;
+      const P0 = P, mv = a.mv || 0;
+      P = (u, v, w) => P0(u, v + mv, w);
       for (const px of [mid - 150, mid + 150]) {
         box(px - 9, px + 9, -18, 18, 0, 8.0, FOOT, FOOT);
         const topH = 99.0;
@@ -791,13 +801,17 @@ export function buildLandmarks(anchors, demAt, waterAt, railNear) {
           quad(P(x0 + 6.0, tv - 0.3, 10.5 + trussH), P(x1 - 6.0, tv - 0.3, 10.5 + trussH),
                P(x1 - 6.0, tv + 0.3, 10.5 + trussH), P(x0 + 6.0, tv + 0.3, 10.5 + trussH), TRUSS);
           // Diagonal lattice cross-braces (Warren truss triangles)
-          const N_BAYS = 4;
+          // a Warren truss: one diagonal per bay, alternating / \ / \ (both
+          // in every bay drew big X's), bays about as long as the truss is high
+          const N_BAYS = Math.max(4, Math.round(SPAN_W / 11));
           for (let b = 0; b < N_BAYS; b++) {
             const bx0 = x0 + b * (SPAN_W / N_BAYS), bx1 = x0 + (b + 1) * (SPAN_W / N_BAYS);
-            quad(P(bx0, tv, 10.5), P(bx0 + 0.6, tv, 10.5),
-                 P(bx1, tv, 10.5 + trussH), P(bx1 - 0.6, tv, 10.5 + trussH), TRUSS);
-            quad(P(bx1, tv, 10.5), P(bx1 + 0.6, tv, 10.5),
-                 P(bx0, tv, 10.5 + trussH), P(bx0 - 0.6, tv, 10.5 + trussH), TRUSS);
+            if (b % 2 === 0)
+              quad(P(bx0, tv, 10.5), P(bx0 + 0.6, tv, 10.5),
+                   P(bx1, tv, 10.5 + trussH), P(bx1 - 0.6, tv, 10.5 + trussH), TRUSS);
+            else
+              quad(P(bx1, tv, 10.5), P(bx1 - 0.6, tv, 10.5),
+                   P(bx0, tv, 10.5 + trussH), P(bx0 + 0.6, tv, 10.5 + trussH), TRUSS);
           }
         }
         // Overhead wind bracing portal frames
@@ -807,6 +821,50 @@ export function buildLandmarks(anchors, demAt, waterAt, railNear) {
         }
       }
       box(a.hu - 5, a.hu + 5, -7.5, 7.5, 0, 10.5, PIER, PIER);
+
+    } else if (a.key === "erzsebet") {
+      // Erzsébet híd (1964): one 290 m span hung from two white main cables;
+      // at each bank a pylon of two slim legs with a crossbeam over the road,
+      // the cables running on to anchorages behind them. The deck is the road
+      // layer's. Pylons stand where the river ends along the axis.
+      const WH = [0.93, 0.94, 0.95], WH2 = [0.80, 0.81, 0.83];
+      let u0 = null, u1 = null;
+      for (let u = -a.hu; u <= a.hu; u += 4) {
+        const q = P(u, 0, 0);
+        const wet = landmarkIsWater ? landmarkIsWater(q[0], q[2]) : false;
+        if (wet) { if (u0 === null) u0 = u; u1 = u; }
+      }
+      if (u0 === null) { u0 = -145; u1 = 145; }
+      const D = BRIDGE_TOP.erzsebet, TOP = D + 26, VW = 13.2;
+      const pyl = [u0 - 4, u1 + 4];
+      for (const px of pyl) {
+        for (const sv of [-VW - 1.2, VW + 1.2]) {
+          box(px - 1.6, px + 1.6, sv - 1.1, sv + 1.1, 0, TOP, WH, WH);
+        }
+        box(px - 1.4, px + 1.4, -VW - 1.2, VW + 1.2, TOP - 2.4, TOP, WH, WH);      // the crossbeam
+        box(px - 3.5, px + 3.5, -VW - 3, VW + 3, 0, D - 0.6, WH2, WH2);           // the pier under the road
+      }
+      // the main cables: anchorage behind each pylon, up to its top, and the
+      // sag over the river down to near the deck at mid-span
+      const L = pyl[1] - pyl[0], mid = (pyl[0] + pyl[1]) / 2;
+      const cableAt = (u) => {
+        if (u < pyl[0]) return D + (TOP - D) * (u - (pyl[0] - 45)) / 45;
+        if (u > pyl[1]) return D + (TOP - D) * ((pyl[1] + 45) - u) / 45;
+        const t = (u - mid) / (L / 2);
+        return D + 2.2 + (TOP - 1 - D - 2.2) * t * t;
+      };
+      for (const sv of [-VW, VW]) {
+        for (let u = pyl[0] - 45; u < pyl[1] + 45; u += 5) {
+          const y0 = cableAt(u), y1 = cableAt(u + 5);
+          quad(P(u, sv - 0.35, y0), P(u + 5, sv - 0.35, y1), P(u + 5, sv + 0.35, y1), P(u, sv + 0.35, y0), WH);
+          quad(P(u, sv, y0 - 0.35), P(u + 5, sv, y1 - 0.35), P(u + 5, sv, y1 + 0.35), P(u, sv, y0 + 0.35), WH);
+        }
+        // hangers every 10 m over the span
+        for (let u = pyl[0] + 10; u < pyl[1] - 5; u += 10)
+          quad(P(u - 0.08, sv, D), P(u + 0.08, sv, D), P(u + 0.08, sv, cableAt(u)), P(u - 0.08, sv, cableAt(u)), WH2);
+        // anchor blocks where the cables go into the ground
+        for (const ue of [pyl[0] - 45, pyl[1] + 45]) box(ue - 5, ue + 5, sv - 3, sv + 3, 0, D + 1, WH2, WH2);
+      }
 
     } else if (a.key === "arpadhid" || a.key === "margithid") {
       // Drawn by the road layer from their OSM ways, deck and piers: the

@@ -21,7 +21,7 @@
 // and a radius.
 
 const CLS_CHIMNEY = 0, CLS_SILO = 1, CLS_TANK = 2, CLS_WATER = 3,
-      CLS_LATTICE = 4, CLS_LIGHT = 5, CLS_CRANE = 6, CLS_PYLON = 7, CLS_TV = 8;
+      CLS_LATTICE = 4, CLS_LIGHT = 5, CLS_CRANE = 6, CLS_PYLON = 7, CLS_TV = 8, CLS_WELL = 9;
 
 const ST_BRICK  = [0.42, 0.29, 0.24];
 const ST_BAND   = [0.72, 0.71, 0.68];
@@ -220,6 +220,33 @@ export function buildStructures(list, demAt) {
         quad([s.x - 1.5, gy + s.h, s.y + 0.5], [s.x + 1.5, gy + s.h, s.y + 0.5],
              [s.x + 1.5, gy + s.h + 0.9, s.y + 0.5], [s.x - 1.5, gy + s.h + 0.9, s.y + 0.5],
              ST_STEEL);
+        break;
+      }
+      case CLS_WELL: {
+        // an oil well's pumpjack ("bólogató"): a concrete pad, the A-frame
+        // samson post, the walking beam tilted a little, the horse head over
+        // the wellhead, and the crank with its counterweights at the back
+        const a = ((s.x * 0.021 + s.y * 0.013) % (Math.PI * 2));
+        const ca = Math.cos(a), sa = Math.sin(a);
+        const P = (u, v, h) => [s.x + u * ca - v * sa, gy + h, s.y + u * sa + v * ca];
+        const beam = (p0, p1, w, col) => {
+          quad([p0[0] - w, p0[1], p0[2]], [p1[0] - w, p1[1], p1[2]], [p1[0] + w, p1[1], p1[2]], [p0[0] + w, p0[1], p0[2]], col);
+          quad([p0[0], p0[1], p0[2] - w], [p1[0], p1[1], p1[2] - w], [p1[0], p1[1], p1[2] + w], [p0[0], p0[1], p0[2] + w], col);
+        };
+        const PAD = [0.58, 0.57, 0.54], FRAME_W = [0.30, 0.34, 0.30], HEAD = [0.78, 0.62, 0.12], WEIGHT = [0.20, 0.21, 0.22];
+        quad(P(-4.5, -1.6, 0.25), P(4.0, -1.6, 0.25), P(4.0, 1.6, 0.25), P(-4.5, 1.6, 0.25), PAD);
+        beam(P(-4, 0, 0.5), P(3.5, 0, 0.5), 0.25, FRAME_W);                      // skid
+        for (const v of [-1.1, 1.1]) { beam(P(-0.8, v, 0.5), P(0, 0, 5.2), 0.14, FRAME_W); beam(P(0.9, v, 0.5), P(0, 0, 5.2), 0.14, FRAME_W); }
+        beam(P(-3.6, 0, 4.7), P(3.4, 0, 5.8), 0.30, HEAD);                      // walking beam
+        quad(P(3.2, -0.35, 6.4), P(4.1, -0.35, 5.6), P(4.1, -0.35, 3.8), P(3.3, -0.35, 4.6), HEAD);   // horse head
+        quad(P(3.3, 0.35, 4.6), P(4.1, 0.35, 3.8), P(4.1, 0.35, 5.6), P(3.2, 0.35, 6.4), HEAD);
+        beam(P(4.0, 0, 3.8), P(4.0, 0, 0.9), 0.04, ST_CABLE);                    // the bridle to the rod
+        drum(s.x + 4.0 * ca, s.y + 4.0 * sa, gy, 0.35, 0.3, 0, 1.2, ST_STEEL2, 6);   // wellhead
+        for (const v of [-0.7, 0.7]) {
+          quad(P(-3.9, v, 1.2), P(-2.6, v, 1.2), P(-2.6, v, 2.6), P(-3.9, v, 2.6), WEIGHT);   // counterweights on the crank
+          beam(P(-3.3, v, 1.9), P(-3.4, v, 4.7), 0.08, FRAME_W);                 // pitman arms
+        }
+        drum(s.x - 3.2 * ca, s.y - 3.2 * sa, gy, 0.6, 0.6, 0.4, 1.4, WEIGHT, 6);   // gearbox
         break;
       }
       case CLS_TV: {

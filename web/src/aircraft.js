@@ -224,6 +224,9 @@ function groundContact(pl, T, demAt, speed) {
 }
 // a crash: a message (main.js shows pl.crashWhy), and a restart 400 m up
 function crash(pl, T, g, why) {
+  // where it happened, for the fireball and the burning wreck (main.js)
+  pl.crashAt = [pl.p[0], Math.max(g, Math.min(pl.p[1], g + 60)), pl.p[2]];
+  pl.crashHeading = [Math.sin(pl.yaw), -Math.cos(pl.yaw)];
   pl.crashed = 2.5; pl.ground = false; pl.crashWhy = why; pl.crashes = (pl.crashes || 0) + 1;
   pl.p[1] = g + 400; pl.pitch = 0; pl.roll = 0; pl.stall = 0;
   const v0 = T.heli ? 0 : (PLANES[pl.type] || PLANES.cessna).start;
@@ -327,8 +330,11 @@ export function buildAircraft(air, plane, car = null) {
     }
     quad(P(0, 0.7, -2.6), P(0, 3.2, -5.6), P(0, 3.2, -6.4), P(0, 0.7, -6.4), G);   // fin
     quad(P(0, 0.7, -6.4), P(0, 3.2, -6.4), P(0, 3.2, -5.6), P(0, 0.7, -2.6), G2);
+    // the nozzle: a dark can; with the afterburner lit only its throat
+    // glows, and the flame itself is particles (main.js), not this box
     const burn = a.throttle > 0.92;
-    box(P, -0.45, 0.45, -0.45, 0.45, -7.4, -6.5, burn ? [1.6, 0.9, 0.4] : DARKG);
+    box(P, -0.45, 0.45, -0.45, 0.45, -7.4, -6.5, DARKG);
+    if (burn) quad(P(-0.32, -0.32, -7.41), P(0.32, -0.32, -7.41), P(0.32, 0.32, -7.41), P(-0.32, 0.32, -7.41), [1.9, 1.1, 0.5]);
   };
   if (car && !car.cockpit) carGeometry(car, quad);
   if (plane && plane.active && !plane.cockpit) {
@@ -338,4 +344,86 @@ export function buildAircraft(air, plane, car = null) {
   }
   return { verts: new Float32Array(V), cols: new Float32Array(C),
            nrms: new Float32Array(N), count: V.length / 3 };
+}
+
+// ------------------------------------------------------------- cockpit
+// What you sit in when you press C in the air (the owner: "the flight cockpit
+// could be better"; it was nothing: the sky from a point in space). Built
+// round the eye in the aeroplane's own frame (f forward, r right, u up, all
+// banked with it), drawn by the train cab's program (CAB_VS/FS), so the same
+// short projection keeps it from being clipped. Plain surfaces only (uv -1).
+//   cessna: high wing overhead, a windscreen with a centre strut and doors
+//           with windows, the six-pack of round dials, a yoke;
+//   gripen: a bubble canopy's bow and sills, three screens, the HUD glass
+//           with its green marker, a centre stick;
+//   heli:   a glass nose to the floor, a centre post, an overhead panel.
+export function buildCockpit(eye, f, r, u, type = "cessna") {
+  const V = [], C = [], U = [];
+  const P = (x, y, z) => [eye[0] + r[0]*x + u[0]*y + f[0]*z,
+                          eye[1] + r[1]*x + u[1]*y + f[1]*z,
+                          eye[2] + r[2]*x + u[2]*y + f[2]*z];
+  const quad = (a, b, c, d, col) => {
+    for (const p of [a, b, c, a, c, d]) { V.push(p[0], p[1], p[2]); C.push(col[0], col[1], col[2]); U.push(-1, -1); }
+  };
+  const box = (x0, x1, y0, y1, z0, z1, col, top) => {
+    quad(P(x0, y0, z1), P(x1, y0, z1), P(x1, y1, z1), P(x0, y1, z1), col);      // face towards you… or away
+    quad(P(x0, y0, z0), P(x1, y0, z0), P(x1, y1, z0), P(x0, y1, z0), col);
+    quad(P(x0, y1, z0), P(x1, y1, z0), P(x1, y1, z1), P(x0, y1, z1), top || col);
+    quad(P(x0, y0, z0), P(x0, y1, z0), P(x0, y1, z1), P(x0, y0, z1), col);
+    quad(P(x1, y0, z0), P(x1, y1, z0), P(x1, y1, z1), P(x1, y0, z1), col);
+  };
+  const DARK = [0.10, 0.10, 0.11], PANEL = [0.16, 0.17, 0.18], FRAME = [0.20, 0.21, 0.22];
+  const DIAL = [0.03, 0.03, 0.035], RIM = [0.55, 0.56, 0.58], WHITE_ = [0.86, 0.87, 0.88];
+  if (type === "gripen") {
+    const GREY = [0.30, 0.33, 0.35];
+    // coaming and panel: low, so the view is all canopy
+    box(-0.42, 0.42, -0.62, -0.30, 0.55, 0.95, GREY, [0.12, 0.13, 0.14]);
+    for (const [x0, x1, col] of [[-0.40, -0.15, [0.05, 0.16, 0.10]], [-0.12, 0.12, [0.04, 0.12, 0.16]], [0.15, 0.40, [0.05, 0.16, 0.10]]])
+      quad(P(x0, -0.56, 0.549), P(x1, -0.56, 0.549), P(x1, -0.36, 0.549), P(x0, -0.36, 0.549), col);
+    // HUD: two slim posts, a tinted glass edge and the green flight-path marker
+    for (const sx of [-0.10, 0.10]) box(sx - 0.008, sx + 0.008, -0.30, -0.08, 0.62, 0.64, FRAME);
+    quad(P(-0.10, -0.08, 0.63), P(0.10, -0.08, 0.63), P(0.10, -0.075, 0.63), P(-0.10, -0.075, 0.63), FRAME);
+    const G = [0.25, 1.4, 0.45];
+    quad(P(-0.022, -0.155, 0.625), P(0.022, -0.155, 0.625), P(0.022, -0.149, 0.625), P(-0.022, -0.149, 0.625), G);
+    quad(P(-0.003, -0.170, 0.625), P(0.003, -0.170, 0.625), P(0.003, -0.134, 0.625), P(-0.003, -0.134, 0.625), G);
+    // canopy: the bow over your head and the sills
+    for (let i = 0; i < 12; i++) {
+      const a0 = Math.PI * i / 12, a1 = Math.PI * (i + 1) / 12;
+      const R = 0.52, bx = (a) => -Math.cos(a) * R, by = (a) => -0.25 + Math.sin(a) * R * 0.95;
+      quad(P(bx(a0), by(a0), 0.18), P(bx(a1), by(a1), 0.18), P(bx(a1), by(a1), 0.24), P(bx(a0), by(a0), 0.24), FRAME);
+    }
+    for (const sg of [-1, 1]) box(sg * 0.52 - 0.03, sg * 0.52 + 0.03, -0.32, -0.25, -0.6, 0.9, FRAME);
+    box(-0.025, 0.025, -0.75, -0.42, 0.28, 0.33, DARK);                    // the stick
+  } else if (type === "heli") {
+    box(-0.55, 0.55, -0.62, -0.42, 0.55, 0.85, PANEL, [0.12, 0.12, 0.13]);
+    box(-0.03, 0.03, -0.42, 0.55, 0.95, 1.0, FRAME);                        // centre post
+    box(-0.55, 0.55, 0.52, 0.60, -0.2, 0.7, [0.22, 0.23, 0.25]);            // overhead panel / roof
+    for (const sg of [-1, 1]) box(sg * 0.62 - 0.03, sg * 0.62 + 0.03, -0.9, 0.58, 0.60, 0.66, FRAME);
+    for (let i = 0; i < 4; i++) {
+      const x = -0.42 + i * 0.28;
+      quad(P(x - 0.08, -0.56, 0.549), P(x + 0.08, -0.56, 0.549), P(x + 0.08, -0.46, 0.549), P(x - 0.08, -0.46, 0.549), [0.05, 0.12, 0.15]);
+    }
+  } else {
+    // Cessna 172: the wing sits on the cabin roof; you see its root at the
+    // top of the side windows
+    box(-0.60, 0.60, -0.55, -0.20, 0.62, 0.92, PANEL, DARK);               // panel and glareshield
+    // the six-pack: two rows of three round dials (squares with a rim here)
+    for (let row = 0; row < 2; row++) for (let c = 0; c < 3; c++) {
+      const x = -0.46 + c * 0.13, y = -0.30 - row * 0.12;
+      quad(P(x - 0.052, y - 0.052, 0.618), P(x + 0.052, y - 0.052, 0.618), P(x + 0.052, y + 0.052, 0.618), P(x - 0.052, y + 0.052, 0.618), RIM);
+      quad(P(x - 0.044, y - 0.044, 0.616), P(x + 0.044, y - 0.044, 0.616), P(x + 0.044, y + 0.044, 0.616), P(x - 0.044, y + 0.044, 0.616), DIAL);
+      quad(P(x - 0.004, y, 0.614), P(x + 0.004, y, 0.614), P(x + 0.004, y + 0.036, 0.614), P(x - 0.004, y + 0.036, 0.614), WHITE_);
+    }
+    box(-0.02, 0.02, 0.02, 0.62, 0.70, 0.74, FRAME);                        // windscreen centre strut
+    for (const sg of [-1, 1]) {
+      box(sg * 0.60 - 0.04, sg * 0.60 + 0.04, -0.55, 0.62, 0.55, 0.62, FRAME); // door pillars
+      box(sg * 0.66, sg * 0.70, -0.9, -0.22, -0.8, 0.6, [0.40, 0.40, 0.42]);  // door below the window
+      box(sg * 0.64, sg * 5.2, 0.62, 0.70, -0.9, 0.7, [0.86, 0.87, 0.88]);  // the wing overhead, out to each side
+    }
+    box(-0.62, 0.62, 0.62, 0.70, -0.9, 0.62, [0.62, 0.62, 0.60]);          // cabin roof
+    // the yoke in front of you
+    box(-0.20, -0.14, -0.42, -0.36, 0.36, 0.60, DARK);
+    box(-0.30, -0.04, -0.33, -0.30, 0.34, 0.37, DARK);
+  }
+  return { verts: new Float32Array(V), cols: new Float32Array(C), uvs: new Float32Array(U), count: V.length / 3 };
 }

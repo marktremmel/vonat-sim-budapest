@@ -46,7 +46,9 @@ def origin(i, j):
 # 13 walnut-spreading, 14 spruce/thuja-cone, 15 birch
 GENUS = {
     "Acer": (1, 10), "Fraxinus": (4, 11), "Tilia": (0, 12), "Robinia": (4, 11), "Celtis": (1, 11),
-    "Prunus": (12, 6), "Styphnolobium": (13, 9), "Sophora": (13, 9), "Populus": (6, 17),
+    "Prunus": (12, 6), "Styphnolobium": (13, 9), "Sophora": (13, 9), "Populus": (1, 16),    # most Budapest poplars are broad (alba, × canadensis);
+    # Lombardy and fastigiate cultivars become columns by the cultivar rule, below
+
     "Koelreuteria": (9, 8), "Platanus": (13, 19), "Aesculus": (9, 13), "Juglans": (13, 9),
     "Thuja": (14, 5), "Gleditsia": (4, 12), "Ulmus": (1, 12), "Pinus": (5, 11), "Ailanthus": (4, 11),
     "Catalpa": (9, 8), "Corylus": (2, 10), "Pyrus": (12, 7), "Quercus": (1, 13), "Morus": (13, 10),
@@ -92,6 +94,8 @@ def form_of(latin):
                   [a or b for a, b in re.findall(r"'([^']*)'|\b(?:f|var)\. (\w+)", la)]).lower()
     if re.search(r"fastigiat|columnar|pyramidal|erect|stricta|obelisk|sentry", cv) and form not in (5, 14):
         form = 6
+    elif form == 1 and g == "Populus" and re.search(r"italica|nigra.*pyr|bolleana", la.lower()):
+        form = 6                                      # Lombardy / Bolle's poplar, named in the species
     elif "pendul" in cv or "tortuos" in cv:
         form = 7
     elif re.search(r"globos|umbracul|nana|compact|mop", cv):

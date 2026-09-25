@@ -14,46 +14,19 @@ running the build. Where a claim was checked by running the code, it says so.
 
 ## Handoff: where the work is right now (update this first and last every session)
 
-**25 Sep 2026, evening.**
-- `e809141` on `main` is pushed: rounds 7–9, which the owner reviewed ("ship it").
-- Everything below is pushed as `d99eb53` (the owner said "push").
+**26 Sep 2026, S-13.**
+- The progress log with every item and what was seen is **`docs/SESSION_S13.md`**; the to-do list is `docs/OWNER_BACKLOG.md`.
+- Pushed: `e52a4c7`. Everything from S-13 is **not committed** (git rule: after the owner's review).
+- Tests 28/28.
+- `web/data` is 82 MB; line 70's context is 5.3 MB (Fót and Szentendre extracts added).
 
-**Done since the push, checked in the preview:**
-- **Kisvasút inside the world.** Line 70's near window is grown 102 rows north, to 47.905 N:
-  - `NEAR_NORTH_M=2600` in `bake_world.py`;
-  - land cover for the strip is in `data/raw/landcover_line70_north.json` (`q_landcover_north.ql`);
-  - the frame is pinned by `near.frame_lat` (NOTES Trap 14).
-  - Kept from before the rebake:
-    - the old rows of the cover (only the per-field shade had changed);
-    - the old far map (the tile cache now gives a different one, up to 256 m apart; not investigated);
-    - the old water fit (the strip's ponds tilted it to 754 mm/km).
-  - The DSM rows match the old ones except 23 pixels; `ground_filter.py` was rerun.
-- **Cars less dark.** MODEL_FS squared the texture ("to linear") and never converted back.
-- **Danube chequerboard when raised** (the owner's screenshot): NOTES Trap 13, second part.
-- **BP Fatár trees** (README "The city's trees"):
-  - `tools/fetch_bpfatar.py` → `data/raw/bpfatar/` (37 MB);
-  - `tools/bake_trees.py` → `tr`/`pk` in the city tiles (city data 25 → 33 MB);
-  - drawn by `TREE_VS` + `VEG_FS` (new form 16, flower bed), plus `geom.js buildParkThings`;
-  - ~90k instances in view over the Városliget, no measurable frame cost;
-  - `bake_city.py` runs it at the end.
-  - **The dimension requests got "connection refused" after 200.** Do not rerun that part in bulk; the genus table covers the rest.
-- VEG_VS water-level sign fixed (`w.y` is world z).
-
-**S-11 (25 Sep, late; not committed):**
-- The KÖKI "TV tower" was my override on a GSM-R mast; removed. Rooftop antennas skipped; phone masts default to 30 m. The real tower is Száva utca, from OSM.
-- Kilátás follow camera raised and clamped 8 m over the ground.
-- `docs/` written: START_HERE, OWNER_BACKLOG (built from the transcript), HISTORY.
-- The owner's screenshots are in `../owner_feedback_images/`.
-
-**Next, in order:** (the full list is docs/OWNER_BACKLOG.md)
-2. Round 9 leftovers (REVIEW.md, "Round 9: where it stands"):
-   - look at the pylons, Újpest vaults, Dunakeszi tó, Népsziget and MÁV-telep;
-   - PSX houses and street props;
-   - walking people;
-   - bushes, vineyards and flowers outside the city (the city now has the cadastre's);
-   - the S21 and line 2 places;
-   - trams, H5, the Keleti–Kelenföld line, one world.
-3. Cadastre trees outside the city box: 6,600 are dropped today.
+**Traps learned in S-13:**
+- New modules must be added to `ORDER` in `tools/build_sim.py` (trams.js was "not defined").
+- Top-level names clash across files in the flat bundle (`WHITE`, `LAMP`, `YEL`…): prefix them.
+- Tram relation members from `out geom` carry no way tags.
+- OSM tags almost all of the Megyeri híd as `bridge:structure=suspension`, so it is no help for placing the pylons.
+- The preview's random weather: set it through the `#wxSit` select, not `state.wxId`.
+- Stepping frames with the menu open does not run traffic: set `state.menu = false`, `state.paused = false`.
 
 ## Read in this order
 

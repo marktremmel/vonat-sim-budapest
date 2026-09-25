@@ -27,6 +27,11 @@ places.
     - depth of field (click to focus) and a tilt-shift "miniature" mode;
     - stickers (drag, wheel to scale, ⇧wheel to turn, double-click to flip) and a caption;
     - a light leak, a flare, a print or film border and a date stamp. These are drawn into the saved PNG.
+- **Budapest's trams:** lines 1, 2, 3, 4, 6, 56 and 61 run on their OSM routes, stopping at their stops (you cannot board them yet).
+- **S21 runs the MÁV 416 "Uzsgyi"** diesel railcar, with a diesel engine note; the overhead line ends at Kőbánya-Kispest.
+- **Particles:** a crashed aircraft burns and smokes, the Gripen's afterburner, wingtip vapour; and, at dusk in autumn and winter, a starling murmuration over Kispest.
+- **Announcements:** "Következő állomás: …" after departure and "… következik" before arrival.
+- `?mode=dark`: a first step of the "dark timeline" sandbox (K strikes the point in the middle of the view).
 - **The Királyréti kisvasút** (line 70's world): the 760 mm forest railway from Kismaros up to Királyrét. It is taken from OSM (9.7 km, 8 stops). An Mk48 with three coaches runs it by itself all day. You cannot drive it.
   - Ride as a passenger, watch in sightseeing mode (Kilátás), give orders on the dispatcher board;
     fly (Cessna, Gripen, helicopter), fly a drone, or drive a car. Buildings are solid, trains brake for a car on the line, and the car stops at a closed boom.

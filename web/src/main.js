@@ -1,7 +1,7 @@
 import * as S from "./shaders.js";
 import { Sound } from "./audio.js";
 import { drawPanel } from "./panel.js";
-import { buildLandmarks, buildTrainsheds } from "./landmarks.js";
+import { buildLandmarks, buildTrainsheds, setLandmarkWater } from "./landmarks.js";
 import { buildParts } from "./parts.js";
 import { CityTiles } from "./city.js";
 import { Solids } from "./collide.js";
@@ -15,16 +15,16 @@ import { compile, texFromImage, gridMesh, M4, norm, cross, add, scale, sub } fro
 import { LAYERS, drawHud } from "./hud.js";
 import { installInput } from "./input.js";
 import { Route, Driver, KISS, STOCKS, LEVER_MAX } from "./route.js";
-import { AirTraffic, makePlane, stepPlane, buildAircraft, PLANES } from "./aircraft.js";
+import { AirTraffic, makePlane, stepPlane, buildAircraft, buildCockpit, PLANES } from "./aircraft.js";
 import { buildPOIs, pickPOI, stepDirector } from "./tour.js";
 import { sunPosition, sunVector, skyPalette, dateOfYear, seasonOf } from "./env.js";
-import { buildCityExtras, buildParkThings } from "./geom.js";
+import { buildCityExtras, buildParkThings, setNoPierAt } from "./geom.js";
 import { buildTrack, buildCorridor, buildRoads, unpackBuildings, unpackRoads,
          unpackPolyBuildings, buildPolyBuildings, prepareUnderpasses, unpackRails, buildYardTracks,
          boxMesh, buildStations, boardAtlas, buildSignals, buildCrossings,
          buildPlatformPeople, buildPlatformLamps,
          buildBufferStops, roadSurfaceAt, underpassDip } from "./geom.js";
-import { buildTrains } from "./trains.js";
+import { buildTrains, CAR_LEN } from "./trains.js";
 import { buildCatenary, buildYardWires } from "./catenary.js";
 import { unpackStructures, buildStructures } from "./structures.js";
 import { Traffic, ASPECT, ASPECT_NAME, RoadTraffic, buildRoadTraffic,
@@ -36,6 +36,8 @@ import { tt, LANG } from "./i18n.js";
 import { buildHeart, buildBulbs } from "./easter.js";
 import { initPhotoFx } from "./photofx.js";
 import { Kisvasut } from "./kisvasut.js";
+import { Particles, VFX_MAX, Murmuration } from "./vfx.js";
+import { Trams } from "./trams.js";
 
 const RES = { w: 512, h: 288 };            // internal render size, upscaled
 // nested square annuli: each ring has a hole exactly filled by the finer one,
@@ -126,6 +128,27 @@ export async function boot(assets) {
   const pTrk = compile(gl, S.TRACK_VS, S.TRACK_FS);
   const pVeg = compile(gl, S.VEG_VS, S.VEG_FS);
   const pTree = compile(gl, S.TREE_VS, S.VEG_FS);     // the cadastre's trees, one instance each
+  // particles (vfx.js): one instanced draw of camera-facing quads
+  const pVfx = compile(gl, S.VFX_VS, S.VFX_FS);
+  const vfx = new Particles();
+  let murm = null;                                 // the Kispest starlings (vfx.js Murmuration)
+  const vfxVao = gl.createVertexArray();
+  const vfxInst = gl.createBuffer();
+  {
+    gl.bindVertexArray(vfxVao);
+    const q = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, q);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, vfxInst);
+    gl.bufferData(gl.ARRAY_BUFFER, VFX_MAX * 12 * 4, gl.DYNAMIC_DRAW);
+    for (let i = 0; i < 3; i++) {
+      gl.enableVertexAttribArray(1 + i);
+      gl.vertexAttribPointer(1 + i, 4, gl.FLOAT, false, 48, i * 16);
+      gl.vertexAttribDivisor(1 + i, 1);
+    }
+    gl.bindVertexArray(null);
+  }
   const pBld = compile(gl, S.BLDG_VS, S.BLDG_FS);
   const pBrd = compile(gl, S.BOARD_VS, S.BOARD_FS);
   const pCab = compile(gl, S.CAB_VS, S.CAB_FS);
@@ -485,15 +508,15 @@ export async function boot(assets) {
   gl.bindVertexArray(cabVao);
   const cabPos = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, cabPos);
-  gl.bufferData(gl.ARRAY_BUFFER, 3 * 4 * 600, gl.DYNAMIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, 3 * 4 * 2400, gl.DYNAMIC_DRAW);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
   const cabCol = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, cabCol);
-  gl.bufferData(gl.ARRAY_BUFFER, 3 * 4 * 600, gl.DYNAMIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, 3 * 4 * 2400, gl.DYNAMIC_DRAW);
   gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 0, 0);
   const cabUv = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, cabUv);
-  gl.bufferData(gl.ARRAY_BUFFER, 2 * 4 * 600, gl.DYNAMIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, 2 * 4 * 2400, gl.DYNAMIC_DRAW);
   gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 0, 0);
   gl.bindVertexArray(null);
   let cabCount = 0;
@@ -559,6 +582,13 @@ export async function boot(assets) {
   gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 24, 16); gl.vertexAttribDivisor(2, 1);
   gl.bindVertexArray(null);
 
+  {
+    const hung = (ctx.landmarks || []).filter(a => a.key === "erzsebet");
+    setNoPierAt(hung.length ? (x, y) => hung.some(a => {
+      const dx = x - a.x, dy = y - a.y, ca = Math.cos(a.ang), sa = Math.sin(a.ang);
+      return Math.abs(dx * ca + dy * sa) < a.hu && Math.abs(-dx * sa + dy * ca) < 25;
+    }) : null);
+  }
   const roadData = buildRoads(roadWays, (ctx.roads && ctx.roads.widths) ? ctx.roads.widths : [], demAt,
                               (north) => wA + wB * north, railDistAt);
   const roadMesh = colouredVao(roadData);
@@ -617,6 +647,14 @@ export async function boot(assets) {
 
 
   // hand-modelled buildings, placed by their own OSM footprints
+  // where a modelled railway bridge stands (its footprint in the anchor's own
+  // frame), the extras layer must not lay a second deck
+  const modelBridges = (ctx.landmarks || []).filter(a => a.key === "eszakivasut");
+  const onModelBridge = (x, y) => modelBridges.some(a => {
+    const dx = x - a.x, dy = y - a.y, ca = Math.cos(a.ang), sa = Math.sin(a.ang);
+    return Math.abs(dx * ca + dy * sa) < a.hu + 30 && Math.abs(-dx * sa + dy * ca) < 14;
+  });
+  setLandmarkWater((x, n) => coverAt(x, n) === 9);
   const lmMesh = colouredVao(buildLandmarks(ctx.landmarks, demAt,
     (north) => ((world.water && world.water.a) || 104) + ((world.water && world.water.b) || 0) * north,
     (x, y) => {            // rail height of the player's line near a point, or null
@@ -782,8 +820,19 @@ export async function boot(assets) {
     return Object.assign(portal, { spread });
   })();
   const catMesh = (() => {
-    const run = buildCatenary(routeData.track_down, routeData.track_up, yardSpan);
-    const yard = buildYardWires(railWays, railYAt);
+    // Where the line is wired. S21's Lajosmizse line has no overhead line
+    // past Kőbánya-Kispest (hence the diesel 416s); the other lines are
+    // electric end to end. The route data has no electrification field, so
+    // this is set here by line.
+    const lineC = new URLSearchParams(location.search).get("line") || "line70";
+    const koki = lineC === "s21" ? (routeData.stops || []).find(s => /Kőbánya-Kispest/.test(s.name)) : null;
+    const wiredTo = koki ? koki.km * 1000 + 250 : Infinity;
+    const cut = pts => pts.filter(p => p[3] <= wiredTo);
+    const run = buildCatenary(cut(routeData.track_down), cut(routeData.track_up), yardSpan);
+    const yard = buildYardWires(wiredTo === Infinity ? railWays : railWays.filter(w => {
+      const q = w.pts[(w.pts.length / 2) | 0], r = q && railDistAt(q[0], q[1]);
+      return !r || r.m <= wiredTo;
+    }), railYAt);
     const V = new Float32Array(run.verts.length + yard.verts.length);
     const C = new Float32Array(run.cols.length + yard.cols.length);
     V.set(run.verts); V.set(yard.verts, run.verts.length);
@@ -1005,14 +1054,14 @@ export async function boot(assets) {
           if (keep.length) {
             out.roads = colouredVao(buildRoads(keep, widths, demAt, waterAt, railDistAt));
             out.ways = keep;
-            if (roadTraffic && roadTraffic.addWays) roadTraffic.addWays(keep);
+            if (roadTraffic && roadTraffic.addWays) roadTraffic.addWays(keep, T.t.file);
             addDriveWays(keep);
           }
         }
         // the extras (bake_cityx.py): rails, trams, pipelines, solar farms;
         // industrial structures and pylons; and names for the labels
         if (body.x) {
-          const ex = buildCityExtras(body.x, tx, demAt, waterAt, railDistAt);
+          const ex = buildCityExtras(body.x, tx, demAt, waterAt, railDistAt, onModelBridge);
           if (ex.count) out.x = colouredVao(ex);
           if (body.x.structs && body.x.structs.length) {
             const list = body.x.structs.map(([sx, sy, h, r, cls]) => { const [x, y] = tx(sx, sy); return { x, y, h, r, cls }; });
@@ -1057,6 +1106,9 @@ export async function boot(assets) {
         }
         return out;
       }, (m) => { freeVao(m.polys); freeVao(m.parts); freeVao(m.roads); freeVao(m.lm); freeVao(m.x); freeVao(m.st); freeVao(m.tr); freeVao(m.pk);
+                  // the tile's roads leave the traffic and the car's grid too
+                  // (they piled up for as long as you flew about)
+                  if (m.ways) { if (roadTraffic && roadTraffic.removeOwner) roadTraffic.removeOwner(m.owner); removeDriveWays(m.ways); }
                   if (m.owner) solids.removeOwner(m.owner); });
       if (state.cityR) city.R = state.cityR;
       window.__setCityR = (r) => { city.R = r; };
@@ -1089,16 +1141,29 @@ export async function boot(assets) {
       }
     }
   } catch (e) { console.warn("kisvasút unavailable", e); }
+  // Budapest's trams (trams.js): 1, 2, 3, 4, 6, 56, 61 on their OSM routes
+  let trams = null;
+  const tramDyn = dynamicVao();
+  try {
+    const td = await fetch(`${window.DATA_BASE || "data/"}trams.json`).then(r => r.ok ? r.json() : null);
+    if (td) trams = new Trams(td, assets.world.near, demAt, (n) => wA + wB * n, (x, n) => coverAt(x, n) === 9);
+  } catch (e) { console.warn("trams unavailable", e); }
   // the line's own extras (bake_linex.py): names along the whole line, the
   // quarries, solar farms and pipelines outside the city
-  let lineExtras = null;
+  let lineExtras = null, lineStructs = null;
   try {
     const line = new URLSearchParams(location.search).get("line") || "line70";
     const ex = await fetch(`${window.DATA_BASE || "data/"}extras${line === "line70" ? "" : "_" + line}.json`).then(r => r.ok ? r.json() : null);
     if (ex) {
       const waterAtL = (north) => wA + wB * north;
-      const m = buildCityExtras(ex, (x, y) => [x, y], demAt, waterAtL, railDistAt);
+      const m = buildCityExtras(ex, (x, y) => [x, y], demAt, waterAtL, railDistAt, onModelBridge);
       if (m.count) lineExtras = colouredVao(m);
+      // structures outside the city (the oil wells' pumpjacks by S21)
+      if (ex.structs && ex.structs.length) {
+        const list = ex.structs.map(([x, y, h, r, cls]) => ({ x, y, h, r, cls }));
+        const sm = buildStructures(list, demAt);
+        if (sm.count) lineStructs = colouredVao(sm);
+      }
       for (const [name, kind, x, y, rank] of ex.labels || []) {
         if (placeNames.has(name)) continue;
         placeNames.add(name);
@@ -1123,6 +1188,20 @@ export async function boot(assets) {
           if (!driveGrid.has(key)) driveGrid.set(key, []);
           driveGrid.get(key).push([w, k, hw]);
         }
+      }
+    }
+  };
+  const removeDriveWays = (ways) => {
+    const gone = new Set(ways);
+    for (const w of ways) for (let k = 1; k < w.pts.length; k++) {
+      const a = w.pts[k - 1], b = w.pts[k];
+      const i0 = Math.floor(Math.min(a[0], b[0]) / 60), i1 = Math.floor(Math.max(a[0], b[0]) / 60);
+      const j0 = Math.floor(Math.min(a[1], b[1]) / 60), j1 = Math.floor(Math.max(a[1], b[1]) / 60);
+      for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+        const key = i + "," + j, L = driveGrid.get(key);
+        if (!L) continue;
+        const keep = L.filter(e => !gone.has(e[0]));
+        if (keep.length) driveGrid.set(key, keep); else driveGrid.delete(key);
       }
     }
   };
@@ -1674,6 +1753,23 @@ export async function boot(assets) {
   window.__photoMode = photoMode;
   // what is under a point of the picture: march the view ray over the ground
   // and the roofs (a depth read-back is not possible in WebGL)
+  // The dark timeline, first step (docs/DARK_TIMELINE_DISASTER_SPEC.md; off
+  // unless the address says ?mode=dark): K strikes where the middle of the
+  // view meets the world. A fireball, sparks, a smoke column that burns for a
+  // minute, the boom and the shake. No crater and no damage yet.
+  if (new URLSearchParams(location.search).get("mode") === "dark") {
+    addEventListener("keydown", e => {
+      if (e.code !== "KeyK" || state.menu) return;
+      const t = distanceAt(0, 0), L = state.lastCam;
+      if (t == null || !L) return;
+      const d = norm(sub(M4.apply(L.invVP, [0, 0, 1, 1]).slice(0, 3).map((v, i, a) => v / M4.apply(L.invVP, [0, 0, 1, 1])[3]), L.eye));
+      const p = add(L.eye, scale(d, t));
+      vfx.explode(p[0], p[1], p[2], 6);
+      vfx.burn(p[0], p[1], p[2], 60);
+      state.shake = 1.4;
+      if (sound.boom) sound.boom(t);
+    });
+  }
   function distanceAt(sx, sy) {
     const L = state.lastCam; if (!L) return null;
     const m = L.invVP, P = (z) => { const v = [sx, sy, z, 1], o = [0, 0, 0, 0];
@@ -1848,13 +1944,16 @@ export async function boot(assets) {
   // Hungarian voice, data/audio/ann/), else the browser's own hu-HU voice.
   const annSlug = n => n.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
                         .replace(/[^a-z0-9]/g, "_").replace(/^_+|_+$/g, "");
-  async function announce(name, end) {
+  // kind: "" "Következő állomás: X." · "_veg" the same at the terminus ·
+  // "_kov" "X következik." shortly before arriving
+  async function announce(name, end, kind = end ? "_veg" : "") {
     if (!state.sound) return;
-    const key = "ann_" + annSlug(name) + (end ? "_veg" : "");
+    const key = "ann_" + annSlug(name) + kind;
     if (sound.ctx && !sound.samples[key])
       await sound.loadSample(key, `${window.DATA_BASE || "data/"}audio/ann/${key.slice(4)}.m4a`).catch(() => {});
     if (sound.samples && sound.samples[key]) { setTimeout(() => sound.playSample(key, 0.9), 2500); return; }
-    const text = end ? `Következő állomás: ${name}, a vonat végállomása. Kérjük, minden utasunk szálljon ki.`
+    const text = kind === "_kov" ? `${name} következik.`
+               : end ? `Következő állomás: ${name}, a vonat végállomása. Kérjük, minden utasunk szálljon ki.`
                      : `Következő állomás: ${name}.`;
     if (!window.speechSynthesis) return;
     const v = speechSynthesis.getVoices().find(v => /^hu/i.test(v.lang));
@@ -2045,8 +2144,10 @@ export async function boot(assets) {
     const stk = opts.mission && opts.mission.stock ? STOCKS[opts.mission.stock]
               : state.scenario === "EC" ? STOCKS.EC
               : state.scenario === "Freight" ? STOCKS.FREIGHT
-              : /^Z/.test(state.scenario) || state.scenario === "S72" || state.scenario === "S21" ? STOCKS.FLIRT : STOCKS.KISS;
+              : state.scenario === "S21" ? STOCKS.M416      // Lajosmizse: diesel, not wired past KÖKI
+              : /^Z/.test(state.scenario) || state.scenario === "S72" ? STOCKS.FLIRT : STOCKS.KISS;
     driver.s = stk;
+    sound.diesel = !!stk.diesel;         // the 416 has an engine, not an inverter
     playerTrain.stock = stk.stock; playerTrain.cars = stk.cars; playerTrain.length = stk.lengthM;
     driver.lever = 0; driver.emergency = false; driver.bcp = 0; driver.edb = 0;
     
@@ -2238,15 +2339,22 @@ export async function boot(assets) {
         const nextStop = driver.targetStop();
         if (nextStop) {
           const dist = (nextStop.km * 1000 - driver.m) * route.dir;
-          // the arrival signal 1.5 km out
-          if (dist > 0 && dist < 1500 && state.last99SignalStation !== nextStop.name) {
+          const last = route.stops[route.dir > 0 ? route.stops.length - 1 : 0];
+          // Two announcements, as MÁV makes them: "Következő állomás: X"
+          // once the train is under way from the last stop, and "X
+          // következik" shortly before arriving (about 40 s, at least 350 m).
+          // Each after the chime; a local recording, else the browser's own
+          // Hungarian voice, else silence (never an English voice mangling
+          // the names).
+          if (dist > 350 && driver.v > 3 && state.lastAnnNext !== nextStop.name) {
+            state.lastAnnNext = nextStop.name;
+            if (sound.ctx) sound.playSample('szignal_99');
+            announce(nextStop.name, nextStop === last);
+          }
+          if (dist > 0 && dist < Math.max(350, driver.v * 40) && state.last99SignalStation !== nextStop.name) {
             state.last99SignalStation = nextStop.name;
             if (sound.ctx) sound.playSample('szignal_99');
-            // and the announcement after the chime, in the browser's own
-            // Hungarian voice (none is installed on some systems: then silence,
-            // rather than an English voice mangling the names)
-            const last = route.stops[route.dir > 0 ? route.stops.length - 1 : 0];
-            announce(nextStop.name, nextStop === last);
+            announce(nextStop.name, false, "_kov");
           }
         }
         // Passing a signal at danger: the signal ahead changes (you went past
@@ -2432,13 +2540,19 @@ export async function boot(assets) {
                    && state.followShipIdx < 0;
     if (seated) {
       const ps = state.passenger;
-      const carLen = 25.0;
-      const mc = driver.m - route.dir * (carLen * ps.car + carLen * 0.5 + 1.5);
+      // per stock: the KISS seats you upstairs; a FLIRT or an EC coach is
+      // single-deck, and the upper-deck height put the eye in their roof
+      const stk = driver.s.stock || "KISS";
+      const carLen = CAR_LEN[stk] || 25.0;
+      const eyeY = stk === "KISS" ? 3.15 : stk === "FLIRT" ? 1.78 : 2.22;
+      // (a 416 has two cars: "car 2" was behind the train)
+      const carI = Math.min(ps.car, Math.max(0, (driver.s.cars || 6) - 1));
+      const mc = driver.m - route.dir * (carLen * carI + carLen * 0.5 + 1.5);
       const c = route.at(mc), t2 = route.tangent(mc);
       const tx = t2[0] * route.dir, ty = t2[1] * route.dir;
       const rx = ty, ry = -tx;                      // right of travel, east/north
-      const off = ps.side * 0.72;
-      eye = [c[0] + rx * off, c[2] + 3.15, -(c[1] + ry * off)];   // upper-deck window height
+      const off = ps.side * (stk === "KISS" ? 0.72 : 0.86);
+      eye = [c[0] + rx * off, c[2] + eyeY, -(c[1] + ry * off)];   // seated eye at the window
     }
     const fwdBase = [tan[0] * subjDir, 0, -tan[1] * subjDir];
     const cy = Math.cos(state.yaw), sy = Math.sin(state.yaw);
@@ -2447,6 +2561,7 @@ export async function boot(assets) {
       : norm([fwdBase[0]*cy - fwdBase[2]*sy, state.pitch,
               fwdBase[0]*sy + fwdBase[2]*cy]);
     let camEye = eye;
+    let camRoll = 0;          // the view's bank (radians; + = right side down): the plane's
     // Zoom is two different things and only one of them was implemented. In
     // the cab it can only be the lens — you cannot lean out of the window —
     // and narrowing the field of view is right there. From outside it should
@@ -2507,11 +2622,67 @@ export async function boot(assets) {
       if (pl.crashes !== pl.crashSeen) {
         pl.crashSeen = pl.crashes;
         if (pl.crashes) { state.messages = state.messages || [];
-          state.messages.push({ text: `${pl.crashWhy || "Lezuhantál"} — újra a levegőben`, t: 4, tone: "bad" }); }
+          state.messages.push({ text: `${pl.crashWhy || "Lezuhantál"} — újra a levegőben`, t: 4, tone: "bad" });
+          // the boom: a fireball and sparks where it hit, a wreck that burns
+          // and smokes for half a minute, and for the 2.5 s before the
+          // restart the camera stays on it (it used to cut straight to 400 m up)
+          if (pl.crashAt) {
+            const [cx, cy, cz] = pl.crashAt, h = pl.crashHeading || [0, -1];
+            vfx.explode(cx, cy, cz, pl.type === "gripen" ? 3.2 : 2.2);   // (1.0 was "minuscule")
+            vfx.burn(cx, cy, cz, 30);
+            let e = [cx - h[0] * 70 + h[1] * 25, cy + 28, cz - h[1] * 70 - h[0] * 25];
+            const g0 = demAt(e[0], -e[2]);
+            if (isFinite(g0) && e[1] < g0 + 12) e[1] = g0 + 12;
+            pl.crashCam = e;
+            state.shake = 0.8;
+            if (sound.boom) sound.boom(Math.hypot(e[0] - cx, e[1] - cy, e[2] - cz));
+          }
+        }
       }
-      if (pl.cockpit) {
+      // afterburner: the Gripen's flame out of the nozzle, full throttle
+      if (!state.paused && pl.type === "gripen" && pl.throttle > 0.92 && !(pl.crashed > 0)) {
+        for (let i = 0; i < 6; i++) {
+          const b = 6.6 + Math.random() * 0.6, jet = 25 + Math.random() * 20;
+          vfx.spawn(1, pl.p[0] - nose[0] * b, pl.p[1] - nose[1] * b, pl.p[2] - nose[2] * b,
+                    pl.vel[0] - nose[0] * jet, pl.vel[1] - nose[1] * jet, pl.vel[2] - nose[2] * jet,
+                    1.3, 0.45, 0.08 + Math.random() * 0.07, 3900, 0);
+        }
+      }
+      // vapour off the wingtips in a hard, fast pull (the nose swinging
+      // round quickly at speed)
+      {
+        const sp = Math.hypot(pl.vel[0], pl.vel[1], pl.vel[2]);
+        const prev = pl.noseWas || nose, turn = Math.acos(Math.max(-1, Math.min(1,
+          prev[0] * nose[0] + prev[1] * nose[1] + prev[2] * nose[2]))) / Math.max(1e-3, dtReal);
+        pl.noseWas = nose;
+        if (!state.paused && sp > 60 && turn > 0.20 && !(pl.crashed > 0)) {
+          // the wingtips where they are: banked with the aeroplane
+          const r0 = norm(cross(nose, [0, 1, 0])), u0 = norm(cross(r0, nose));
+          const cr = Math.cos(pl.roll), sr = Math.sin(pl.roll);
+          const rt = [r0[0] * cr - u0[0] * sr, r0[1] * cr - u0[1] * sr, r0[2] * cr - u0[2] * sr];
+          const span = pl.type === "gripen" ? 4.2 : 5.4, k = Math.min(1, (turn - 0.2) * 2);
+          for (const sg of [-1, 1]) for (let i = 0; i < 3; i++) {
+            const back = i * 0.8;
+            vfx.spawn(4, pl.p[0] + rt[0] * span * sg - nose[0] * back, pl.p[1] + rt[1] * span * sg - nose[1] * back,
+                      pl.p[2] + rt[2] * span * sg - nose[2] * back,
+                      pl.vel[0] * 0.25, pl.vel[1] * 0.25, pl.vel[2] * 0.25, 0.7 + k, 2.0 + 2 * k, 0.5 + 0.4 * k, 0, 0);
+          }
+        }
+      }
+      if (pl.crashed > 0 && pl.crashCam && pl.crashAt) {
+        camEye = pl.crashCam.slice();
+        fwd = norm(sub([pl.crashAt[0], pl.crashAt[1] + 6, pl.crashAt[2]], camEye));
+      } else if (pl.cockpit) {
         camEye = [pl.p[0] + nose[0] * 1.6, pl.p[1] + 0.55, pl.p[2] + nose[2] * 1.6];
         fwd = norm([nose[0], nose[1] + (state.pitch || 0), nose[2]]);
+        camRoll = pl.roll;     // in the cockpit the world banks with the aeroplane
+        {
+          // the aeroplane's own axes, banked, for the cockpit mesh
+          const bf = norm(nose), br0 = norm(cross(bf, [0, 1, 0])), bu0 = norm(cross(br0, bf));
+          const cr = Math.cos(pl.roll), sr = Math.sin(pl.roll);
+          const bu = [bu0[0] * cr + br0[0] * sr, bu0[1] * cr + br0[1] * sr, bu0[2] * cr + br0[2] * sr];
+          pl.cockBasis = { f: bf, r: norm(cross(bf, bu)), u: bu, eye: camEye.slice() };
+        }
       } else {
         // chase camera, orbited by the mouse; back to straight behind when
         // the drag is let go of for long enough (the plane is steered by keys)
@@ -2521,6 +2692,9 @@ export async function boot(assets) {
         const ox = Math.sin(a), oz = -Math.cos(a);
         camEye = [pl.p[0] - ox * back * Math.cos(el), pl.p[1] + back * Math.sin(el), pl.p[2] - oz * back * Math.cos(el)];
         fwd = (state.yaw || state.pitch) ? norm(sub(pl.p, camEye)) : norm(sub(add(pl.p, scale(nose, 25)), camEye));
+        // the chase camera leans a third of the bank: enough to feel the
+        // turn, not so much that the horizon swings with every correction
+        if (!state.yaw && !state.pitch) camRoll = pl.roll * 0.33;
       }
     }
     // ---- FPV Drone Flight Simulator Mode
@@ -2665,8 +2839,19 @@ export async function boot(assets) {
     state.camXZ = [camEye[0], -camEye[2]];
     if (city) city.update(camEye[0], -camEye[2]);
     state.camY = camEye[1];
+    if (state.shake > 0) {
+      const k = state.shake * 0.9;
+      camEye = [camEye[0] + (Math.random() - 0.5) * k, camEye[1] + (Math.random() - 0.5) * k, camEye[2] + (Math.random() - 0.5) * k];
+      state.shake = Math.max(0, state.shake - dtReal * 0.6);
+    }
     const at = add(camEye, fwd);
-    const view = M4.lookAt(camEye, at, [0, 1, 0]);
+    let camUp = [0, 1, 0];
+    if (camRoll) {
+      const rt = norm(cross(fwd, [0, 1, 0])), up0 = norm(cross(rt, fwd));
+      const cr = Math.cos(camRoll), sr = Math.sin(camRoll);
+      camUp = [up0[0] * cr + rt[0] * sr, up0[1] * cr + rt[1] * sr, up0[2] * cr + rt[2] * sr];
+    }
+    const view = M4.lookAt(camEye, at, camUp);
     // inside a carriage the walls are half a metre away, inside the usual
     // 1.2 m near plane
     const nearZ = seated ? 0.12 : 1.2;
@@ -2798,6 +2983,8 @@ export async function boot(assets) {
       if (dobogo && Math.hypot(dobogo.xy[0] - camEye[0], dobogo.xy[1] + camEye[2]) < 9000)
         upload(heartDyn, buildHeart(dobogo.xy[0], dobogo.ele + 34, -dobogo.xy[1], performance.now() * 0.001));
       else heartDyn.count = 0;
+      if (trams && city) upload(tramDyn, trams.build(state.hour * 3600, camEye[0], -camEye[2], 3000, night));
+      else tramDyn.count = 0;
       if (kisvasut && Math.hypot(kisvasut.pts[0][0] - camEye[0], kisvasut.pts[0][1] + camEye[2]) < 16000)
         upload(kisDyn, kisvasut.train(state.hour * 3600));
       else kisDyn.count = 0;
@@ -2982,8 +3169,11 @@ export async function boot(assets) {
       setStreetLights(pTrk);
       gl.enable(gl.POLYGON_OFFSET_FILL);
       gl.polygonOffset(-2.0, -4.0);
+      if (pTrk.u.uSeason) gl.uniform4fv(pTrk.u.uSeason, season4);
+      if (pTrk.u.uGround) gl.uniform1f(pTrk.u.uGround, 1);
       gl.bindVertexArray(corridor.vao);
       gl.drawArrays(gl.TRIANGLES, 0, corridor.count);
+      if (pTrk.u.uGround) gl.uniform1f(pTrk.u.uGround, 0);
       if (state.show.roads) {
         gl.polygonOffset(-9.0, -18.0);
         gl.bindVertexArray(roadMesh.vao);
@@ -3037,7 +3227,7 @@ export async function boot(assets) {
       // snow lies on the ballast but not on a train that has been running,
       // and a signal head is heated
       gl.uniform1f(pTrk.u.uSnow, 0);
-      for (const d of [trainDyn, airDyn, sigDyn, xingDyn, carDyn, shipDyn, peopleDyn, lampDyn, heartDyn, bulbDyn, kisDyn]) {
+      for (const d of [trainDyn, airDyn, sigDyn, xingDyn, carDyn, shipDyn, peopleDyn, lampDyn, heartDyn, bulbDyn, kisDyn, tramDyn]) {
         if (!d.count) continue;
         if (pTrk.u.uPull) gl.uniform1f(pTrk.u.uPull, d === carDyn || d === peopleDyn ? 0.005 : 0.0);
         // The roads are drawn with a strong polygon offset (to win over the
@@ -3090,6 +3280,7 @@ export async function boot(assets) {
           }
         });
         if (lineExtras) { gl.bindVertexArray(lineExtras.vao); gl.drawArrays(gl.TRIANGLES, 0, lineExtras.count); }
+        if (lineStructs) { gl.bindVertexArray(lineStructs.vao); gl.drawArrays(gl.TRIANGLES, 0, lineStructs.count); }
         if (kisTrack && kisTrack.count) { gl.bindVertexArray(kisTrack.vao); gl.drawArrays(gl.TRIANGLES, 0, kisTrack.count); }
         if (partsMesh.count) {
           gl.bindVertexArray(partsMesh.vao);
@@ -3263,6 +3454,48 @@ export async function boot(assets) {
     gl.bindVertexArray(brdVao);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, stn.boards.length);
 
+    // ---- particles: fire, smoke, sparks, vapour (vfx.js)
+    if (!state.paused && !state.photo) vfx.step(Math.min(dtReal, 0.1) * Math.min(state.speedMul || 1, 4));
+    // the starlings over Kispest: autumn and winter, at dusk (the owner saw
+    // them once and never forgot it). Placed from lat/lon, so any line's
+    // world that reaches Kispest has them.
+    let vfxN = vfx.count;
+    {
+      const d = state.day, h = state.hour;
+      const season = d >= 270 || d <= 60, dusk = h > 15.5 && h < 18.5;
+      if (season && dusk) {
+        if (!murm) {
+          const W = assets.world.near, [mla, mlo] = [111132.92 - 559.82 * Math.cos(2 * (W.frame_lat ?? (W.south + W.north) / 2) * Math.PI / 180),
+            111412.84 * Math.cos((W.frame_lat ?? (W.south + W.north) / 2) * Math.PI / 180)];
+          const mx = (19.140 - W.west) * mlo, mn = (47.452 - W.south) * mla, g = demAt(mx, mn);
+          if (isFinite(g)) murm = new Murmuration(mx, g + 140, -mn, 900);
+        }
+        if (murm && Math.hypot(murm.home[0] - camEye[0], murm.home[2] - camEye[2]) < 7000) {
+          if (!state.paused && !state.photo) murm.step(Math.min(dtReal, 0.05));
+          vfxN = murm.pack(vfx.out, vfx.count, VFX_MAX);
+        }
+      }
+    }
+    if (vfxN) {
+      gl.useProgram(pVfx.p);
+      gl.uniformMatrix4fv(pVfx.u.uVP, false, vp);
+      gl.uniform3fv(pVfx.u.uEye, camEye);
+      gl.uniform3f(pVfx.u.uCamRight, view[0], view[4], view[8]);
+      gl.uniform3f(pVfx.u.uCamUp, view[1], view[5], view[9]);
+      gl.uniform3fv(pVfx.u.uSunDir, sunDir);
+      gl.uniform3fv(pVfx.u.uSunCol, pal.sun);
+      gl.uniform3fv(pVfx.u.uSkyCol, pal.zenith);
+      gl.uniform3fv(pVfx.u.uFogCol, pal.horizon);
+      gl.uniform1f(pVfx.u.uFogDensity, pal.fog);
+      gl.bindBuffer(gl.ARRAY_BUFFER, vfxInst);
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, vfx.out.subarray(0, vfxN * 12));
+      gl.bindVertexArray(vfxVao);
+      gl.enable(gl.DEPTH_TEST); gl.depthMask(false);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, vfxN);
+      gl.disable(gl.BLEND); gl.depthMask(true);
+    }
+
     // ---- flood: the raised Danube over everything lower than it (FLOOD_VS)
     if ((state.danube || 0) > 0.25) {
       gl.useProgram(pFlood.p);
@@ -3358,6 +3591,28 @@ export async function boot(assets) {
       }
     }
 
+    // the aeroplane's cockpit (aircraft.js buildCockpit), through the cab's program
+    {
+      const pl = state.plane;
+      if (!inCab && pl && pl.active && pl.cockpit && pl.cockBasis && !state.photo && !(pl.crashed > 0)) {
+        const b = pl.cockBasis;
+        const mesh = buildCockpit(b.eye, b.f, b.r, b.u, pl.type);
+        gl.bindVertexArray(cabVao);
+        gl.bindBuffer(gl.ARRAY_BUFFER, cabPos); gl.bufferSubData(gl.ARRAY_BUFFER, 0, mesh.verts);
+        gl.bindBuffer(gl.ARRAY_BUFFER, cabCol); gl.bufferSubData(gl.ARRAY_BUFFER, 0, mesh.cols);
+        gl.bindBuffer(gl.ARRAY_BUFFER, cabUv); gl.bufferSubData(gl.ARRAY_BUFFER, 0, mesh.uvs);
+        const cp = M4.mul(M4.perspective(state.fov * Math.PI / 180, RES.w / RES.h, 0.05, 80), view);
+        gl.useProgram(pCab.p);
+        gl.uniformMatrix4fv(pCab.u.uVP, false, cp);
+        if (pCab.u.uOrigin) gl.uniform3fv(pCab.u.uOrigin, camEye);
+        gl.uniform3fv(pCab.u.uSunCol, pal.sun);
+        gl.uniform3fv(pCab.u.uSkyCol, pal.zenith);
+        gl.uniform3fv(pCab.u.uSunDir, sunDir);
+        gl.uniform1i(pCab.u.uPanel, 5);
+        gl.clear(gl.DEPTH_BUFFER_BIT);
+        gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
+      }
+    }
     // the cab, riding with the train
     if (inCab) {
       const railPt = route.at(driver.m);
@@ -3365,7 +3620,7 @@ export async function boot(assets) {
       const f = [railTan[0] * route.dir, 0, -railTan[1] * route.dir];
       const rgt = norm(cross(f, [0, 1, 0]));
       const eyeC = [railPt[0], railPt[2] + 3.1, -railPt[1]];
-      const mesh = buildCab(eyeC, f, rgt, [0, 1, 0]);
+      const mesh = buildCab(eyeC, f, rgt, [0, 1, 0], driver.s.stock);
       cabCount = mesh.count;
       gl.bindVertexArray(cabVao);
       gl.bindBuffer(gl.ARRAY_BUFFER, cabPos);
@@ -3503,8 +3758,8 @@ export async function boot(assets) {
     }
     state.focus = state.focus ? state.focus + ((state.focusWant || 300) - state.focus) * Math.min(1, dtReal * 3) : (state.focusWant || 300);
     if (ph) gl.uniform4f(pBlit.u.uDof, ph.dof, ph.focus, ph.aperture, ph.band);
-    else gl.uniform4f(pBlit.u.uDof, playDof ? 1 : 0, state.focus, 0.35, 0.45);
-    gl.uniform3f(pBlit.u.uFx, G.motion && !ph ? 1.0 : 0.0, G.ao ? 1.0 : 0.0, ph ? 0.0 : 3.0);
+    else gl.uniform4f(pBlit.u.uDof, playDof ? 1 : 0, state.focus, G.dofAmt || 0.35, 0.45);
+    gl.uniform3f(pBlit.u.uFx, G.motion && !ph ? (G.motionAmt || 1.0) : 0.0, G.ao ? (G.aoAmt || 1.0) : 0.0, ph ? 0.0 : 3.0);
     gl.uniformMatrix4fv(pBlit.u.uInvVP, false, invVP);
     gl.uniformMatrix4fv(pBlit.u.uPrevVP, false, state.prevVP || vp);
     state.prevVP = vp;
@@ -3587,7 +3842,7 @@ export async function boot(assets) {
   // demAt and coverAt are exposed for the same reason tick is: when a thing
   // does not appear, the first question is always where the ground under it
   // is, and there is no other way to ask from outside.
-  window.SIM = { tick, step: stepFrames, solids, kisvasut: () => kisvasut, demAt, carModels: () => carModels, railDistAt, res: RES, driver, route, state, data: routeData, stations: stn, PLANES, roadWays, city: () => city, carSurf, cityTiles: () => city,
+  window.SIM = { tick, step: stepFrames, solids, kisvasut: () => kisvasut, trams: () => trams, demAt, vfx, carModels: () => carModels, railDistAt, res: RES, driver, route, state, data: routeData, stations: stn, PLANES, roadWays, city: () => city, carSurf, cityTiles: () => city,
                  demAt, coverAt,
                  traffic, playerTrain, sound, roadTraffic,
                  riverTraffic,
