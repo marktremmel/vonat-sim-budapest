@@ -161,6 +161,7 @@ delete lines.
 | Danube: all levels with the good reflections; negative = drought | 23 Sep | done |
 | Danube slider floods the ground | 22 Sep | done |
 | Raised Danube chequerboard glitch | 25 Sep | done |
+| Raised Danube still white | 25 Sep | done (the flood plane now lies under the flooded ground, which draws the reflective river water; seen at Göd at +4 m) |
 
 ## Road traffic, car, flying
 

@@ -773,12 +773,6 @@ void main(){
     // deep quarry two kilometres away from filling up.
     h = wl;
   }
-  // With the Danube raised the flood plane (FLOOD_VS, 6 cm under the level)
-  // is drawn over all of this. Ground snapped to exactly the level then
-  // fought it for the depth buffer, triangle by triangle, a chequerboard
-  // across the whole river. Under a flood the snapped ground sinks clear of
-  // the plane; the plane is the surface you see.
-  if (uDanube > 0.25 && abs(h - wl) < 0.01) h = wl - 1.5;
   vWorld = vec3(w.x, h, w.y);
   vDist = length(vWorld - uEye);
   gl_Position = uVP * vec4(vWorld, 1.0);
@@ -2436,7 +2430,12 @@ out vec3 vWorld; out float vDist;
 uniform mat4 uVP; uniform vec3 uEye; uniform vec2 uWaterAB; uniform float uHalf;
 void main(){
   vec2 xz = uEye.xz + aPos * uHalf;
-  float y = uWaterAB.x + uWaterAB.y * (-xz.y) - 0.06;
+  // 0.6 m UNDER the level: the terrain snaps flooded ground to the level
+  // and draws it as the river's own reflective water, which is the good one.
+  // At 6 cm under, the two fought for the depth buffer (a chequerboard); on
+  // top, this plane turned the whole flood a flat white. It is only the
+  // fallback for what the terrain does not flood.
+  float y = uWaterAB.x + uWaterAB.y * (-xz.y) - 0.6;
   vWorld = vec3(xz.x, y, xz.y);
   vDist = length(vWorld - uEye);
   gl_Position = uVP * vec4(vWorld, 1.0);
