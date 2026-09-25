@@ -16,7 +16,7 @@ running the build. Where a claim was checked by running the code, it says so.
 
 **26 Sep 2026, S-13.**
 - The progress log with every item and what was seen is **`docs/SESSION_S13.md`**; the to-do list is `docs/OWNER_BACKLOG.md`.
-- Pushed: `e52a4c7`. Everything from S-13 is **not committed** (git rule: after the owner's review).
+- S-13 is pushed as `c69287b` (26 Sep, on the owner's word). Git rule: commit or push only after the owner's review.
 - Tests 28/28.
 - `web/data` is 82 MB; line 70's context is 5.3 MB (Fót and Szentendre extracts added).
 
