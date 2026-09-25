@@ -28,7 +28,7 @@ if "--split-only" not in sys.argv:
         raise SystemExit("bake_context CITY=1 failed")
 
 W = json.load(open("web/data/world.json", encoding="utf-8"))["near"]
-MLAT, MLON = frame((W["south"] + W["north"]) / 2)
+MLAT, MLON = frame(W.get("frame_lat", (W["south"] + W["north"]) / 2))
 C = json.load(open("web/data/city_all.json", encoding="utf-8"))
 S, WEST, N, E = 47.39, 18.93, 47.58, 19.25
 DLAT, DLON = 0.009, 0.0133
@@ -139,3 +139,6 @@ print(f"city: {len(index['tiles'])} tiles, {sum(t['n'] for t in index['tiles'])}
 # and the extras (rails, industry, power, solar, labels), if downloaded
 if os.path.isdir("data/raw/cityx"):
     subprocess.run([sys.executable, "tools/bake_cityx.py"])
+# and the cadastre's trees and park planting (BP Fatár), if downloaded
+if os.path.isdir("data/raw/bpfatar/tree"):
+    subprocess.run([sys.executable, "tools/bake_trees.py"])

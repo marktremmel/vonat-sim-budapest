@@ -773,6 +773,12 @@ void main(){
     // deep quarry two kilometres away from filling up.
     h = wl;
   }
+  // With the Danube raised the flood plane (FLOOD_VS, 6 cm under the level)
+  // is drawn over all of this. Ground snapped to exactly the level then
+  // fought it for the depth buffer, triangle by triangle, a chequerboard
+  // across the whole river. Under a flood the snapped ground sinks clear of
+  // the plane; the plane is the surface you see.
+  if (uDanube > 0.25 && abs(h - wl) < 0.01) h = wl - 1.5;
   vWorld = vec3(w.x, h, w.y);
   vDist = length(vWorld - uEye);
   gl_Position = uVP * vec4(vWorld, 1.0);
@@ -1341,6 +1347,9 @@ void main(){
   if (cov > 4.5 && cov < 6.5 && r > 0.55) plant = false;
   if (cov > 10.5 && cov < 11.5 && r > 0.30) plant = false; // wetland, sparse
   if (cov > 12.5 && cov < 13.5 && r > 0.24) plant = false; // park, mown between
+  // in Budapest the parks' and streets' real trees come from the cadastre
+  // (TREE_VS); only a few invented ones are left to fill what it lacks
+  if (inCity && cov > 12.5 && cov < 13.5 && r > 0.06) plant = false;
 
   float h = decode(texture(uHeightNear, vec2(clamp(nuv.x,0.,1.), 1.0 - clamp(nuv.y,0.,1.))).rgb);
   vec3 foot = vec3(w.x, h, w.y);
@@ -1435,9 +1444,54 @@ void main(){
   vec3 p = foot + planeDir * (aCorner.x * wide * 0.5) + vec3(0.0, aCorner.y * tall, 0.0);
   vUv = vec2(aCorner.x * 0.5 + 0.5, aCorner.y);
   vDist = d; vKind = cov; vSeed = r; vFootY = h; vSp = sp;
-  vWaterY = uWaterAB.x + uWaterAB.y * w.y;
+  vWaterY = uWaterAB.x + uWaterAB.y * (-w.y);   // w.y is world z: north = -w.y
   vCloud = cloudShade(foot, uSunDir, uCloudDeck, uCloudShape, uCloudWind,
                       uCloudT, uCloudShadow);
+  gl_Position = uVP * vec4(p, 1.0);
+}`;
+
+// The same trees, one per real tree: Budapest's cadastre (BP Fatár,
+// tools/bake_trees.py), placed per city tile. Each instance is its foot
+// (world x, ground y, world z), its form, its height and crown width, and a
+// seed; the look is VEG_FS's, so a cadastre lime and a Börzsöny beech are
+// drawn the same way. Nothing is decided here about WHETHER a tree grows.
+export const TREE_VS = `#version 300 es
+layout(location = 0) in vec3 aCorner;
+layout(location = 1) in vec4 aFoot;     // x, y, z, form
+layout(location = 2) in vec4 aDim;      // height, crown, seed, -
+out vec2 vUv; out float vDist; out float vKind; out float vSeed; out float vFootY;
+out float vSp; out float vWaterY; out float vCloud;
+uniform mat4 uVP; uniform vec3 uEye;
+uniform float uMaxDist;
+uniform vec2 uWaterAB;
+uniform vec4 uSeason;
+uniform vec3 uSunDir;
+uniform vec4 uCloudDeck, uCloudShape, uCloudWind;
+uniform float uCloudT, uCloudShadow;
+${CLOUD_FIELD_GLSL}
+float cloudShade(vec3 wpos, vec3 sunDir, vec4 deck, vec4 shape, vec4 wind,
+                 float t, float amount) {
+  if (amount <= 0.002 || sunDir.y < 0.05 || deck.z <= 0.01) return 1.0;
+  float rise = deck.x - wpos.y;
+  if (rise <= 0.0) return 1.0;
+  vec2 hit = wpos.xz + sunDir.xz / sunDir.y * rise;
+  float n = deckField(hit, deck, shape, deckFlowW(deck, wind), t, 3);
+  return 1.0 - amount * deckDensity(n, deck.z, shape.x);
+}
+void main(){
+  vec3 foot = aFoot.xyz;
+  float d = length(foot - uEye);
+  // small things go first: a flower bed at 600 m, a bush at 1.2 km
+  float reach = uMaxDist * clamp(aDim.x / 9.0, 0.25, 1.0);
+  if (d > reach) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+  float sp = aFoot.w, tall = aDim.x, wide = aDim.y, r = aDim.z;
+  float treeAng = r * 6.2831853 + aCorner.z * 1.5707963;
+  vec3 planeDir = vec3(cos(treeAng), 0.0, sin(treeAng));
+  vec3 p = foot + planeDir * (aCorner.x * wide * 0.5) + vec3(0.0, aCorner.y * tall, 0.0);
+  vUv = vec2(aCorner.x * 0.5 + 0.5, aCorner.y);
+  vDist = d; vKind = 13.0; vSeed = r; vFootY = foot.y; vSp = sp;
+  vWaterY = uWaterAB.x + uWaterAB.y * (-foot.z);
+  vCloud = cloudShade(foot, uSunDir, uCloudDeck, uCloudShape, uCloudWind, uCloudT, uCloudShadow);
   gl_Position = uVP * vec4(p, 1.0);
 }`;
 
@@ -1455,7 +1509,7 @@ void main(){
   vec2 p = vUv - vec2(0.5, 0.0);
   float y = vUv.y;
   int sp = int(vSp + 0.5);
-  bool evergreen = (sp == 5 || sp == 14);   // pines and spruces keep their needles
+  bool evergreen = (sp == 5 || sp == 14 || sp == 16);   // pines and spruces keep their needles (a bed has its own seasons)
 
   // crown shape per species: base width, tip width, taper, lobe size and
   // frequency, where the canopy starts, trunk width
@@ -1502,6 +1556,9 @@ void main(){
   } else if (sp == 10) {    // hazel and blackthorn: no trunk, bushy from the base
     base_ = 0.46; tip = 0.16; power = 1.60; lobeAmp = 0.080; lobeFreq = 19.0;
     canopyFrom = 0.02; trunkW = 0.030;
+  } else if (sp == 16) {    // a flower bed (BP Fatár): a low wide mound, no stem
+    base_ = 0.50; tip = 0.40; power = 1.00; lobeAmp = 0.030; lobeFreq = 30.0;
+    canopyFrom = 0.0; trunkW = 0.0;
   } else {                  // vine: a low trained row
     base_ = 0.46; tip = 0.34; power = 1.00; lobeAmp = 0.060; lobeFreq = 26.0;
     canopyFrom = 0.30; trunkW = 0.045;
@@ -1597,6 +1654,16 @@ void main(){
   vec3 dead = vec3(0.31, 0.25, 0.18);
   if (!evergreen) leafCol = mix(dead, leafCol, smoothstep(0.0, 0.45, uSeason.x));
 
+  // a flower bed: dots of red, yellow, violet and white on green in the
+  // growing season, bare soil in winter
+  if (sp == 16) {
+    vec2 g = floor(vec2(p.x * 22.0, y * 9.0));
+    float hh = fract(sin(dot(g, vec2(12.9898, 78.233)) + vSeed * 41.0) * 43758.5453);
+    vec3 fl = hh < 0.3 ? vec3(0.86,0.16,0.18) : hh < 0.5 ? vec3(0.96,0.78,0.16)
+            : hh < 0.7 ? vec3(0.60,0.30,0.72) : vec3(0.95,0.93,0.90);
+    vec3 bed = mix(vec3(0.20,0.33,0.14), fl, step(0.42, fract(hh * 7.3)) * smoothstep(0.35, 0.8, uSeason.x));
+    leafCol = mix(vec3(0.30,0.24,0.18), bed, smoothstep(0.15, 0.6, uSeason.x));
+  }
   vec3 bark = sp == 15 ? vec3(0.86,0.85,0.82)     // birch, white
             : sp == 0 ? vec3(0.42,0.42,0.40)      // beech, smooth pale grey
             : sp == 6 ? vec3(0.46,0.45,0.40)      // poplar
@@ -2422,9 +2489,13 @@ uniform vec3 uSunDir, uSunCol, uSkyCol, uFogCol;
 uniform float uFogDensity, uLift;
 void main(){
   vec3 base = texture(uTex, vUv).rgb;
-  base = pow(base, vec3(2.0));                 // the atlas is sRGB; light in linear-ish
+  // The rest of the world is lit in display space (vertex colours as they
+  // are). Squaring the atlas "to linear" without converting back made every
+  // car a third darker than the buildings round it; a mild curve keeps the
+  // paint's contrast without that.
+  base = pow(base, vec3(1.15)) * 1.08;
   vec3 n = normalize(vN);
-  float lam = max(dot(n, uSunDir), 0.0);
+  float lam = max(dot(n, uSunDir) * 0.85 + 0.15, 0.0);    // a little wrap: the shaded side is not black
   vec3 col = base * (uSunCol * lam * 0.9 + uSkyCol * (0.55 + uLift * 0.38) + 0.06 + uLift * 0.085);
   float fg = 1.0 - exp(-vDist * uFogDensity);
   fc = vec4(mix(col, uFogCol, clamp(fg, 0.0, 1.0)), 1.0);

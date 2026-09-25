@@ -48,6 +48,12 @@ def landcover_elements():
         have = {(e["type"], e["id"]) for e in els}
         els += [e for e in json.load(open(extra, encoding="utf-8"))["elements"]
                 if (e["type"], e["id"]) not in have]
+    # line 70's strip north of q_landcover2's box (the kisvasút's Királyrét end)
+    north = "data/raw/landcover_line70_north.json"
+    if LINE == "line70" and _os.path.exists(north):
+        have = {(e["type"], e["id"]) for e in els}
+        els += [e for e in json.load(open(north, encoding="utf-8"))["elements"]
+                if (e["type"], e["id"]) not in have]
     return els
 
 CLASSES = ["none", "forest", "scrub", "meadow", "farmland", "orchard",
@@ -85,6 +91,16 @@ def png(width, height, rows, colour_type, bitdepth=8):
     return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr)
             + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
 
+# NEAR_NORTH_M=metres grows the near window north (whole rows, the frame and
+# every existing pixel unchanged): line 70's is grown 2.6 km so the
+# Királyréti kisvasút (Kismaros – Királyrét, 47.895 N) is inside it. The
+# rows and columns are laid out with the metres per degree of the ORIGINAL
+# window's middle, which FRAME_LAT pins; otherwise mlon moves with the
+# middle latitude and the east edge stretches by metres.
+FRAME_LAT = None
+def fr(reg):
+    return frame(FRAME_LAT if FRAME_LAT is not None else (reg["south"] + reg["north"]) / 2)
+
 def region(points, pad):
     lats = [p[0] for p in points]; lons = [p[1] for p in points]
     mlat, mlon = frame(sum(lats) / len(lats))
@@ -101,7 +117,7 @@ def carve_corridor(reg, step_m, w, h, heights):
     DEM toward rail level out to 34 m — enough that terrain and ribbon agree.
     """
     import json as _json
-    mlat, mlon = frame((reg["south"] + reg["north"]) / 2)
+    mlat, mlon = fr(reg)
     align = line_tracks()
     prof = _json.load(open(PROFILE_FILE, encoding="utf-8"))
     pstep, pp = prof["step_m"], prof["profile"]
@@ -145,9 +161,9 @@ def carve_corridor(reg, step_m, w, h, heights):
     return touched
 
 def bake_height(terr, reg, step_m, name, carve=False):
-    mlat, mlon = frame((reg["south"] + reg["north"]) / 2)
+    mlat, mlon = fr(reg)
     w = int((reg["east"] - reg["west"]) * mlon / step_m)
-    h = int((reg["north"] - reg["south"]) * mlat / step_m)
+    h = reg.get("_h") or int((reg["north"] - reg["south"]) * mlat / step_m)
     heights = [0.0] * (w * h)
     for j in range(h):
         lat = reg["north"] - (j + 0.5) / h * (reg["north"] - reg["south"])
@@ -171,14 +187,14 @@ def bake_height(terr, reg, step_m, name, carve=False):
     open(f"{OUT}/{name}.png", "wb").write(data)
     print(f"  {name}: {w}x{h} at {step_m:.1f} m/px, "
           f"{lo:.0f}–{hi:.0f} m, {len(data)/1e6:.2f} MB")
-    return {"w": w, "h": h, "step_m": step_m, **reg,
+    return {"w": w, "h": h, "step_m": step_m, **{k: v for k, v in reg.items() if k != "_h"},
             "encoding": "decimetres_asl_16bit_RG"}
 
 def bake_cover(reg, step_m, name):
     """Scanline-rasterise the land cover polygons into a class index raster."""
-    mlat, mlon = frame((reg["south"] + reg["north"]) / 2)
+    mlat, mlon = fr(reg)
     w = int((reg["east"] - reg["west"]) * mlon / step_m)
-    h = int((reg["north"] - reg["south"]) * mlat / step_m)
+    h = reg.get("_h") or int((reg["north"] - reg["south"]) * mlat / step_m)
     grid = bytearray(w * h)
     tint = bytearray(w * h)
     global _LAST_COVER
@@ -382,13 +398,13 @@ def bake_cover(reg, step_m, name):
     top = ", ".join(f"{CLASSES[k]} {100*v/(w*h):.0f}%" for k, v in c.most_common(6))
     print(f"  {name}: {w}x{h} at {step_m:.1f} m/px, {len(data)/1e6:.2f} MB")
     print(f"    {top}")
-    return {"w": w, "h": h, "step_m": step_m, **reg, "classes": CLASSES}
+    return {"w": w, "h": h, "step_m": step_m, **{k: v for k, v in reg.items() if k != "_h"}, "classes": CLASSES}
 
 def fit_water(terr, reg, step_m):
     """Least squares through the water pixels: level = a + b * north metres."""
-    mlat, mlon = frame((reg["south"] + reg["north"]) / 2)
+    mlat, mlon = fr(reg)
     w = int((reg["east"] - reg["west"]) * mlon / step_m)
-    h = int((reg["north"] - reg["south"]) * mlat / step_m)
+    h = reg.get("_h") or int((reg["north"] - reg["south"]) * mlat / step_m)
     cov = _LAST_COVER
     n = sx = sy = sxx = sxy = 0.0
     band = {}
@@ -438,6 +454,21 @@ def main():
     print(f"baking world for {LINE} km %.0f–%.0f" % (KM_FROM, KM_TO))
     near_reg = region(seg, NEAR_PAD_M)
     far_reg = region(seg, FAR_PAD_M)
+    extra = float(os.environ.get("NEAR_NORTH_M", "0"))
+    if extra > 0:
+        global FRAME_LAT
+        FRAME_LAT = (near_reg["south"] + near_reg["north"]) / 2
+        step = terr.metres_per_pixel(47.8)
+        mlat, _ = frame(FRAME_LAT)
+        h0 = int((near_reg["north"] - near_reg["south"]) * mlat / step)
+        d0 = (near_reg["north"] - near_reg["south"]) / h0      # degrees per row, as before
+        k = int(math.ceil(extra / step))
+        # a hair under the exact row so int() lands on h0 + k, not one more
+        near_reg["north"] = near_reg["south"] + d0 * (h0 + k) - d0 * 1e-6
+        print(f"  near window grown north by {k} rows (h {h0} -> {h0 + k})")
+        # the rows are placed from the north edge by d0 = span / h; keep that
+        # exact: hand the row count over rather than recomputing it
+        near_reg["_h"] = h0 + k
     
     suffix = f"_{LINE}" if LINE != "line70" else ""
     meta = {
@@ -447,6 +478,11 @@ def main():
         "cover": bake_cover(near_reg, terr.metres_per_pixel(47.8), f"cover_near{suffix}"),
     }
     meta["water"] = fit_water(terr, near_reg, terr.metres_per_pixel(47.8))
+    if FRAME_LAT is not None:
+        # the tools and the game take the frame from here, not from the middle
+        meta["near"]["frame_lat"] = meta["cover"]["frame_lat"] = FRAME_LAT
+        print("  NOTE: the water fit above includes the grown strip; line 70 keeps"
+              " its old fit (a 95.978, b 8.6883e-05) — restore it in world.json")
     
     out_name = f"{OUT}/world{suffix}.json"
     json.dump(meta, open(out_name, "w", encoding="utf-8"), indent=1)

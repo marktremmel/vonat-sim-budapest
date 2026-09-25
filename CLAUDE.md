@@ -8,6 +8,44 @@ reference material (photos, PDFs, timetables, Sketchfab zips, audio).
 Written 22 Sep 2026 from reading the code, diffing the backup copies and
 running the build. Where a claim was checked by running the code, it says so.
 
+## Handoff: where the work is right now (update this first and last every session)
+
+**25 Sep 2026, evening.**
+- `e809141` on `main` is pushed: rounds 7–9, which the owner reviewed ("ship it").
+- Everything below is **not committed**; it waits for the owner's review (memory `git-after-review`).
+
+**Done since the push, checked in the preview:**
+- **Kisvasút inside the world.** Line 70's near window is grown 102 rows north, to 47.905 N:
+  - `NEAR_NORTH_M=2600` in `bake_world.py`;
+  - land cover for the strip is in `data/raw/landcover_line70_north.json` (`q_landcover_north.ql`);
+  - the frame is pinned by `near.frame_lat` (NOTES Trap 14).
+  - Kept from before the rebake:
+    - the old rows of the cover (only the per-field shade had changed);
+    - the old far map (the tile cache now gives a different one, up to 256 m apart; not investigated);
+    - the old water fit (the strip's ponds tilted it to 754 mm/km).
+  - The DSM rows match the old ones except 23 pixels; `ground_filter.py` was rerun.
+- **Cars less dark.** MODEL_FS squared the texture ("to linear") and never converted back.
+- **Danube chequerboard when raised** (the owner's screenshot): NOTES Trap 13, second part.
+- **BP Fatár trees** (README "The city's trees"):
+  - `tools/fetch_bpfatar.py` → `data/raw/bpfatar/` (37 MB);
+  - `tools/bake_trees.py` → `tr`/`pk` in the city tiles (city data 25 → 33 MB);
+  - drawn by `TREE_VS` + `VEG_FS` (new form 16, flower bed), plus `geom.js buildParkThings`;
+  - ~90k instances in view over the Városliget, no measurable frame cost;
+  - `bake_city.py` runs it at the end.
+  - **The dimension requests got "connection refused" after 200.** Do not rerun that part in bulk; the genus table covers the rest.
+- VEG_VS water-level sign fixed (`w.y` is world z).
+
+**Next, in order:**
+1. The owner reviews this; commit and push on their word.
+2. Round 9 leftovers (REVIEW.md, "Round 9: where it stands"):
+   - look at the pylons, Újpest vaults, Dunakeszi tó, Népsziget and MÁV-telep;
+   - PSX houses and street props;
+   - walking people;
+   - bushes, vineyards and flowers outside the city (the city now has the cadastre's);
+   - the S21 and line 2 places;
+   - trams, H5, the Keleti–Kelenföld line, one world.
+3. Cadastre trees outside the city box: 6,600 are dropped today.
+
 ## Read in this order
 
 1. This file: where things are, what is broken, and what the owner wants.

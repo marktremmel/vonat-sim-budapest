@@ -13,7 +13,7 @@ from geo import frame
 LINE = sys.argv[1] if len(sys.argv) > 1 else "line70"
 SUF = "" if LINE == "line70" else f"_{LINE}"
 W = json.load(open(f"web/data/world{SUF}.json", encoding="utf-8"))["near"]
-MLAT, MLON = frame((W["south"] + W["north"]) / 2)
+MLAT, MLON = frame(W.get("frame_lat", (W["south"] + W["north"]) / 2))
 xy = lambda la, lo: [round((lo - W["west"]) * MLON, 1), round((la - W["south"]) * MLAT, 1)]
 CITY = (47.39, 18.93, 47.58, 19.25)      # the city tiles carry their own
 

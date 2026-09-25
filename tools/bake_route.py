@@ -16,7 +16,7 @@ LINE = sys.argv[1] if len(sys.argv) > 1 else "line70"
 SUFFIX = "" if LINE == "line70" else f"_{LINE}"
 W = json.load(open(f"web/data/world{SUFFIX}.json", encoding="utf-8"))
 NEAR = W["near"]
-MLAT, MLON = frame((NEAR["south"] + NEAR["north"]) / 2)
+MLAT, MLON = frame(NEAR.get("frame_lat", (NEAR["south"] + NEAR["north"]) / 2))
 # The window of the line to bake. Line 70 defaults to the Vác–Szob slice;
 # SZOB_KM=0,63.6 is the whole line. Other lines are baked whole.
 KM_FROM, KM_TO = [float(v) for v in

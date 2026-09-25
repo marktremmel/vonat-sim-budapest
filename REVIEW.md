@@ -397,3 +397,10 @@ in and the tests pass, but I have not looked at it on screen.
   - The trees along its track are cleared through the cover texture's spare alpha channel.
   - Its rail height is the smoothed ground, never below the ground itself.
 - **Not done:** trams 1 and 4/6, H5, the Keleti/Kelenföld–Háros link, and one world. The city's tram and rail tracks are drawn, but nothing runs on them.
+
+## After round 9 (25 Sep, evening; not yet committed)
+
+- **Kisvasút:** its world is extended to Királyrét. **Seen.**
+- **Cars:** lighter; the shader darkened the paint.
+- **Danube raised:** the chequerboard is fixed. **Seen** at Göd with +4 m.
+- **The city's trees from the BP Fatár cadastre:** 304k trees and 101k shrubs and flower beds, plus 18.6k benches, bins, statues and fountains. **Seen** from above over the Városliget and at street level. See README, "The city's trees".

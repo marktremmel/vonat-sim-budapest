@@ -14,7 +14,7 @@ sys.path.insert(0, "tools")
 from geo import frame
 
 W = json.load(open("web/data/world.json", encoding="utf-8"))["near"]
-MLAT, MLON = frame((W["south"] + W["north"]) / 2)
+MLAT, MLON = frame(W.get("frame_lat", (W["south"] + W["north"]) / 2))
 xy = lambda la, lo: ((lo - W["west"]) * MLON, (la - W["south"]) * MLAT)
 els = json.load(open("data/raw/kisvasut.json", encoding="utf-8"))["elements"]
 ways = [[xy(p["lat"], p["lon"]) for p in e["geometry"]] for e in els

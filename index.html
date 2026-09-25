@@ -1629,6 +1629,12 @@ void main(){
     // deep quarry two kilometres away from filling up.
     h = wl;
   }
+  // With the Danube raised the flood plane (FLOOD_VS, 6 cm under the level)
+  // is drawn over all of this. Ground snapped to exactly the level then
+  // fought it for the depth buffer, triangle by triangle, a chequerboard
+  // across the whole river. Under a flood the snapped ground sinks clear of
+  // the plane; the plane is the surface you see.
+  if (uDanube > 0.25 && abs(h - wl) < 0.01) h = wl - 1.5;
   vWorld = vec3(w.x, h, w.y);
   vDist = length(vWorld - uEye);
   gl_Position = uVP * vec4(vWorld, 1.0);
@@ -2197,6 +2203,9 @@ void main(){
   if (cov > 4.5 && cov < 6.5 && r > 0.55) plant = false;
   if (cov > 10.5 && cov < 11.5 && r > 0.30) plant = false; // wetland, sparse
   if (cov > 12.5 && cov < 13.5 && r > 0.24) plant = false; // park, mown between
+  // in Budapest the parks' and streets' real trees come from the cadastre
+  // (TREE_VS); only a few invented ones are left to fill what it lacks
+  if (inCity && cov > 12.5 && cov < 13.5 && r > 0.06) plant = false;
 
   float h = decode(texture(uHeightNear, vec2(clamp(nuv.x,0.,1.), 1.0 - clamp(nuv.y,0.,1.))).rgb);
   vec3 foot = vec3(w.x, h, w.y);
@@ -2291,9 +2300,54 @@ void main(){
   vec3 p = foot + planeDir * (aCorner.x * wide * 0.5) + vec3(0.0, aCorner.y * tall, 0.0);
   vUv = vec2(aCorner.x * 0.5 + 0.5, aCorner.y);
   vDist = d; vKind = cov; vSeed = r; vFootY = h; vSp = sp;
-  vWaterY = uWaterAB.x + uWaterAB.y * w.y;
+  vWaterY = uWaterAB.x + uWaterAB.y * (-w.y);   // w.y is world z: north = -w.y
   vCloud = cloudShade(foot, uSunDir, uCloudDeck, uCloudShape, uCloudWind,
                       uCloudT, uCloudShadow);
+  gl_Position = uVP * vec4(p, 1.0);
+}`;
+
+// The same trees, one per real tree: Budapest's cadastre (BP Fatár,
+// tools/bake_trees.py), placed per city tile. Each instance is its foot
+// (world x, ground y, world z), its form, its height and crown width, and a
+// seed; the look is VEG_FS's, so a cadastre lime and a Börzsöny beech are
+// drawn the same way. Nothing is decided here about WHETHER a tree grows.
+const TREE_VS = `#version 300 es
+layout(location = 0) in vec3 aCorner;
+layout(location = 1) in vec4 aFoot;     // x, y, z, form
+layout(location = 2) in vec4 aDim;      // height, crown, seed, -
+out vec2 vUv; out float vDist; out float vKind; out float vSeed; out float vFootY;
+out float vSp; out float vWaterY; out float vCloud;
+uniform mat4 uVP; uniform vec3 uEye;
+uniform float uMaxDist;
+uniform vec2 uWaterAB;
+uniform vec4 uSeason;
+uniform vec3 uSunDir;
+uniform vec4 uCloudDeck, uCloudShape, uCloudWind;
+uniform float uCloudT, uCloudShadow;
+${CLOUD_FIELD_GLSL}
+float cloudShade(vec3 wpos, vec3 sunDir, vec4 deck, vec4 shape, vec4 wind,
+                 float t, float amount) {
+  if (amount <= 0.002 || sunDir.y < 0.05 || deck.z <= 0.01) return 1.0;
+  float rise = deck.x - wpos.y;
+  if (rise <= 0.0) return 1.0;
+  vec2 hit = wpos.xz + sunDir.xz / sunDir.y * rise;
+  float n = deckField(hit, deck, shape, deckFlowW(deck, wind), t, 3);
+  return 1.0 - amount * deckDensity(n, deck.z, shape.x);
+}
+void main(){
+  vec3 foot = aFoot.xyz;
+  float d = length(foot - uEye);
+  // small things go first: a flower bed at 600 m, a bush at 1.2 km
+  float reach = uMaxDist * clamp(aDim.x / 9.0, 0.25, 1.0);
+  if (d > reach) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+  float sp = aFoot.w, tall = aDim.x, wide = aDim.y, r = aDim.z;
+  float treeAng = r * 6.2831853 + aCorner.z * 1.5707963;
+  vec3 planeDir = vec3(cos(treeAng), 0.0, sin(treeAng));
+  vec3 p = foot + planeDir * (aCorner.x * wide * 0.5) + vec3(0.0, aCorner.y * tall, 0.0);
+  vUv = vec2(aCorner.x * 0.5 + 0.5, aCorner.y);
+  vDist = d; vKind = 13.0; vSeed = r; vFootY = foot.y; vSp = sp;
+  vWaterY = uWaterAB.x + uWaterAB.y * (-foot.z);
+  vCloud = cloudShade(foot, uSunDir, uCloudDeck, uCloudShape, uCloudWind, uCloudT, uCloudShadow);
   gl_Position = uVP * vec4(p, 1.0);
 }`;
 
@@ -2311,7 +2365,7 @@ void main(){
   vec2 p = vUv - vec2(0.5, 0.0);
   float y = vUv.y;
   int sp = int(vSp + 0.5);
-  bool evergreen = (sp == 5 || sp == 14);   // pines and spruces keep their needles
+  bool evergreen = (sp == 5 || sp == 14 || sp == 16);   // pines and spruces keep their needles (a bed has its own seasons)
 
   // crown shape per species: base width, tip width, taper, lobe size and
   // frequency, where the canopy starts, trunk width
@@ -2358,6 +2412,9 @@ void main(){
   } else if (sp == 10) {    // hazel and blackthorn: no trunk, bushy from the base
     base_ = 0.46; tip = 0.16; power = 1.60; lobeAmp = 0.080; lobeFreq = 19.0;
     canopyFrom = 0.02; trunkW = 0.030;
+  } else if (sp == 16) {    // a flower bed (BP Fatár): a low wide mound, no stem
+    base_ = 0.50; tip = 0.40; power = 1.00; lobeAmp = 0.030; lobeFreq = 30.0;
+    canopyFrom = 0.0; trunkW = 0.0;
   } else {                  // vine: a low trained row
     base_ = 0.46; tip = 0.34; power = 1.00; lobeAmp = 0.060; lobeFreq = 26.0;
     canopyFrom = 0.30; trunkW = 0.045;
@@ -2453,6 +2510,16 @@ void main(){
   vec3 dead = vec3(0.31, 0.25, 0.18);
   if (!evergreen) leafCol = mix(dead, leafCol, smoothstep(0.0, 0.45, uSeason.x));
 
+  // a flower bed: dots of red, yellow, violet and white on green in the
+  // growing season, bare soil in winter
+  if (sp == 16) {
+    vec2 g = floor(vec2(p.x * 22.0, y * 9.0));
+    float hh = fract(sin(dot(g, vec2(12.9898, 78.233)) + vSeed * 41.0) * 43758.5453);
+    vec3 fl = hh < 0.3 ? vec3(0.86,0.16,0.18) : hh < 0.5 ? vec3(0.96,0.78,0.16)
+            : hh < 0.7 ? vec3(0.60,0.30,0.72) : vec3(0.95,0.93,0.90);
+    vec3 bed = mix(vec3(0.20,0.33,0.14), fl, step(0.42, fract(hh * 7.3)) * smoothstep(0.35, 0.8, uSeason.x));
+    leafCol = mix(vec3(0.30,0.24,0.18), bed, smoothstep(0.15, 0.6, uSeason.x));
+  }
   vec3 bark = sp == 15 ? vec3(0.86,0.85,0.82)     // birch, white
             : sp == 0 ? vec3(0.42,0.42,0.40)      // beech, smooth pale grey
             : sp == 6 ? vec3(0.46,0.45,0.40)      // poplar
@@ -3278,9 +3345,13 @@ uniform vec3 uSunDir, uSunCol, uSkyCol, uFogCol;
 uniform float uFogDensity, uLift;
 void main(){
   vec3 base = texture(uTex, vUv).rgb;
-  base = pow(base, vec3(2.0));                 // the atlas is sRGB; light in linear-ish
+  // The rest of the world is lit in display space (vertex colours as they
+  // are). Squaring the atlas "to linear" without converting back made every
+  // car a third darker than the buildings round it; a mild curve keeps the
+  // paint's contrast without that.
+  base = pow(base, vec3(1.15)) * 1.08;
   vec3 n = normalize(vN);
-  float lam = max(dot(n, uSunDir), 0.0);
+  float lam = max(dot(n, uSunDir) * 0.85 + 0.15, 0.0);    // a little wrap: the shaded side is not black
   vec3 col = base * (uSunCol * lam * 0.9 + uSkyCol * (0.55 + uLift * 0.38) + 0.06 + uLift * 0.085);
   float fg = 1.0 - exp(-vDist * uFogDensity);
   fc = vec4(mix(col, uFogCol, clamp(fg, 0.0, 1.0)), 1.0);
@@ -5755,6 +5826,51 @@ function buildCityExtras(x, tx, demAt, waterAt, railDistAt) {
         // south edge low (y is north), north edge raised
         quad([xx, g + 0.6, y], [xx + 3.0, g + 0.6, y], [xx + 3.0, g + 1.75, y + 2.4], [xx, g + 1.75, y + 2.4], SOLAR);
       }
+  }
+  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+}
+
+// Park furniture from the BP Fatár cadastre (tools/bake_trees.py): benches,
+// bins, statues, drinking fountains, as small boxes. The cadastre gives only
+// a point, so a bench's facing is a guess from its position (stable per spot).
+// list: [x, y, kind] in this line's frame; 0 bench, 1 bin, 2 statue, 3 fountain.
+function buildParkThings(list, demAt) {
+  const V = [], C = [];
+  const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
+  const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
+  // an upright box round (x, y) turned by ang, half-sizes hx (along) and hz (across)
+  const box = (x, y, g, ang, hx, hz, y0, y1, col, top) => {
+    const c = Math.cos(ang), s = Math.sin(ang);
+    const P = (u, v, h) => [x + c * u - s * v, g + h, y + s * u + c * v];
+    const k = [[-hx, -hz], [hx, -hz], [hx, hz], [-hx, hz]];
+    for (let i = 0; i < 4; i++) {
+      const [u0, v0] = k[i], [u1, v1] = k[(i + 1) % 4];
+      quad(P(u0, v0, y0), P(u1, v1, y0), P(u1, v1, y1), P(u0, v0, y1), col);
+    }
+    quad(P(-hx, -hz, y1), P(hx, -hz, y1), P(hx, hz, y1), P(-hx, hz, y1), top || col);
+  };
+  const WOOD = [0.42, 0.30, 0.19], IRON = [0.12, 0.14, 0.13], BIN = [0.16, 0.26, 0.18],
+        STONE = [0.60, 0.58, 0.54], BRONZE = [0.22, 0.34, 0.28], WATER = [0.30, 0.42, 0.52];
+  for (const [x, y, kind] of list) {
+    const g = demAt(x, y);
+    if (!isFinite(g)) continue;
+    const ang = (Math.sin(x * 12.9898 + y * 78.233) * 43758.5453 % 1) * Math.PI;
+    if (kind === 0) {                      // bench: legs, seat, back
+      box(x, y, g, ang, 0.85, 0.05, 0.0, 0.42, IRON);
+      box(x, y, g, ang, 0.9, 0.22, 0.42, 0.47, WOOD);
+      const bx = x - Math.sin(ang) * 0.2, by = y + Math.cos(ang) * 0.2;
+      box(bx, by, g, ang, 0.9, 0.03, 0.55, 0.85, WOOD);
+    } else if (kind === 1) {               // bin on a post
+      box(x, y, g, ang, 0.04, 0.04, 0.0, 0.5, IRON);
+      box(x, y, g, ang, 0.22, 0.22, 0.45, 1.0, BIN, IRON);
+    } else if (kind === 2) {               // statue on a plinth
+      box(x, y, g, ang, 0.7, 0.7, 0.0, 1.6, STONE);
+      box(x, y, g, ang, 0.24, 0.18, 1.6, 2.5, BRONZE);
+      box(x, y, g, ang, 0.13, 0.13, 2.5, 2.8, BRONZE);
+    } else {                               // drinking fountain
+      box(x, y, g, ang, 0.2, 0.2, 0.0, 1.0, STONE);
+      box(x, y, g, ang, 0.32, 0.32, 0.85, 1.0, STONE, WATER);
+    }
   }
   return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
 }
@@ -11521,7 +11637,7 @@ class CityTiles {
    */
   constructor(index, near, build, free) {
     this.index = index; this.build = build; this.free = free;
-    const [mlat, mlon] = metresPerDegree((near.south + near.north) / 2);
+    const [mlat, mlon] = metresPerDegree(near.frame_lat ?? (near.south + near.north) / 2);
     this.W = near; this.mlat = mlat; this.mlon = mlon;
     this.kx = mlon / index.mlon70; this.ky = mlat / index.mlat70;
     this.loaded = new Map();       // file -> {meshes, cx, cy}
@@ -14330,6 +14446,7 @@ async function boot(assets) {
   const pTer = compile(gl, TERRAIN_VS, TERRAIN_FS);
   const pTrk = compile(gl, TRACK_VS, TRACK_FS);
   const pVeg = compile(gl, VEG_VS, VEG_FS);
+  const pTree = compile(gl, TREE_VS, VEG_FS);     // the cadastre's trees, one instance each
   const pBld = compile(gl, BLDG_VS, BLDG_FS);
   const pBrd = compile(gl, BOARD_VS, BOARD_FS);
   const pCab = compile(gl, CAB_VS, CAB_FS);
@@ -14402,6 +14519,22 @@ async function boot(assets) {
     -1, 0, 1,   1, 0, 1,   1, 1, 1,  -1, 0, 1,   1, 1, 1,  -1, 1, 1
   ]), gl.STATIC_DRAW);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+  // one tile's cadastre trees: the same X-cross corners, and 8 floats per
+  // tree (foot x, y, z, form; height, crown, seed, 0)
+  function treeVao(inst) {
+    const vao = gl.createVertexArray();
+    gl.bindVertexArray(vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+    const b = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, b);
+    gl.bufferData(gl.ARRAY_BUFFER, inst, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 32, 0);
+    gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 32, 16);
+    gl.vertexAttribDivisor(1, 1); gl.vertexAttribDivisor(2, 1);
+    gl.bindVertexArray(null);
+    return { vao, bufs: [b], n: inst.length / 8 };
+  }
 
   function trackVao(pts) {
     const m = buildTrack(route, pts);
@@ -14580,7 +14713,7 @@ async function boot(assets) {
   // Budapest's city box in this line's frame (east, north), for the
   // vegetation: fewer garden trees in the tenement districts
   const cityBoxLine = (() => {
-    const W = assets.world.near, lat0 = (W.south + W.north) / 2, p = lat0 * Math.PI / 180;
+    const W = assets.world.near, lat0 = W.frame_lat ?? (W.south + W.north) / 2, p = lat0 * Math.PI / 180;
     const mlat = 111132.92 - 559.82 * Math.cos(2 * p) + 1.175 * Math.cos(4 * p);
     const mlon = 111412.84 * Math.cos(p) - 93.5 * Math.cos(3 * p);
     return new Float32Array([(18.93 - W.west) * mlon, (47.39 - W.south) * mlat, (19.25 - W.west) * mlon, (47.58 - W.south) * mlat]);
@@ -15217,12 +15350,34 @@ async function boot(assets) {
             routeData.places.push({ name, kind, rank: rank || 2, xy: [x, y], h: demAt(x, y) });
           }
         }
+        // the city's own trees and park planting (BP Fatár, bake_trees.py)
+        if (body.tr && body.tr.length) {
+          const tr = body.tr, inst = new Float32Array(tr.length / 3 * 8);
+          let n = 0;
+          for (let i = 0; i < tr.length; i += 3) {
+            const [x, y] = tx(tr[i] / 2, tr[i + 1] / 2);
+            const g = demAt(x, y);
+            if (!isFinite(g)) continue;
+            const code = tr[i + 2], o = n * 8;
+            inst[o] = x; inst[o + 1] = g; inst[o + 2] = -y; inst[o + 3] = code & 31;
+            inst[o + 4] = ((code >> 5) & 63) / 2; inst[o + 5] = ((code >> 11) & 63) / 2;
+            inst[o + 6] = (Math.sin(x * 3.17 + y * 7.91) * 43758.5453) % 1 * 0.5 + 0.5;
+            n++;
+          }
+          if (n) out.tr = treeVao(inst.subarray(0, n * 8));
+        }
+        if (body.pk && body.pk.length) {
+          const list = [];
+          for (let i = 0; i < body.pk.length; i += 3) { const [x, y] = tx(body.pk[i] / 2, body.pk[i + 1] / 2); list.push([x, y, body.pk[i + 2]]); }
+          const m = buildParkThings(list, demAt);
+          if (m.count) out.pk = colouredVao(m);
+        }
         if (body.portals && body.portals.length) {
           const ps = body.portals.map(a => { const [x, y] = tx(a.x, a.y); return { ...a, x, y }; });
           out.lm = colouredVao(buildLandmarks(ps, demAt, waterAt, null));
         }
         return out;
-      }, (m) => { freeVao(m.polys); freeVao(m.parts); freeVao(m.roads); freeVao(m.lm); freeVao(m.x); freeVao(m.st);
+      }, (m) => { freeVao(m.polys); freeVao(m.parts); freeVao(m.roads); freeVao(m.lm); freeVao(m.x); freeVao(m.st); freeVao(m.tr); freeVao(m.pk);
                   if (m.owner) solids.removeOwner(m.owner); });
       if (state.cityR) city.R = state.cityR;
       window.__setCityR = (r) => { city.R = r; };
@@ -17246,7 +17401,7 @@ async function boot(assets) {
           gl.drawArrays(gl.TRIANGLES, 0, lmMesh.count);
         }
         if (city) city.each(m => {
-          for (const k of ["polys", "parts", "lm", "x", "st"]) if (m[k] && m[k].count) {
+          for (const k of ["polys", "parts", "lm", "x", "st", "pk"]) if (m[k] && m[k].count) {
             gl.bindVertexArray(m[k].vao); gl.drawArrays(gl.TRIANGLES, 0, m[k].count);
           }
         });
@@ -17348,6 +17503,30 @@ async function boot(assets) {
         gl.uniform1i(pVeg.u.uSide, side);
         gl.uniform1f(pVeg.u.uMaxDist, maxd);
         gl.drawArraysInstanced(gl.TRIANGLES, 0, 12, side * side);
+      }
+      // Budapest's own trees, from the cadastre, per loaded city tile
+      if (city) {
+        gl.useProgram(pTree.p);
+        const U = pTree.u;
+        gl.uniformMatrix4fv(U.uVP, false, vp);
+        gl.uniform1f(U.uClipBelow, refl);
+        gl.uniform2f(U.uWaterAB, WA + (state.danube || 0), WB);
+        gl.uniform3fv(U.uEye, camEye);
+        gl.uniform3fv(U.uSunDir, sunDir);
+        gl.uniform3fv(U.uSunCol, pal.sun);
+        gl.uniform3fv(U.uSkyCol, pal.zenith);
+        gl.uniform3fv(U.uFogCol, pal.horizon);
+        gl.uniform1f(U.uFogDensity, pal.fog);
+        gl.uniform4fv(U.uSeason, season4);
+        gl.uniform1f(U.uSnow, snowCover);
+        gl.uniform1f(U.uLift, lift);
+        gl.uniform4fv(U.uCloudDeck, decks.a);
+        gl.uniform4fv(U.uCloudShape, decks.aShape);
+        gl.uniform4fv(U.uCloudWind, decks.wind);
+        gl.uniform1f(U.uCloudT, state.wxT);
+        gl.uniform1f(U.uCloudShadow, cloudShadow);
+        gl.uniform1f(U.uMaxDist, (state.cityR || 3200) > 2000 ? 2400 : 1300);
+        city.each(m => { if (m.tr) { gl.bindVertexArray(m.tr.vao); gl.drawArraysInstanced(gl.TRIANGLES, 0, 12, m.tr.n); } });
       }
       }
 

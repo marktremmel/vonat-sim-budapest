@@ -379,6 +379,16 @@ mistake each one represents. Check these before believing anything.
     level from `vWorld.z` before setting `vWorld`, so the flood rule used
     the level at the frame's south edge everywhere (about 5 m low at Szob).
     It now uses the vertex's own north.
+    **Its side effect (fixed the same day):** with the level now right, the
+    flooded ground sat exactly on the flood plane's level, and the two
+    z-fought in a triangle chequerboard across the raised Danube. Under a
+    flood (`uDanube > 0.25`) the snapped ground now sinks 1.5 m below the plane.
+14. **A window's middle latitude is part of the frame.** The bake computed
+    metres per degree of longitude from the region's middle latitude. Growing
+    line 70's near window north (for the kisvasút) moved that middle, and the
+    east edge would have stretched by about 7 m.
+    `world.json near.frame_lat` pins it now. Every tool and the game read
+    `frame_lat` first. Never grow a window without it.
 
 ## Twelfth pass — the wire, the platforms, and Nyugati
 - **The overhead line.** A 25 kV railway with no catenary anywhere on it now

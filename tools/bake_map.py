@@ -9,7 +9,7 @@ LINE = sys.argv[1] if len(sys.argv) > 1 else "line70"
 SUFFIX = "" if LINE == "line70" else f"_{LINE}"
 W = json.load(open(f"web/data/world{SUFFIX}.json", encoding="utf-8"))
 NEAR = W["near"]
-MLAT, MLON = frame((NEAR["south"] + NEAR["north"]) / 2)
+MLAT, MLON = frame(NEAR.get("frame_lat", (NEAR["south"] + NEAR["north"]) / 2))
 SCALE = 2                       # cover pixels per map pixel
 
 PALETTE = {

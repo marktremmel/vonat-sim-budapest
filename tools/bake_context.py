@@ -33,7 +33,7 @@ EXCLUDE_CITY = (not CITY and os.path.exists("web/data/city/index.json")
                 and os.environ.get("NO_CITY") != "1")
 SUFFIX = "" if LINE == "line70" else f"_{LINE}"
 W = json.load(open(f"web/data/world{SUFFIX}.json", encoding="utf-8"))["near"]
-MLAT, MLON = frame((W["south"] + W["north"]) / 2)
+MLAT, MLON = frame(W.get("frame_lat", (W["south"] + W["north"]) / 2))
 BUILD_R, ROAD_R = 2400.0, 600.0   # wide enough for Margitsziget
 # Line 70 takes the city to 5.4 km at the Budapest end; that radius around
 # line 2 would take in most of Buda and Pest, so other lines stop at 2 km.
@@ -44,7 +44,7 @@ if LINE != "line70":
 CITY_ROAD_R = 4500.0 if LINE == "line70" else 1200.0
 # line 70's frame, for the landmark anchors typed in it
 W70 = json.load(open("web/data/world.json", encoding="utf-8"))["near"]
-M70LAT, M70LON = frame((W70["south"] + W70["north"]) / 2)
+M70LAT, M70LON = frame(W70.get("frame_lat", (W70["south"] + W70["north"]) / 2))
 def from70(x, y):
     lat, lon = y / M70LAT + W70["south"], x / M70LON + W70["west"]
     return ((lon - W["west"]) * MLON, (lat - W["south"]) * MLAT)

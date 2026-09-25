@@ -1839,3 +1839,48 @@ export function buildCityExtras(x, tx, demAt, waterAt, railDistAt) {
   }
   return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
 }
+
+// Park furniture from the BP Fatár cadastre (tools/bake_trees.py): benches,
+// bins, statues, drinking fountains, as small boxes. The cadastre gives only
+// a point, so a bench's facing is a guess from its position (stable per spot).
+// list: [x, y, kind] in this line's frame; 0 bench, 1 bin, 2 statue, 3 fountain.
+export function buildParkThings(list, demAt) {
+  const V = [], C = [];
+  const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
+  const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
+  // an upright box round (x, y) turned by ang, half-sizes hx (along) and hz (across)
+  const box = (x, y, g, ang, hx, hz, y0, y1, col, top) => {
+    const c = Math.cos(ang), s = Math.sin(ang);
+    const P = (u, v, h) => [x + c * u - s * v, g + h, y + s * u + c * v];
+    const k = [[-hx, -hz], [hx, -hz], [hx, hz], [-hx, hz]];
+    for (let i = 0; i < 4; i++) {
+      const [u0, v0] = k[i], [u1, v1] = k[(i + 1) % 4];
+      quad(P(u0, v0, y0), P(u1, v1, y0), P(u1, v1, y1), P(u0, v0, y1), col);
+    }
+    quad(P(-hx, -hz, y1), P(hx, -hz, y1), P(hx, hz, y1), P(-hx, hz, y1), top || col);
+  };
+  const WOOD = [0.42, 0.30, 0.19], IRON = [0.12, 0.14, 0.13], BIN = [0.16, 0.26, 0.18],
+        STONE = [0.60, 0.58, 0.54], BRONZE = [0.22, 0.34, 0.28], WATER = [0.30, 0.42, 0.52];
+  for (const [x, y, kind] of list) {
+    const g = demAt(x, y);
+    if (!isFinite(g)) continue;
+    const ang = (Math.sin(x * 12.9898 + y * 78.233) * 43758.5453 % 1) * Math.PI;
+    if (kind === 0) {                      // bench: legs, seat, back
+      box(x, y, g, ang, 0.85, 0.05, 0.0, 0.42, IRON);
+      box(x, y, g, ang, 0.9, 0.22, 0.42, 0.47, WOOD);
+      const bx = x - Math.sin(ang) * 0.2, by = y + Math.cos(ang) * 0.2;
+      box(bx, by, g, ang, 0.9, 0.03, 0.55, 0.85, WOOD);
+    } else if (kind === 1) {               // bin on a post
+      box(x, y, g, ang, 0.04, 0.04, 0.0, 0.5, IRON);
+      box(x, y, g, ang, 0.22, 0.22, 0.45, 1.0, BIN, IRON);
+    } else if (kind === 2) {               // statue on a plinth
+      box(x, y, g, ang, 0.7, 0.7, 0.0, 1.6, STONE);
+      box(x, y, g, ang, 0.24, 0.18, 1.6, 2.5, BRONZE);
+      box(x, y, g, ang, 0.13, 0.13, 2.5, 2.8, BRONZE);
+    } else {                               // drinking fountain
+      box(x, y, g, ang, 0.2, 0.2, 0.0, 1.0, STONE);
+      box(x, y, g, ang, 0.32, 0.32, 0.85, 1.0, STONE, WATER);
+    }
+  }
+  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+}

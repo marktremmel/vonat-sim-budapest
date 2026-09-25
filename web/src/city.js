@@ -25,7 +25,7 @@ export class CityTiles {
    */
   constructor(index, near, build, free) {
     this.index = index; this.build = build; this.free = free;
-    const [mlat, mlon] = metresPerDegree((near.south + near.north) / 2);
+    const [mlat, mlon] = metresPerDegree(near.frame_lat ?? (near.south + near.north) / 2);
     this.W = near; this.mlat = mlat; this.mlon = mlon;
     this.kx = mlon / index.mlon70; this.ky = mlat / index.mlat70;
     this.loaded = new Map();       // file -> {meshes, cx, cy}

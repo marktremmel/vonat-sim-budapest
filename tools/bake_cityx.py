@@ -23,7 +23,7 @@ sys.path.insert(0, "tools")
 from geo import frame
 
 W = json.load(open("web/data/world.json", encoding="utf-8"))["near"]
-MLAT, MLON = frame((W["south"] + W["north"]) / 2)
+MLAT, MLON = frame(W.get("frame_lat", (W["south"] + W["north"]) / 2))
 S, WEST, N, E = 47.39, 18.93, 47.58, 19.25
 DLAT, DLON = 0.009, 0.0133
 

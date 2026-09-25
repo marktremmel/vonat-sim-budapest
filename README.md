@@ -173,6 +173,13 @@ city tiles loaded. Not tested.
 ## Sources and licences
 
 - Track, stations, summits, water: OpenStreetMap contributors, **ODbL**.
+- Budapest's street and park trees, shrubs, flower beds, benches, bins and
+  statues: the **BP Fatár** tree and park cadastre of FŐKERT Nonprofit Zrt. /
+  Budapesti Közművek Zrt., served by Info-Garden Kft.
+  (https://infogardenweb.hu/bpfatar/). The positions and species are theirs;
+  heights and crown sizes are per species (see "The city's trees").
+  We have not found a published licence for this data. It is used with
+  credit, and the owner should confirm it before anything more than a hobby release.
 - Elevation: AWS terrarium tiles, SRTM-derived, public domain.
 - Route length, sectional speeds, timetable: Hungarian Wikipedia, **CC BY-SA 4.0**.
 - M41 model by roliflow, Bzmot by newvoxel, both Sketchfab **CC-BY-4.0** —
@@ -188,6 +195,35 @@ city tiles loaded. Not tested.
   track centres by proximity rather than by shared nodes.
 
 Both read the shared stylesheet at `tools/atlas.css`.
+
+## The city's trees (BP Fatár)
+
+Inside the city box, the trees in the streets and parks are the real ones.
+`tools/fetch_bpfatar.py` downloads the cadastre: 310,914 trees in 574
+species, plus park objects. `tools/bake_trees.py` puts them into the city
+tiles; 304,266 fall inside the box.
+
+- **Form:** each species is mapped by its genus to one of the vegetation
+  shader's tree forms. Limes are domes, maples broad, planes and pagoda trees
+  spreading, poplars columns. Upright cultivars ('Fastigiata') are drawn as
+  columns and weeping ones as willows.
+- **Size:** the cadastre has each tree's height and crown, but only one
+  request per tree, and the server refused requests after 200 of them. So:
+  - the 39 species that were sampled draw from their real measurements;
+  - every other species gets a typical size for its genus in a Budapest
+    street (these trees are young: a median of 6–9 m), varied per tree.
+- **Park objects:** shrubs, shrub groups and hedges are bushes; flower beds,
+  roses and wild-flower meadows are a new low "flower bed" form that flowers
+  in season. Benches, bins, statues and drinking fountains are small boxes;
+  the cadastre gives only a point, so a bench's facing is a guess.
+- **Drawing:** each tile's trees are one instanced draw (`TREE_VS` in
+  shaders.js, the same look as the other trees). Small things fade first: a
+  flower bed at about 600 m, a big tree at 2.4 km. Invented park trees are
+  thinned out inside the box.
+
+Not covered:
+- Trees outside the city box (about 6,600: Rákosmente, Békásmegyer).
+- Forests, which are not municipal: they stay procedural.
 
 ## Design notes
 

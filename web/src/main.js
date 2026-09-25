@@ -18,7 +18,7 @@ import { Route, Driver, KISS, STOCKS, LEVER_MAX } from "./route.js";
 import { AirTraffic, makePlane, stepPlane, buildAircraft, PLANES } from "./aircraft.js";
 import { buildPOIs, pickPOI, stepDirector } from "./tour.js";
 import { sunPosition, sunVector, skyPalette, dateOfYear, seasonOf } from "./env.js";
-import { buildCityExtras } from "./geom.js";
+import { buildCityExtras, buildParkThings } from "./geom.js";
 import { buildTrack, buildCorridor, buildRoads, unpackBuildings, unpackRoads,
          unpackPolyBuildings, buildPolyBuildings, prepareUnderpasses, unpackRails, buildYardTracks,
          boxMesh, buildStations, boardAtlas, buildSignals, buildCrossings,
@@ -125,6 +125,7 @@ export async function boot(assets) {
   const pTer = compile(gl, S.TERRAIN_VS, S.TERRAIN_FS);
   const pTrk = compile(gl, S.TRACK_VS, S.TRACK_FS);
   const pVeg = compile(gl, S.VEG_VS, S.VEG_FS);
+  const pTree = compile(gl, S.TREE_VS, S.VEG_FS);     // the cadastre's trees, one instance each
   const pBld = compile(gl, S.BLDG_VS, S.BLDG_FS);
   const pBrd = compile(gl, S.BOARD_VS, S.BOARD_FS);
   const pCab = compile(gl, S.CAB_VS, S.CAB_FS);
@@ -197,6 +198,22 @@ export async function boot(assets) {
     -1, 0, 1,   1, 0, 1,   1, 1, 1,  -1, 0, 1,   1, 1, 1,  -1, 1, 1
   ]), gl.STATIC_DRAW);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+  // one tile's cadastre trees: the same X-cross corners, and 8 floats per
+  // tree (foot x, y, z, form; height, crown, seed, 0)
+  function treeVao(inst) {
+    const vao = gl.createVertexArray();
+    gl.bindVertexArray(vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+    const b = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, b);
+    gl.bufferData(gl.ARRAY_BUFFER, inst, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 32, 0);
+    gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 32, 16);
+    gl.vertexAttribDivisor(1, 1); gl.vertexAttribDivisor(2, 1);
+    gl.bindVertexArray(null);
+    return { vao, bufs: [b], n: inst.length / 8 };
+  }
 
   function trackVao(pts) {
     const m = buildTrack(route, pts);
@@ -375,7 +392,7 @@ export async function boot(assets) {
   // Budapest's city box in this line's frame (east, north), for the
   // vegetation: fewer garden trees in the tenement districts
   const cityBoxLine = (() => {
-    const W = assets.world.near, lat0 = (W.south + W.north) / 2, p = lat0 * Math.PI / 180;
+    const W = assets.world.near, lat0 = W.frame_lat ?? (W.south + W.north) / 2, p = lat0 * Math.PI / 180;
     const mlat = 111132.92 - 559.82 * Math.cos(2 * p) + 1.175 * Math.cos(4 * p);
     const mlon = 111412.84 * Math.cos(p) - 93.5 * Math.cos(3 * p);
     return new Float32Array([(18.93 - W.west) * mlon, (47.39 - W.south) * mlat, (19.25 - W.west) * mlon, (47.58 - W.south) * mlat]);
@@ -1012,12 +1029,34 @@ export async function boot(assets) {
             routeData.places.push({ name, kind, rank: rank || 2, xy: [x, y], h: demAt(x, y) });
           }
         }
+        // the city's own trees and park planting (BP Fatár, bake_trees.py)
+        if (body.tr && body.tr.length) {
+          const tr = body.tr, inst = new Float32Array(tr.length / 3 * 8);
+          let n = 0;
+          for (let i = 0; i < tr.length; i += 3) {
+            const [x, y] = tx(tr[i] / 2, tr[i + 1] / 2);
+            const g = demAt(x, y);
+            if (!isFinite(g)) continue;
+            const code = tr[i + 2], o = n * 8;
+            inst[o] = x; inst[o + 1] = g; inst[o + 2] = -y; inst[o + 3] = code & 31;
+            inst[o + 4] = ((code >> 5) & 63) / 2; inst[o + 5] = ((code >> 11) & 63) / 2;
+            inst[o + 6] = (Math.sin(x * 3.17 + y * 7.91) * 43758.5453) % 1 * 0.5 + 0.5;
+            n++;
+          }
+          if (n) out.tr = treeVao(inst.subarray(0, n * 8));
+        }
+        if (body.pk && body.pk.length) {
+          const list = [];
+          for (let i = 0; i < body.pk.length; i += 3) { const [x, y] = tx(body.pk[i] / 2, body.pk[i + 1] / 2); list.push([x, y, body.pk[i + 2]]); }
+          const m = buildParkThings(list, demAt);
+          if (m.count) out.pk = colouredVao(m);
+        }
         if (body.portals && body.portals.length) {
           const ps = body.portals.map(a => { const [x, y] = tx(a.x, a.y); return { ...a, x, y }; });
           out.lm = colouredVao(buildLandmarks(ps, demAt, waterAt, null));
         }
         return out;
-      }, (m) => { freeVao(m.polys); freeVao(m.parts); freeVao(m.roads); freeVao(m.lm); freeVao(m.x); freeVao(m.st);
+      }, (m) => { freeVao(m.polys); freeVao(m.parts); freeVao(m.roads); freeVao(m.lm); freeVao(m.x); freeVao(m.st); freeVao(m.tr); freeVao(m.pk);
                   if (m.owner) solids.removeOwner(m.owner); });
       if (state.cityR) city.R = state.cityR;
       window.__setCityR = (r) => { city.R = r; };
@@ -3041,7 +3080,7 @@ export async function boot(assets) {
           gl.drawArrays(gl.TRIANGLES, 0, lmMesh.count);
         }
         if (city) city.each(m => {
-          for (const k of ["polys", "parts", "lm", "x", "st"]) if (m[k] && m[k].count) {
+          for (const k of ["polys", "parts", "lm", "x", "st", "pk"]) if (m[k] && m[k].count) {
             gl.bindVertexArray(m[k].vao); gl.drawArrays(gl.TRIANGLES, 0, m[k].count);
           }
         });
@@ -3143,6 +3182,30 @@ export async function boot(assets) {
         gl.uniform1i(pVeg.u.uSide, side);
         gl.uniform1f(pVeg.u.uMaxDist, maxd);
         gl.drawArraysInstanced(gl.TRIANGLES, 0, 12, side * side);
+      }
+      // Budapest's own trees, from the cadastre, per loaded city tile
+      if (city) {
+        gl.useProgram(pTree.p);
+        const U = pTree.u;
+        gl.uniformMatrix4fv(U.uVP, false, vp);
+        gl.uniform1f(U.uClipBelow, refl);
+        gl.uniform2f(U.uWaterAB, WA + (state.danube || 0), WB);
+        gl.uniform3fv(U.uEye, camEye);
+        gl.uniform3fv(U.uSunDir, sunDir);
+        gl.uniform3fv(U.uSunCol, pal.sun);
+        gl.uniform3fv(U.uSkyCol, pal.zenith);
+        gl.uniform3fv(U.uFogCol, pal.horizon);
+        gl.uniform1f(U.uFogDensity, pal.fog);
+        gl.uniform4fv(U.uSeason, season4);
+        gl.uniform1f(U.uSnow, snowCover);
+        gl.uniform1f(U.uLift, lift);
+        gl.uniform4fv(U.uCloudDeck, decks.a);
+        gl.uniform4fv(U.uCloudShape, decks.aShape);
+        gl.uniform4fv(U.uCloudWind, decks.wind);
+        gl.uniform1f(U.uCloudT, state.wxT);
+        gl.uniform1f(U.uCloudShadow, cloudShadow);
+        gl.uniform1f(U.uMaxDist, (state.cityR || 3200) > 2000 ? 2400 : 1300);
+        city.each(m => { if (m.tr) { gl.bindVertexArray(m.tr.vao); gl.drawArraysInstanced(gl.TRIANGLES, 0, 12, m.tr.n); } });
       }
       }
 
