@@ -83,7 +83,7 @@ note about what was actually done.
 
 ## Where this session stopped (for the next one)
 
-Everything above is built, tested (28/28) and not committed; the owner reviews first.
+Everything above is built, tested (28/28) and pushed as `c69287b`.
 
 Not done, in the owner's order of interest:
 - S21 places (Zugló, Kőbánya alsó, KÖKI, Mexikói út depot…) beyond what OSM already gives.
