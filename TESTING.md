@@ -37,6 +37,24 @@ the map are all expressed in. If it happens, rerun the whole chain:
 
 ---
 
+### The headless checks
+
+    node tools/test_sim.mjs             # under a second; exits 1 on a failure; CI runs it
+
+No browser, no WebGL: the simulation modules (`route`, `traffic`, `score`,
+`missions`, `collide`) are imported straight from `web/src` (the
+`web/src/package.json` marks them as ES modules for node). It checks braking
+distances (KISS 282 m, freight 648 m from 80 km/h on full service), a
+hand-driven stop recorded where the train stood and a missed stop 60 m past
+the mark, scoring, six simulated hours of traffic on lines 70, 2 and S21
+with no train running into another, the collision world, and that every
+mission's stops exist on its line. It does not set up single-track working,
+which `main.js` works out from the yard layer.
+
+A module that uses a name from another module without importing it works in
+the flattened build and fails here. That is how `CAR_LEN` and `CAR_H` in
+`traffic.js` were found.
+
 ## 2. The five-second checks
 
 By hand, in the running sim:
@@ -58,8 +76,13 @@ By hand, in the running sim:
 
 `window.SIM` is the handle. The useful parts:
 
-    SIM.tick(t)            step one frame by hand; the ONLY way to drive the
-                           sim in a hidden tab, where rAF never fires
+    SIM.tick(t)            step one frame by hand at timestamp t; the ONLY way
+                           to drive the sim in a hidden tab, where rAF never fires
+    SIM.step(n, ms)        n frames, ms apart (50 ms is the most one frame
+                           simulates; state.speedMul multiplies it)
+    SIM.solids             the collision world: .at(x, y, n), .topAt(x, n),
+                           .push(x, n, y, r), .count
+    SIM.railDistAt(x, n)   {d, railY, m}: distance to the line, rail height, chainage
     SIM.demAt(x, y)        ground height anywhere — when something does not
                            appear, this is the first question
     SIM.coverAt(x, y)      land cover class (9 is water, 13 park)
@@ -151,6 +174,26 @@ Two identical frames must differ by 0.00, or the instrument is measuring
 something else — a moving train, a vehicle, the clock.
 
 ---
+
+### Play a mission by script
+
+Missions and the scorecard, without a human (the preview tab is usually
+hidden, so `SIM.step`, not waiting):
+
+    document.getElementById('mMission').click();
+    document.querySelector('#missions .mc[data-id="m70-elso"]').click();
+    const d = SIM.driver, S = SIM.state; S.speedMul = 4;
+    const bot = () => { const st = d.targetStop(), dist = st ? (st.km*1000 - d.m) * SIM.route.dir : 1e9;
+      const cap = Math.min(SIM.route.limitAt(d.m)/3.6 - 1, Math.sqrt(2*0.5*Math.max(0, dist - 3)));
+      if (d.dwell > 0) return d.setLever(0);
+      if (dist < 40 && d.v < 2) d.setLever(dist > 1.5 ? (d.v < 0.8 ? 2 : -1) : -4);
+      else d.setLever(d.v < cap - 1 ? 5 : d.v > cap + 0.3 ? -5 : 0);
+      if (d.vigWarn > 0 || d.vigT < 5) d.acknowledge(); };
+    for (let i = 0; i < 6000 && !S.finished; i++) { bot(); SIM.step(1, 50); }
+    S.run.result()          // mission 1 this way: three stops within 2 m, 100%, three stars
+
+Use `d.targetStop()`, not `SIM.route.nextStop()`: the latter moves on to the
+following station 30 m before the mark.
 
 ## 4. Known-good figures
 

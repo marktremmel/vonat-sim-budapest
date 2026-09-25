@@ -758,7 +758,7 @@ export function unpackBuildings(b64, count) {
  * correct on concave shapes), and the geometry is built once at load and
  * bucketed into kilometre cells so only what is in range gets drawn.
  */
-export function unpackPolyBuildings(b64, count) {
+export function unpackPolyBuildings(b64, count, colours) {
   const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
   const dv = new DataView(raw.buffer);
   const out = [];
@@ -778,6 +778,12 @@ export function unpackPolyBuildings(b64, count) {
     const tri = [];
     for (let k = 0; k < ntri; k++) { tri.push([raw[o], raw[o+1], raw[o+2]]); o += 3; }
     out.push({ cx, cy, h, cls, roof, rh, pts, tri });
+  }
+  // OSM building:colour / roof:colour, where mapped (bake_context osm_colour)
+  for (const [i, wall, roofC] of colours || []) {
+    if (!out[i]) continue;
+    if (wall) out[i].wallCol = wall;
+    if (roofC) out[i].roofCol = roofC;
   }
   return out;
 }
@@ -858,17 +864,19 @@ export function buildPolyBuildings(polys, demAt, sheds) {
     // Castle Hill a house measured up from the foot of the slope was buried
     // by its own uphill side
     const slopeLift = Math.min(gmax - gmin, 30);
-    const wall = POLY_WALL[Math.min(B.cls, POLY_WALL.length - 1)];
+    const wall = B.wallCol || POLY_WALL[Math.min(B.cls, POLY_WALL.length - 1)];
     const shade = 0.86 + ((oi * 2654435761) % 1000) / 1000 * 0.28;
     const wc = [wall[0]*shade, wall[1]*shade, wall[2]*shade];
     const roof = (sheds && sheds.has(oi)) ? 0 : B.roof;
     const eave = g + slopeLift + Math.max(2.5, B.h - (roof && roof !== 5 ? B.rh : 0));
     const n = B.pts.length;
     const seed = ((oi * 2654435761) >>> 0) % 997 / 997;
-    info = [g, eave - g, B.cls, seed];
+    // a negative seed tells the façade shader the wall colour is OSM's own,
+    // not to be replaced by its palette
+    info = [g, eave - g, B.cls, B.wallCol ? -(seed + 0.001) : seed];
     // roofs vary: Pest is terracotta, weathered brown and grey slate
     const RT = [[0.40,0.23,0.17], [0.46,0.27,0.19], [0.33,0.24,0.20], [0.30,0.31,0.33], [0.38,0.30,0.26]];
-    const rt = RT[Math.floor(seed * 5 * 7.3) % 5];
+    const rt = B.roofCol || RT[Math.floor(seed * 5 * 7.3) % 5];
 
     for (let i = 0; i < n; i++) {
       const a = B.pts[i], b = B.pts[(i + 1) % n];
@@ -881,7 +889,7 @@ export function buildPolyBuildings(polys, demAt, sheds) {
     } else if (roof === 0) {
       for (const [i, j, k] of B.tri)
         tri([B.pts[i][0], eave, B.pts[i][1]], [B.pts[j][0], eave, B.pts[j][1]],
-            [B.pts[k][0], eave, B.pts[k][1]], POLY_ROOF_FLAT);
+            [B.pts[k][0], eave, B.pts[k][1]], B.roofCol || POLY_ROOF_FLAT);
     } else if (roof === 4) {
       // A dome, and a dome is not a cone. Rings of the footprint drawn in
       // toward the centre on a circular profile, so it bulges instead of
@@ -901,7 +909,8 @@ export function buildPolyBuildings(polys, demAt, sheds) {
         const lift = Math.sin(t * Math.PI * 0.5) * RISE;
         const ring = B.pts.map(q => [B.cx + (q[0]-B.cx)*k, B.cy + (q[1]-B.cy)*k]);
         const shade = 0.86 + t * 0.22;
-        const col = [0.52*shade, 0.58*shade, 0.56*shade];
+        const dc = B.roofCol || [0.52, 0.58, 0.56];                 // copper green, unless OSM says
+        const col = [dc[0]*shade, dc[1]*shade, dc[2]*shade];
         for (let i = 0; i < n; i++) {
           const a2 = prev[i], b2 = prev[(i + 1) % n];
           const c2 = ring[i], d2 = ring[(i + 1) % n];
@@ -912,37 +921,55 @@ export function buildPolyBuildings(polys, demAt, sheds) {
         prev = ring;
       }
 
-    } else if (roof === 3) {
-      // a trainshed: a barrel vault over the long axis of the footprint
-      let minx = 1e9, maxx = -1e9, miny = 1e9, maxy = -1e9;
-      for (const q of B.pts) { minx=Math.min(minx,q[0]); maxx=Math.max(maxx,q[0]);
-                               miny=Math.min(miny,q[1]); maxy=Math.max(maxy,q[1]); }
-      const alongX = (maxx - minx) >= (maxy - miny);
-      const halfSpan = (alongX ? (maxy - miny) : (maxx - minx)) * 0.5;
-      const rise = Math.max(4, Math.min(18, halfSpan * 0.62));
-      const SEG = 9;
-      for (let sIdx = 0; sIdx < SEG; sIdx++) {
-        const t0 = sIdx / SEG, t1 = (sIdx + 1) / SEG;
-        const a0 = Math.PI * t0, a1 = Math.PI * t1;
-        const o0 = -Math.cos(a0) * halfSpan, o1 = -Math.cos(a1) * halfSpan;
-        const y0 = eave + Math.sin(a0) * rise, y1 = eave + Math.sin(a1) * rise;
-        const mid = alongX ? (miny + maxy) * 0.5 : (minx + maxx) * 0.5;
-        const P = (o, y, e) => alongX ? [e, y, mid + o] : [mid + o, y, e];
-        // Alternating iron ribs and glazing along the length, so it reads as
-        // a shed rather than as a grey hull dropped over the tracks.
-        const e0 = alongX ? minx : miny, e1 = alongX ? maxx : maxy;
-        const BAYS = Math.max(6, Math.round((e1 - e0) / 12));
-        for (let b = 0; b < BAYS; b++) {
-          const f0 = e0 + (e1 - e0) * b / BAYS, f1 = e0 + (e1 - e0) * (b + 1) / BAYS;
-          const rib = (b % 2) === 0;
-          quad(P(o0, y0, f0), P(o1, y1, f0), P(o1, y1, f1), P(o0, y0, f1),
-               rib ? [0.30, 0.29, 0.28] : [0.42, 0.52, 0.55]);
-        }
-        // the glazed gable at each end
-        if (sIdx === 0 || sIdx === SEG - 1) {
+    } else if (roof === 3 || roof === 6) {
+      // 3: a trainshed, one barrel vault with glazing. 6: an OSM round roof
+      // on a big footprint (a tram depot, a market hall), which is a row of
+      // low vaults side by side, not one hangar (Újpesti Kocsiszín, the Határ
+      // út depot). Both along the footprint's own long axis: it was the
+      // world-axis bounding box, so a building standing at 45° grew a vault
+      // half again its size.
+      let sxx = 0, syy = 0, sxy = 0;
+      for (const q of B.pts) { const dx = q[0] - B.cx, dy = q[1] - B.cy; sxx += dx*dx; syy += dy*dy; sxy += dx*dy; }
+      const th = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+      const ax = [Math.cos(th), Math.sin(th)], ay = [-Math.sin(th), Math.cos(th)];
+      let e0 = 1e9, e1 = -1e9, c0 = 1e9, c1 = -1e9;
+      for (const q of B.pts) {
+        const dx = q[0] - B.cx, dy = q[1] - B.cy;
+        const a = dx * ax[0] + dy * ax[1], c = dx * ay[0] + dy * ay[1];
+        e0 = Math.min(e0, a); e1 = Math.max(e1, a); c0 = Math.min(c0, c); c1 = Math.max(c1, c);
+      }
+      const W = c1 - c0;
+      const NV = roof === 6 ? Math.max(1, Math.round(W / 14)) : 1;
+      const SEG = roof === 6 ? 6 : 9;
+      const roofTint = B.roofCol || [0.46, 0.47, 0.48];
+      for (let v = 0; v < NV; v++) {
+        const halfSpan = W / NV * 0.5, mid = c0 + (v + 0.5) * W / NV;
+        const rise = roof === 6 ? Math.min(4.5, halfSpan * 0.55) : Math.max(4, Math.min(18, halfSpan * 0.62));
+        const P = (o, y, e) => [B.cx + ax[0] * e + ay[0] * (mid + o), y, B.cy + ax[1] * e + ay[1] * (mid + o)];
+        for (let sIdx = 0; sIdx < SEG; sIdx++) {
+          const t0 = sIdx / SEG, t1 = (sIdx + 1) / SEG;
+          const a0 = Math.PI * t0, a1 = Math.PI * t1;
+          const o0 = -Math.cos(a0) * halfSpan, o1 = -Math.cos(a1) * halfSpan;
+          const y0 = eave + Math.sin(a0) * rise, y1 = eave + Math.sin(a1) * rise;
+          if (roof === 6) {
+            const sh = 0.9 + 0.12 * Math.sin(a0 + 0.3);
+            quad(P(o0, y0, e0), P(o1, y1, e0), P(o1, y1, e1), P(o0, y0, e1),
+                 [roofTint[0] * sh, roofTint[1] * sh, roofTint[2] * sh]);
+          } else {
+            // Alternating iron ribs and glazing along the length, so it reads
+            // as a shed rather than as a grey hull dropped over the tracks.
+            const BAYS = Math.max(6, Math.round((e1 - e0) / 12));
+            for (let b = 0; b < BAYS; b++) {
+              const f0 = e0 + (e1 - e0) * b / BAYS, f1 = e0 + (e1 - e0) * (b + 1) / BAYS;
+              const rib = (b % 2) === 0;
+              quad(P(o0, y0, f0), P(o1, y1, f0), P(o1, y1, f1), P(o0, y0, f1),
+                   rib ? [0.30, 0.29, 0.28] : [0.42, 0.52, 0.55]);
+            }
+          }
+          // the gable at each end
           for (const ee of [e0, e1])
             quad(P(o0, y0, ee), P(o1, y1, ee), P(o1, eave, ee), P(o0, eave, ee),
-                 [0.50, 0.60, 0.63]);
+                 roof === 6 ? [0.66, 0.64, 0.60] : [0.50, 0.60, 0.63]);
         }
       }
     } else {
@@ -1076,7 +1103,9 @@ export function buildYardTracks(ways, demAt, railYAt) {
             const dx = b[0]-a[0], dy = b[1]-a[1], L = Math.hypot(dx, dy) || 1;
             const ya = yOf(a), yb = yOf(b);
             const elev = ya + (yb - ya)*u + 0.15;
-            return { x, y, nx: -dy/L, ny: dx/L, fx: dx/L, fy: dy/L, elev };
+            // how far this point of the siding is from the running line
+            const off = a[3] + (b[3] - a[3]) * u;
+            return { x, y, nx: -dy/L, ny: dx/L, fx: dx/L, fy: dy/L, elev, off };
           };
 
           let distAcc = 14.0 + (rnd * 12.0);
@@ -1086,6 +1115,10 @@ export function buildYardTracks(ways, demAt, railYAt) {
             const pMid = ptAtS(distAcc + wagonLen * 0.5);
             distAcc += wagonLen + 0.6;
             if (!isFinite(pFront.elev) || !isFinite(pBack.elev)) continue;
+            // A siding picked by its middle can run in to the main line at
+            // its ends (a turnout): a wagon there stood on the running line,
+            // in the way of every train (seen before Rákosrendező).
+            if (Math.min(pFront.off, pBack.off, pMid.off) < 9) continue;
 
             const hw = 1.42;
             const yBase = pMid.elev + 0.45;
@@ -1718,6 +1751,91 @@ export function buildBufferStops(ends) {
     }
     quad(P(0.10, -1.02, 1.18), P(0.30, -1.02, 1.18),
          P(0.30, 1.02, 1.18), P(0.10, 1.02, 1.18), STEEL);
+  }
+  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+}
+
+
+/**
+ * The city's extras (tools/bake_cityx.py): every railway and tram line, the
+ * pipelines above ground, and solar farms, as one coloured mesh per tile.
+ * Stretches within 6 m of this line's own track are left out (they are our
+ * own rails, already drawn). Solar panels carry the marker colour SOLAR,
+ * which TRACK_FS turns into dark glass that catches the sun.
+ */
+export const SOLAR = [0.020, 0.030, 0.050];
+export function buildCityExtras(x, tx, demAt, waterAt, railDistAt) {
+  const V = [], C = [];
+  const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
+  const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
+  const BALLAST = [0.36, 0.33, 0.30], RAIL = [0.30, 0.29, 0.28], TRAMBED = [0.32, 0.32, 0.33];
+  const pts = (a) => { const o = []; for (let i = 0; i < a.length; i += 2) o.push(tx(a[i], a[i + 1])); return o; };
+  for (const [kind, bridge, flat] of x.rails || []) {
+    const P = pts(flat);
+    const gauge = kind === 1 ? 1.0 : 1.435, bw = kind === 2 ? 1.6 : kind === 1 ? 1.9 : 2.7;
+    const yOf = (p) => {
+      const g = demAt(p[0], p[1]);
+      if (bridge) return Math.max(g + 6, waterAt(p[1]) + 10);
+      return g + (kind === 2 ? 0.38 : 0.34);
+    };
+    for (let i = 0; i + 1 < P.length; i++) {
+      const a = P[i], b = P[i + 1];
+      const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+      if (railDistAt) { const r = railDistAt(mx, my); if (r && r.d < 6) continue; }
+      const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+      const nx = -dy / L, ny = dx / L;
+      const ya = yOf(a), yb = yOf(b);
+      if (!isFinite(ya) || !isFinite(yb)) continue;
+      const Q = (p, y, o, up) => [p[0] + nx * o, y + up, p[1] + ny * o];
+      quad(Q(a, ya, -bw, 0), Q(b, yb, -bw, 0), Q(b, yb, bw, 0), Q(a, ya, bw, 0), kind === 2 ? TRAMBED : BALLAST);
+      for (const sg of [-1, 1]) {
+        const o = sg * gauge / 2;
+        quad(Q(a, ya, o - 0.07, 0.07), Q(b, yb, o - 0.07, 0.07), Q(b, yb, o + 0.07, 0.07), Q(a, ya, o + 0.07, 0.07), RAIL);
+      }
+      if (bridge) {   // a deck edge and a pier now and then
+        for (const sg of [-1, 1])
+          quad(Q(a, ya, sg * bw, -1.2), Q(b, yb, sg * bw, -1.2), Q(b, yb, sg * bw, 0.1), Q(a, ya, sg * bw, 0.1), [0.40, 0.38, 0.36]);
+      }
+    }
+  }
+  // pipelines on their supports, 1.6 m up
+  const PIPE = [0.62, 0.62, 0.60], SUP = [0.40, 0.40, 0.41];
+  for (const flat of x.pipes || []) {
+    const P = pts(flat);
+    for (let i = 0; i + 1 < P.length; i++) {
+      const a = P[i], b = P[i + 1];
+      const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+      const nx = -dy / L * 0.3, ny = dx / L * 0.3;
+      const ga = demAt(a[0], a[1]) + 1.6, gb = demAt(b[0], b[1]) + 1.6;
+      quad([a[0] - nx, ga, a[1] - ny], [b[0] - nx, gb, b[1] - ny], [b[0] - nx, gb + 0.55, b[1] - ny], [a[0] - nx, ga + 0.55, a[1] - ny], PIPE);
+      quad([a[0] + nx, ga, a[1] + ny], [b[0] + nx, gb, b[1] + ny], [b[0] + nx, gb + 0.55, b[1] + ny], [a[0] + nx, ga + 0.55, a[1] + ny], PIPE);
+      quad([a[0] - nx, ga + 0.55, a[1] - ny], [b[0] - nx, gb + 0.55, b[1] - ny], [b[0] + nx, gb + 0.55, b[1] + ny], [a[0] + nx, ga + 0.55, a[1] + ny], PIPE);
+      for (let t = 0; t < L; t += 8) {
+        const px = a[0] + dx / L * t, py = a[1] + dy / L * t, g = demAt(px, py);
+        quad([px - 0.15, g, py], [px + 0.15, g, py], [px + 0.15, g + 1.6, py], [px - 0.15, g + 1.6, py], SUP);
+      }
+    }
+  }
+  // solar farms: rows of panels facing south, tilted 25°, 5.5 m apart
+  const inside = (poly, x, y) => {
+    let c = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++)
+      if ((poly[i][1] > y) !== (poly[j][1] > y) && x < (poly[j][0] - poly[i][0]) * (y - poly[i][1]) / (poly[j][1] - poly[i][1]) + poly[i][0]) c = !c;
+    return c;
+  };
+  for (const flat of x.solar || []) {
+    const P = pts(flat);
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    for (const p of P) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); }
+    if ((x1 - x0) * (y1 - y0) > 4e6) continue;          // no 2 km² farms in one tile
+    for (let y = y0 + 2; y < y1; y += 5.5)
+      for (let xx = x0 + 1; xx < x1; xx += 3.2) {
+        if (!inside(P, xx + 1.6, y + 1)) continue;
+        const g = demAt(xx + 1.6, y + 1);
+        if (!isFinite(g)) continue;
+        // south edge low (y is north), north edge raised
+        quad([xx, g + 0.6, y], [xx + 3.0, g + 0.6, y], [xx + 3.0, g + 1.75, y + 2.4], [xx, g + 1.75, y + 2.4], SOLAR);
+      }
   }
   return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
 }

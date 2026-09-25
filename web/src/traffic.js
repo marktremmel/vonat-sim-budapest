@@ -1,4 +1,6 @@
+import { CAR_LEN, CAR_H } from "./trains.js";
 import { demRidge } from "./geom.js";
+import { LANG } from "./i18n.js";
 
 // Everything that moves and is not you: the other services and their
 // block working, the road vehicles, and the shipping on the Danube.
@@ -7,7 +9,8 @@ import { demRidge } from "./geom.js";
 // ==================================================================
 
 export const ASPECT = { STOP: 0, CAUTION: 1, EXPECT_80: 2, CLEAR: 3, CALL_ON: 4 };
-export const ASPECT_NAME = ["Megállj", "Számíts megállj", "80", "Szabad", "Hívójelzés"];
+export const ASPECT_NAME = LANG === "en" ? ["Stop", "Expect stop", "80", "Clear", "Call-on"]
+                                         : ["Megállj", "Számíts megállj", "80", "Szabad", "Hívójelzés"];
 
 // A KISS is six cars; the other services are what actually runs this line.
 export const SERVICES = [
@@ -50,6 +53,15 @@ export class Traffic {
     this.nextId = 0;
     this.services = (timetable && timetable.services) || [];
     this.holds = new Set();       // signal chainages the dispatcher is holding
+    // The dispatcher game (main.js startDispatch). prefer[i]: the direction
+    // single-track section i goes to next (0: first come, first served);
+    // late: seconds of lateness at every departure, summed; delayed: service
+    // id -> seconds it enters late; breakdown: {m, dir, after, dur} — the
+    // first train that way past m after `after` stands there for dur seconds.
+    this.prefer = [];
+    this.late = { sum: 0, n: 0 };
+    this.delayed = new Map();
+    this.breakdown = null;
     this.cursor = 0;
     this.clock = 0;
     this.pending = [];
@@ -129,6 +141,7 @@ export class Traffic {
   setSingleTrack(sections) {
     this.single = sections || [];
     this.claim = this.single.map(() => null);
+    this.prefer = this.single.map(() => 0);
   }
   sectionAhead(t) {
     if (!this.single || !this.single.length) return -1;
@@ -149,7 +162,11 @@ export class Traffic {
     if (!this.single || !this.single.length) return;
     this.single.forEach((sec, i) => {
       const inside = this.trains.filter(t => this.inSection(t, i));
-      if (inside.length) { this.claim[i] = { dir: inside[0].dir, t: inside[0] }; return; }
+      if (inside.length) {
+        this.claim[i] = { dir: inside[0].dir, t: inside[0] };
+        if (this.prefer[i] === inside[0].dir) this.prefer[i] = 0;      // the order has been carried out
+        return;
+      }
       const c = this.claim[i];
       // a claim lapses when its train is no longer on its way in
       if (c && (!this.trains.includes(c.t) || this.sectionAhead(c.t) !== i)) this.claim[i] = null;
@@ -164,7 +181,9 @@ export class Traffic {
       }
     }
     want.sort((x, y) => x.d - y.d);
-    for (const w of want) if (!this.claim[w.i]) this.claim[w.i] = { dir: w.t.dir, t: w.t };
+    for (const w of want)
+      if (!this.claim[w.i] && (!this.prefer[w.i] || this.prefer[w.i] === w.t.dir))
+        this.claim[w.i] = { dir: w.t.dir, t: w.t };
   }
   // the exit signal at the end of the loop, if it is at danger for this train
   singleStop(t) {
@@ -195,7 +214,9 @@ export class Traffic {
     const still = [];
     for (const s of this.pending) {
       const m0 = s.enter * 1000;
-      if (seconds - s.enter_s > 1200) continue;
+      const late = this.delayed.get(s.id) || 0;
+      if (seconds < s.enter_s + late) { still.push(s); continue; }
+      if (seconds - s.enter_s - late > 1200) continue;
       if (this.trains.some(t => Math.abs(t.m - m0) < 420 ||
           (t.dir === s.dir && Math.abs(t.m - m0) < 900))) { still.push(s); continue; }
       // a service that starts inside a single-track section waits while a
@@ -246,9 +267,17 @@ export class Traffic {
         // than running ahead of its path
         const c = t.calls[t.callIdx - 1];
         if (c && seconds < c[2]) t.dwell = Math.max(t.dwell, 1);
-        if (c && t.dwell <= 0) t.late = seconds - c[2];     // late (s) leaving
+        if (c && t.dwell <= 0) {
+          t.late = seconds - c[2];                           // late (s) leaving
+          this.late.sum += Math.max(0, t.late); this.late.n++;
+        }
         continue;
       }
+      // a failed unit: stands where it failed until it is fixed
+      const bd = this.breakdown;
+      if (bd && !bd.train && t.dir === bd.dir && seconds > bd.after
+          && (t.m - bd.m) * t.dir >= 0 && (t.m - bd.m) * t.dir < 80) { bd.train = t; t.failT = bd.dur; }
+      if (t.failT > 0) { t.failT -= dt; t.v = 0; continue; }
       const lim = this.route.limitAt(t.m) / 3.6;
       let cap = Math.min(lim, t.stock === "FREIGHT" ? 27 : 36);
       if (t.aspect === ASPECT.STOP) {
@@ -263,8 +292,19 @@ export class Traffic {
         if (d > 0 && d < 2600)
           cap = Math.min(cap, Math.sqrt(2 * 0.6 * Math.max(0, d - 6)));
       }
-      const a = t.v < cap ? 0.8 : -1.1;
-      t.v = Math.max(0, Math.min(cap, t.v + a * dt));
+      // something on the line (the car you drive, stopped on a crossing):
+      // seen from 700 m, and then it is the emergency brake
+      let eb = false;
+      if (this.obstacleM != null) {
+        const d = (this.obstacleM - t.m) * t.dir;
+        if (d > 0 && d < 700) { cap = Math.min(cap, Math.sqrt(2 * 1.2 * Math.max(0, d - 15))); eb = true; }
+      }
+      // standing at a red (not at a platform, not broken down): what the
+      // dispatcher game scores
+      if (t.v < 0.3 && cap < 0.5) this.late.wait = (this.late.wait || 0) + dt;
+      const a = t.v < cap ? 0.8 : eb ? -1.3 : -1.1;
+      t.v = Math.max(0, t.v + a * dt);
+      if (!eb || a > 0) t.v = Math.min(cap, t.v);
       t.m += t.dir * t.v * dt;
       if (next) {
         const d = (next[0] * 1000 - t.m) * t.dir;
@@ -462,12 +502,14 @@ export class RoadTraffic {
   turnAtEnd(v, atEnd) {
     const w = this.ways[v.wi];
     const opts = w.links[atEnd ? 1 : 0];
-    const CW = [8, 7, 5, 3.5, 1.4, 0.35, 0.1];
+    // (the next piece of the same big road is by far the likeliest: a car
+    // on Váci út stays on Váci út, it does not dive into a car park)
+    const CW = [10, 9, 6, 3, 0.9, 0.08, 0.02];
     const choices = [];
     for (const [wj, sAt] of opts) {
       const u = this.ways[wj];
       if (u.cls > v.type.cls) continue;            // a bus does not take a farm track
-      const base = CW[u.cls] || 0.2;
+      const base = (CW[u.cls] || 0.02) * (u.cls === w.cls ? 2.5 : 1);
       if (sAt < u.len - 3) choices.push({ wj, s: sAt, dir: 1, w: base });
       if (sAt > 3 && !u.oneway) choices.push({ wj, s: sAt, dir: -1, w: base });
     }
@@ -519,12 +561,22 @@ export class RoadTraffic {
     // 4 unclassified/residential · 5 service. A village has forty residential
     // ways and two primaries, so a gentle weighting still leaves the main
     // road empty and every back lane busy; it has to be steep.
-    const CLS_W = [70, 60, 34, 16, 1.6, 0.30, 0];
-    let wTotal = 0;
+    //
+    // It is vehicles per kilometre of road, not per way: in the city a
+    // boulevard is a string of short ways and there are thousands of side
+    // streets and service lanes, so even a steep per-way weight left most
+    // cars on the back streets and car-park aisles while Váci út stood
+    // empty. The weight is now the length of road near you times how many
+    // vehicles a kilometre of that class carries.
+    const PER_KM = [44, 34, 20, 9, 1.0, 0.08, 0];
+    let wTotal = 0, perKm = 0;
     for (const o of near) {
       const w = this.ways[o.wi];
-      o.weight = (CLS_W[w.cls] || 0.2)
-               * (0.5 + Math.min(2.0, w.len / 700))
+      perKm += (PER_KM[w.cls] || 0.05) * Math.min(w.len, 1040) / 1000;
+      const lanes = Math.max(1, Math.min(4, w.lanes || 1));
+      o.weight = (PER_KM[w.cls] || 0.05)
+               * Math.min(w.len, 1040) / 1000
+               * (0.6 + 0.4 * lanes)
                * (w.gates.length ? 2.0 : 1)
                * (1.4 - Math.min(1.0, o.d / radius));   // nearer roads first
       wTotal += o.weight;
@@ -543,7 +595,10 @@ export class RoadTraffic {
     });
     // roads with a crossing on them are the interesting ones and there are
     // only a couple, so they get a share out of proportion to their number
-    const want = Math.min(this.cap, 90 + near.length * 5);
+    // How many: what that much road of those classes carries. (It was 90 plus
+    // five per way, which asked for hundreds more than the big roads could
+    // take, and the rest spilled into the side streets.)
+    const want = Math.min(this.cap, Math.round(40 + perKm * 3.6));
     let guard = 0;
     while (this.vehicles.length < want && guard++ < 3000) {
       const o = pickWay();
@@ -672,6 +727,16 @@ export class RoadTraffic {
           else if (ahead && v.passing && aheadGap < 30)
             cap = Math.min(cap, Math.max(0, Math.sqrt(Math.max(0, aheadGap) * 2 * 2.2)));
 
+          // the car you drive: whatever is within 2.5 m of our line ahead
+          if (this.obstacles && this.obstacles.length) {
+            const q = this.place(v);
+            for (const o of this.obstacles) {
+              const dx = o.x - q.x, dn = o.n - q.z;
+              const along = dx * q.fx + dn * q.fz, side = Math.abs(dx * q.fz - dn * q.fx);
+              if (along > 0 && along < 60 && side < 2.6)
+                cap = Math.min(cap, Math.sqrt(2 * 3.0 * Math.max(0, along - v.type.len * 0.5 - 3.5)));
+            }
+          }
           const a = v.v < cap ? 2.2 : -3.4;
           v.v = Math.max(0, Math.min(cap, v.v + a * dt));
           v.s += v.dir * v.v * dt;
@@ -716,7 +781,7 @@ export class RoadTraffic {
     // a single-lane two-way road: everyone uses the middle
     const lane = W.lanes === 1 && !W.oneway ? 0 : W.hw - (lp + 0.5) * laneW;
     const offx = -dz / L * lane * v.dir, offz = dx / L * lane * v.dir;
-    return { x: x + offx, z: z + offz, fx: dx / L * v.dir, fz: dz / L * v.dir };
+    return { x: x + offx, z: z + offz, fx: dx / L * v.dir, fz: dz / L * v.dir, i, u };
   }
 }
 
@@ -729,8 +794,13 @@ export class RoadTraffic {
  *               dead in a circle around you, which is what Mark saw. The
  *               caller passes a reach that grows with how high the camera is.
  */
-export function buildRoadTraffic(rt, camX, camZ, demAt, night, reach, surfaceAt) {
+export function buildRoadTraffic(rt, camX, camZ, demAt, night, reach, surfaceAt, models, snowy) {
   const V = [], C = [];
+  // Cars with a textured model (models/cars.json, tools/bake_models.py) are
+  // not built here: they go out as instances, one list per model, of
+  // [x, y, z, heading, length, atlas cell, 0, 0]. Only their lamps are drawn
+  // here, at night. Buses, lorries and bikes stay as they were.
+  const inst = models ? models.map(() => []) : null;
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
   const quad = (a, b, c, d, col) => {
     push(a, col); push(b, col); push(c, col);
@@ -754,6 +824,17 @@ export function buildRoadTraffic(rt, camX, camZ, demAt, night, reach, surfaceAt)
 
     // Elevation: on ground roads use demRidge + offset; on bridges ride the elevated deck
     let y = surfaceAt ? surfaceAt(q.x, q.z) : demRidge(demAt, q.x, q.z) + 0.345;
+    // The road mesh is flat between its points; the ground under the car is
+    // not. In a dip the car sat under the drawn road and vanished from above,
+    // so it rides the higher of the two: the ground, or the road's chord.
+    if (surfaceAt && q.i != null) {
+      const ys = w0.ys || (w0.ys = []);
+      const a = w0.pts[q.i - 1], b = w0.pts[q.i];
+      if (ys[q.i - 1] == null) ys[q.i - 1] = surfaceAt(a[0], a[1]);
+      if (ys[q.i] == null) ys[q.i] = surfaceAt(b[0], b[1]);
+      const chord = ys[q.i - 1] + (ys[q.i] - ys[q.i - 1]) * q.u;
+      if (isFinite(chord)) y = Math.max(y, chord);
+    }
     if (w0.bridge === 3) {
       // an underpass: the road is dug below the line (geom.js underpassDip)
       y = w0.src && w0.src.floorAt ? w0.src.floorAt(q.x, q.z)
@@ -768,6 +849,30 @@ export function buildRoadTraffic(rt, camX, camZ, demAt, night, reach, surfaceAt)
     const fx = q.fx, fz = q.fz, rx = -fz, rz = fx;
     const P = (along, across, up) => [
       q.x + fx * along + rx * across, y + up, q.z + fz * along + rz * across];
+
+    if (inst) {
+      if (v.mdl === undefined) {
+        const cand = [];
+        models.forEach((m, i) => { if (m.kinds.includes(t.kind)) cand.push(i); });
+        v.mdl = cand.length ? cand[(Math.random() * cand.length) | 0] : -1;
+        if (v.mdl >= 0) v.skinK = Math.random();
+      }
+      if (v.mdl >= 0) {
+        const m = models[v.mdl];
+        const pool = snowy && m.snow.length ? m.snow : m.skins;
+        const cell = pool[Math.min(pool.length - 1, (v.skinK * pool.length) | 0)];
+        inst[v.mdl].push(q.x, y, -q.z, Math.atan2(fx, fz), t.len, cell, 0, 0);
+        if (night > 0.05) {
+          for (const sg of [-1, 1]) {
+            quad(P(hl + 0.02, sg * hw * 0.62 - 0.16, 0.55), P(hl + 0.02, sg * hw * 0.62 + 0.16, 0.55),
+                 P(hl + 0.02, sg * hw * 0.62 + 0.16, 0.75), P(hl + 0.02, sg * hw * 0.62 - 0.16, 0.75), HEAD);
+            quad(P(-hl - 0.02, sg * hw * 0.62 + 0.14, 0.62), P(-hl - 0.02, sg * hw * 0.62 - 0.14, 0.62),
+                 P(-hl - 0.02, sg * hw * 0.62 - 0.14, 0.78), P(-hl - 0.02, sg * hw * 0.62 + 0.14, 0.78), TAIL);
+          }
+        }
+        continue;
+      }
+    }
 
     if (t.kind === "bike") {
       quad(P(-hl, 0, 0.25), P(hl, 0, 0.25), P(hl, 0, 1.05), P(-hl, 0, 1.05), TYRE);
@@ -1000,7 +1105,7 @@ export function buildRoadTraffic(rt, camX, camZ, demAt, night, reach, surfaceAt)
            v.v < 1.0 ? [TAIL[0] * 1.7, TAIL[1], TAIL[2]] : TAIL);
     }
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3, inst };
 }
 
 // ----------------------------------------------------------- river traffic

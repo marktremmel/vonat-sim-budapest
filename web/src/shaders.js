@@ -295,6 +295,9 @@ void main(){
 // uSL (world positions) each frame; each throws a warm pool about 30 m
 // across. uSLon is the darkness, so the pools fade in with dusk.
 export const FACADE_GLSL = `
+// the photographed panel façades (tools/bake_facades.py → data/facades.webp):
+// five tiles side by side, each a whole number of bays and storeys
+uniform sampler2D uFacTex;
 // Façades, shared by the polygon buildings (TRACK_FS) and the boxes (BLDG_FS).
 // The owner's note: "not every building is a tower building with tower
 // windows" — a shed has none, a small house has a few small ones, an office
@@ -305,6 +308,7 @@ export const FACADE_GLSL = `
 //   5 church · 6 glass office · 7 retail box · 8 blank shed / warehouse
 //   9 civic / station · 10 modern flats
 int facadeKind(int cls, float H, float seed) {
+  seed = abs(seed);
   if (cls == 13) return 11;                          // a ruin: bare stone
   if (cls == 14) return 12;                          // an arena
   if (cls == 1) return 5;
@@ -324,16 +328,26 @@ int facadeKind(int cls, float H, float seed) {
 // own ground, H the wall height.
 vec3 facade(inout vec3 base, float u, float relH, float H, int kind, float seed,
             float detail, float nightFac, vec3 sky) {
+  // a negative seed: the wall colour is OSM's building:colour, keep it
+  bool own = seed < 0.0;
+  seed = abs(seed);
+  vec3 ownCol = base;
   float glass = 0.0, mullion = 0.0, litShare = 0.4;
   float storeyH = 3.2, bayW = 4.2, groundH = 3.2;
   vec3 warm = vec3(1.95, 1.45, 0.75), cool = vec3(1.45, 1.58, 1.75);
   vec3 bulb = warm;
   bool topZone = relH > H - 1.0;
+  // four ways of doing each house and each tenement, picked by the seed
+  int variant = int(fract(seed * 4.713) * 4.0);
   if (kind == 2 || kind == 1) {
-    vec3 PAL[7] = vec3[7](vec3(0.80,0.70,0.50), vec3(0.86,0.82,0.70), vec3(0.88,0.80,0.56),
+    // the old palette (ochres, greys) and the lighter one the owner asked
+    // for: lemon, salmon, mint, sky, lilac, white, terracotta
+    vec3 PAL[14] = vec3[14](vec3(0.80,0.70,0.50), vec3(0.86,0.82,0.70), vec3(0.88,0.80,0.56),
                           vec3(0.70,0.69,0.66), vec3(0.84,0.66,0.56), vec3(0.70,0.74,0.62),
-                          vec3(0.78,0.74,0.66));
-    base = PAL[int(seed * 7.0) % 7] * (0.90 + fract(seed * 13.7) * 0.16);
+                          vec3(0.78,0.74,0.66), vec3(0.94,0.86,0.56), vec3(0.93,0.71,0.60),
+                          vec3(0.74,0.86,0.72), vec3(0.72,0.80,0.88), vec3(0.83,0.77,0.86),
+                          vec3(0.92,0.91,0.87), vec3(0.80,0.56,0.43));
+    base = own ? ownCol : PAL[int(seed * 14.0) % 14] * (0.92 + fract(seed * 13.7) * 0.14);
   }
   if (kind == 2) { groundH = 4.4; storeyH = 3.6; bayW = 2.9; }
   if (kind == 1) { groundH = 0.0; storeyH = 2.9; bayW = 3.6 + fract(seed * 5.3) * 2.4; }
@@ -349,7 +363,36 @@ vec3 facade(inout vec3 base, float u, float relH, float H, int kind, float seed,
   float fx = fract(u / bayW);
   float bay = floor(u / bayW);
 
-  if (kind == 2) {
+  if (kind == 2 && variant == 1 && up >= 0.0 && !topZone) {
+    // a tenement with balconies: an iron railing in front of every other
+    // bay on alternate floors, French windows behind them
+    bool balc = mod(bay + storey, 2.0) < 1.0 && storey >= 0.0;
+    float pane = step(0.26, fx) * step(fx, 0.74) * step(balc ? 0.06 : 0.18, fy) * step(fy, 0.80);
+    float slab = balc ? step(0.08, fx) * step(fx, 0.92) * step(fy, 0.07) : 0.0;
+    float rail = balc ? step(0.08, fx) * step(fx, 0.92) * step(0.07, fy) * step(fy, 0.36) * step(0.5, fract(u * 3.0)) : 0.0;
+    mullion = step(0.48, fx) * step(fx, 0.52);
+    base = mix(base, vec3(0.10, 0.12, 0.16), pane * (1.0 - mullion) * detail * 0.85);
+    base = mix(base, base * 0.7, slab * detail);
+    base = mix(base, vec3(0.16, 0.16, 0.17), rail * detail * 0.9);
+    glass = pane; litShare = 0.45;
+  } else if (kind == 2 && variant == 2 && up >= 0.0 && !topZone) {
+    // pilasters between the bays and a cornice at every floor (eclectic)
+    float pil = step(fx, 0.12) + step(0.88, fx);
+    float cor = step(0.90, fy);
+    float pane = step(0.30, fx) * step(fx, 0.70) * step(0.20, fy) * step(fy, 0.76);
+    float pedi = step(0.26, fx) * step(fx, 0.74) * step(0.78, fy) * step(fy, 0.86) * step(abs(fx - 0.5) * 2.0, (0.86 - fy) * 12.0);
+    base = mix(base, base * 1.14 + 0.05, clamp(pil + cor + pedi, 0.0, 1.0) * detail * 0.75);
+    base = mix(base, vec3(0.10, 0.12, 0.16), pane * detail * 0.85);
+    glass = pane; litShare = 0.45;
+  } else if (kind == 2 && variant == 3 && up >= 0.0 && !topZone) {
+    // renovated: plain render, bigger plastic windows, no surrounds
+    float pane = step(0.18, fx) * step(fx, 0.82) * step(0.22, fy) * step(fy, 0.80);
+    float frame = step(0.16, fx) * step(fx, 0.84) * step(0.20, fy) * step(fy, 0.82) - pane;
+    mullion = step(0.49, fx) * step(fx, 0.51);
+    base = mix(base, vec3(0.94, 0.94, 0.93), frame * detail * 0.8);
+    base = mix(base, vec3(0.12, 0.15, 0.19), pane * (1.0 - mullion) * detail * 0.85);
+    glass = pane; litShare = 0.5;
+  } else if (kind == 2) {
     if (up < 0.0) {
       float plinth = step(relH, 0.6);
       float shop = step(0.08, fx) * step(fx, 0.92) * step(0.14, fy) * step(fy, 0.86);
@@ -370,6 +413,60 @@ vec3 facade(inout vec3 base, float u, float relH, float H, int kind, float seed,
       base = mix(base, vec3(0.10, 0.12, 0.16), pane * (1.0 - mullion) * detail * 0.85);
       glass = pane; litShare = 0.45;
     }
+  } else if (kind == 1 && H < 5.6) {
+    // A village house (Verőce, Göd, MÁV-telep): one storey, white or pale
+    // plaster, a dark plinth, one or two windows a side with a white frame,
+    // shutters on some, and a door now and then
+    if (!own) {
+      vec3 VIL[8] = vec3[8](vec3(0.94,0.93,0.89), vec3(0.95,0.91,0.80), vec3(0.93,0.86,0.66), vec3(0.92,0.92,0.90),
+                            vec3(0.88,0.80,0.70), vec3(0.93,0.80,0.72), vec3(0.84,0.88,0.80), vec3(0.95,0.89,0.74));
+      base = VIL[int(fract(seed * 6.17) * 8.0)] * (0.94 + fract(seed * 13.7) * 0.08);
+    }
+    float bw = 5.4 + fract(seed * 3.9) * 2.4;
+    float wx = fract(u / bw + seed), wb = floor(u / bw + seed);
+    float h1 = fract(sin(wb * 12.9898 + seed * 78.2) * 43758.5);
+    base = mix(base, vec3(0.34, 0.31, 0.29), step(relH, 0.45) * detail);            // plinth
+    bool door = h1 < 0.16;
+    float ww = door ? 0.09 : 0.11;                                                 // share of the bay
+    float x0 = 0.5 - ww, x1 = 0.5 + ww;
+    float y0 = door ? 0.0 : 0.95, y1 = door ? 2.1 : 2.25;
+    float inWin = step(x0, wx) * step(wx, x1) * step(y0, relH) * step(relH, y1);
+    float frame = step(x0 - 0.018, wx) * step(wx, x1 + 0.018) * step(y0 - 0.08, relH) * step(relH, y1 + 0.08) - inWin;
+    float blank = step(0.86, h1);                                                  // some bays have nothing
+    if (!topZone && blank < 0.5) {
+      if (door) {
+        base = mix(base, vec3(0.36, 0.24, 0.16), inWin * detail * 0.95);
+      } else {
+        float shutters = step(0.5, fract(seed * 29.3)) * (step(x0 - 0.10, wx) * step(wx, x0 - 0.02) + step(x1 + 0.02, wx) * step(wx, x1 + 0.10))
+                         * step(y0, relH) * step(relH, y1);
+        vec3 shutCol = fract(seed * 23.1) < 0.5 ? vec3(0.40, 0.27, 0.17) : vec3(0.24, 0.42, 0.30);
+        mullion = step(0.494, wx) * step(wx, 0.506);
+        base = mix(base, vec3(0.95, 0.95, 0.93), frame * detail * 0.85);
+        base = mix(base, shutCol, shutters * detail * 0.9);
+        base = mix(base, vec3(0.13, 0.15, 0.19), inWin * (1.0 - mullion) * detail * 0.85);
+        glass = inWin; litShare = 0.35;
+      }
+    }
+  } else if (kind == 1 && variant != 0) {
+    // other houses: the Kádár-era cube house with paired windows and wooden
+    // shutters (1), brick below and render above (2), a wide window and a
+    // porch light (3)
+    float has = step(0.25, fract(sin(bay * 17.13 + seed * 41.7) * 43758.5));
+    if (variant == 2) base = mix(base, vec3(0.62, 0.36, 0.27), step(relH, min(1.1, H * 0.35)) * detail);
+    else base = mix(base, base * 0.72, step(relH, 0.5) * detail);            // plinth
+    if (!topZone && relH > 0.8 && has > 0.5) {
+      float w0 = variant == 3 ? 0.18 : 0.30, w1 = 1.0 - w0;
+      float pane = step(w0, fx) * step(fx, w1) * step(0.32, fy) * step(fy, 0.76);
+      float trim = step(w0 - 0.03, fx) * step(fx, w1 + 0.03) * step(0.29, fy) * step(fy, 0.79);
+      float shut = variant == 1 ? (step(w0 - 0.15, fx) * step(fx, w0 - 0.02) + step(w1 + 0.02, fx) * step(fx, w1 + 0.15))
+                                  * step(0.32, fy) * step(fy, 0.76) : 0.0;
+      vec3 shutCol = fract(seed * 23.1) < 0.5 ? vec3(0.36, 0.24, 0.16) : vec3(0.22, 0.40, 0.28);
+      mullion = step(0.485, fx) * step(fx, 0.515);
+      base = mix(base, vec3(0.94, 0.93, 0.90), trim * detail * 0.7);
+      base = mix(base, shutCol, shut * detail * 0.9);
+      base = mix(base, vec3(0.12, 0.14, 0.18), pane * (1.0 - mullion) * detail * 0.82);
+      glass = pane; litShare = 0.32;
+    }
   } else if (kind == 1) {
     // a house: one or two small windows a floor, not a grid; some bays blank
     float has = step(0.30, fract(sin(bay * 12.9898 + seed * 78.2) * 43758.5));
@@ -381,6 +478,23 @@ vec3 facade(inout vec3 base, float u, float relH, float H, int kind, float seed,
       base = mix(base, vec3(0.12, 0.14, 0.18), pane * (1.0 - mullion) * detail * 0.8);
       glass = pane; litShare = 0.30;
     }
+  } else if (kind == 3 && fract(seed * 3.31) < 0.75) {
+    // a photographed panel façade, repeated along the wall a tile at a time
+    // and painted this building's pastel (renovated blocks are: yellow,
+    // peach, mint, blue — the lighter Budapest, not the grey one)
+    int t = int(fract(seed * 7.77) * 5.0);
+    vec2 tl = t < 2 ? vec2(4.0, 3.0) : t == 2 ? vec2(5.0, 4.0) : t == 3 ? vec2(6.0, 6.0) : vec2(8.0, 7.0);
+    vec2 q = vec2(u / (tl.x * 3.3), relH / (tl.y * 2.85));
+    vec2 uv = vec2((float(t) + fract(q.x)) / 5.0, 1.0 - fract(q.y));
+    vec2 k = vec2(0.2, -1.0);
+    vec3 tx = textureGrad(uFacTex, uv, dFdx(q) * k, dFdy(q) * k).rgb;
+    float lum = dot(tx, vec3(0.299, 0.587, 0.114));
+    vec3 PAST[7] = vec3[7](vec3(0.96,0.86,0.58), vec3(0.96,0.76,0.62), vec3(0.74,0.89,0.76),
+                           vec3(0.72,0.83,0.94), vec3(0.85,0.79,0.91), vec3(0.94,0.92,0.86), vec3(0.96,0.82,0.70));
+    vec3 tint = own ? ownCol * 1.15 : PAST[int(fract(seed * 5.13) * 7.0)];
+    base = mix(tx, clamp(lum * tint * 1.5, 0.0, 1.0), t < 2 ? 0.35 : 0.72);
+    base *= mix(1.0, 0.8, step(relH, 0.6));                                // plinth
+    glass = smoothstep(0.36, 0.2, lum) * step(0.8, relH); litShare = 0.5;
   } else if (kind == 3) {
     int bt = int(mod(bay, 4.0));
     if (bt >= 2 && up > 0.0) {
@@ -515,7 +629,7 @@ vec3 streetLight(vec3 wpos, vec3 base, vec3 nrm) {
 // plane, so a raised Danube looks exactly like the Danube and not like a
 // separate grey sheet. Needs uReflect, uViewport, uTime, uEye, uSunDir, uSunCol.
 export const WATER_GLSL = `
-vec3 waterSurface(vec3 vWorld, float vDist, vec3 tint) {
+vec3 waterSurface(vec3 vWorld, float vDist, vec3 tint, bool mirror) {
   vec3 col;
     vec2 q = vWorld.xz;
     float w1 = sin(q.x * 0.055 + uTime * 0.9) * sin(q.y * 0.041 - uTime * 0.7);
@@ -559,6 +673,9 @@ vec3 waterSurface(vec3 vWorld, float vDist, vec3 tint) {
       wsum += wgt;
     }
     refl /= wsum;
+    // water not at the river's level (a lake) cannot use the river's mirror
+    // image: it reflects the sky instead
+    if (!mirror) refl = mix(uFogCol, uSkyCol * 1.1, 0.35 + 0.3 * (1.0 - fres));
     refl *= vec3(0.86, 0.95, 0.92);          // the Danube is not a mirror
 
     // a real river never goes fully reflective, so cap it and keep the body
@@ -628,12 +745,25 @@ void main(){
   // blue craters through the city. Snap to the river only where the ground
   // already agrees it is about river level; leave every other water body on
   // the surface the DEM gives it, which is flat there anyway.
-  float wl = uWaterAB.x + uWaterAB.y * (-vWorld.z);
+  float wl = uWaterAB.x + uWaterAB.y * (-w.y);     // w.y is world z: north = -w.y
   if (c > 8.5 && c < 9.5) {
     // mapped water: the river, or a lake at its own level
     // (the tolerance grows with a drought, or a low river leaves its own
     // surface standing above the mirror plane and the reflection breaks)
     if (abs(h - wl) < 6.0 + max(0.0, -uDanube)) h = wl;
+    else {
+      // A lake at its own level (Dunakeszi tó): the surface model is lumpy
+      // over water, so take the lowest ground round about as the lake's
+      // level — the water was half at the river plane and half a tilted
+      // blue carpet on the bumps
+      float m = h;
+      for (int i = 0; i < 8; i++) {
+        float a = float(i) * 0.7854;
+        m = min(m, sampleH(w + vec2(cos(a), sin(a)) * 60.0));
+        m = min(m, sampleH(w + vec2(cos(a), sin(a)) * 25.0));
+      }
+      h = m;
+    }
   } else if (h < wl && wl - h < 14.0) {
     // Ground below the water surface IS under water. Without this the river
     // could not spread: raising the level only lifted the plane inside the
@@ -830,8 +960,20 @@ void main(){
     float h1 = fract(sin(dot(plot, vec2(127.1, 311.7))) * 43758.5453);
     float h2 = fract(h1 * 13.73);
     float city = smoothstep(16000.0, 11000.0, -vWorld.z);   // Budapest proper
-    vec3 lawn = vec3(0.33, 0.44, 0.22), veg = vec3(0.42, 0.40, 0.25),
-         tree = vec3(0.22, 0.33, 0.16), paved = vec3(0.47, 0.45, 0.42);
+    // ... and the gardens have seasons too (the owner: "trees change, but the
+    // tiles do not"): fresh lawn in spring, dry in high summer, fallen leaves
+    // in autumn, dormant grey-brown in winter; the vegetable plots are dug
+    // earth from autumn to spring and green in summer; the fruit trees bare.
+    float leafS = uSeason.x, autS = uSeason.y, freshS = uSeason.z;
+    float dry = clamp((uSeason.w - 0.05) * 6.0, 0.0, 1.0) * (1.0 - clamp((uSeason.w - 0.3) * 6.0, 0.0, 1.0)) * leafS;
+    vec3 lawn = mix(vec3(0.40, 0.40, 0.30), vec3(0.33, 0.44, 0.22), leafS);
+    lawn = mix(lawn, vec3(0.37, 0.53, 0.22), freshS * 0.8);
+    lawn = mix(lawn, vec3(0.47, 0.46, 0.26), dry * 0.7);
+    lawn = mix(lawn, vec3(0.45, 0.38, 0.20), autS * 0.45);
+    vec3 veg = mix(vec3(0.33, 0.27, 0.21), vec3(0.35, 0.45, 0.22), clamp(leafS * 1.4 - 0.3 - autS, 0.0, 1.0));
+    vec3 tree = mix(vec3(0.34, 0.31, 0.27), vec3(0.22, 0.33, 0.16), leafS);
+    tree = mix(tree, vec3(0.50, 0.36, 0.14), autS * 0.8);
+    vec3 paved = vec3(0.47, 0.45, 0.42);
     vec3 plotCol = h1 < 0.45 ? lawn : h1 < 0.62 ? veg : h1 < 0.78 ? tree : paved;
     plotCol = mix(plotCol, paved * (0.92 + h2 * 0.12), city * 0.75);
     base = plotCol * (0.9 + h2 * 0.18);
@@ -891,6 +1033,10 @@ void main(){
   if (vCover > 2.5 && vCover < 3.5)
     base = mix(base, vec3(0.60, 0.56, 0.34),
                clamp((uSeason.w - 0.55) * 1.4, 0.0, 1.0) * 0.45);
+  // Winter: grass, scrub and rough ground go dormant — a dull straw and
+  // grey-brown, not the green of July with a blue cast
+  if (vCover < 3.5 || (vCover > 10.5 && vCover < 11.5))
+    base = mix(base, vec3(0.44, 0.41, 0.31) * (0.9 + fieldTint * 0.2), (1.0 - uSeason.x) * 0.55);
   // a park is watered and mown, so it stays green when the meadows burn off
   if (vCover > 12.5 && vCover < 13.5)
     base = mix(base, vec3(0.28, 0.44, 0.22), 0.5);
@@ -951,7 +1097,7 @@ void main(){
       vec3 gravel = mix(vec3(0.62, 0.58, 0.50), vec3(0.52, 0.48, 0.40), wetEdge);
       col = gravel * (uSunCol * max(uSunDir.y, 0.0) * 0.9 + uSkyCol * 0.5 + 0.06);
     } else {
-      col = waterSurface(vWorld, vDist, vec3(1.0));
+      col = waterSurface(vWorld, vDist, vec3(1.0), abs(vWorld.y - waterY) < 0.6);
     }
   }
   col += headlight(vWorld, base, n, uLamp, uLampDir);
@@ -1103,6 +1249,17 @@ void main(){
   if (emissive > 1.05) {
     col = vCol * 1.75;
   }
+  // Solar panels (geom.js SOLAR marker colour): dark glass that takes the sky
+  // at a glancing angle and flashes the sun at the right one — the black
+  // shine the owner sees from the train
+  if (distance(vCol, vec3(0.020, 0.030, 0.050)) < 0.004) {
+    vec3 v = normalize(uEye - vWorld);
+    float fres = pow(1.0 - clamp(dot(v, n), 0.0, 1.0), 3.0);
+    col = mix(vec3(0.014, 0.020, 0.034), mix(uSkyCol * 0.8, uFogCol, 0.3), 0.12 + fres * 0.65);
+    col += uSunCol * pow(max(dot(reflect(-uSunDir, n), v), 0.0), 90.0) * 2.6 * lam;
+    float cellLine = step(0.92, fract(vWorld.x * 0.95)) + step(0.94, fract(vWorld.y * 1.4));
+    col *= 1.0 - clamp(cellLine, 0.0, 1.0) * 0.25;
+  }
   col += glow * 1.35;
   col += headlight(vWorld, base, n, uLamp, uLampDir);
   col += streetLight(vWorld, base, n);
@@ -1121,6 +1278,8 @@ uniform vec2 uOrigin; uniform float uSpacing; uniform int uSide;
 uniform sampler2D uHeightNear, uCover;
 uniform vec2 uNearSize, uNearStep;
 uniform float uMaxDist;
+uniform float uDense;                // 1: the close forest pass (woodland only)
+uniform vec4 uCityBox;               // Budapest's box, (east, north) min and max
 uniform vec2 uWaterAB;
 uniform vec4 uSeason;                // leaf, autumn, fresh, crop
 uniform vec3 uSunDir;
@@ -1148,24 +1307,36 @@ void main(){
   int id = gl_InstanceID;
   int n = uSide;
   vec2 cell = vec2(float(id % n), float(id / n)) - float(n) * 0.5;
-  vec2 base = uOrigin + cell * uSpacing;
-  vec2 jit = vec2(hash(base), hash(base + 7.3)) - 0.5;
+  vec2 base = uOrigin + cell * uSpacing + uDense * 2.9;
+  vec2 jit = vec2(hash(base + uDense * 31.7), hash(base + 7.3)) - 0.5;
   vec2 w = base + jit * uSpacing * 0.9;
 
   vec2 nuv = vec2(w.x, -w.y) / (uNearSize * uNearStep);
   float cov = 0.0, railDist = 255.0;
   if (nuv.x > 0.0 && nuv.x < 1.0 && nuv.y > 0.0 && nuv.y < 1.0) {
-    vec3 cc = texture(uCover, vec2(nuv.x, 1.0 - nuv.y)).rgb;
+    vec4 cc4 = texture(uCover, vec2(nuv.x, 1.0 - nuv.y));
+    vec3 cc = cc4.rgb;
     cov = cc.r * 255.0;
     railDist = cc.b * 255.0;
+    // alpha 0: a cleared strip (the kisvasút's line through the forest)
+    if (cc4.a < 0.5) railDist = 0.0;
   }
 
   // nothing grows within 30 m of a running line, whatever the land cover
   // says — the cover raster is 26 m per pixel and far too blunt for this
-  bool plant = ((cov > 0.5 && cov < 2.5) || (cov > 4.5 && cov < 6.5)
+  // (and gardens: villages had no trees at all, the owner saw bare lawns
+  // where Verőce is all fruit trees and walnuts)
+  bool plant = ((cov > 0.5 && cov < 2.5) || (cov > 4.5 && cov < 7.5)
                 || (cov > 10.5 && cov < 11.5) || (cov > 12.5 && cov < 13.5))
              && railDist > 30.0;
   float r = hash(w * 0.37);
+  if (cov > 6.5 && cov < 7.5 && r > 0.40) plant = false;   // a tree in two garden cells out of five
+  // in the city a "residential" cell is mostly courtyard and street: far
+  // fewer, or they stand in the tenement blocks
+  bool inCity = w.x > uCityBox.x && w.x < uCityBox.z && -w.y > uCityBox.y && -w.y < uCityBox.w;
+  if (inCity && cov > 6.5 && cov < 7.5 && r > 0.07) plant = false;
+  // the close forest pass: woodland only, the understorey between the trees
+  if (uDense > 0.5 && !(cov > 0.5 && cov < 1.5)) plant = false;
   if (cov > 1.5 && cov < 2.5 && r > 0.45) plant = false;   // scrub is sparser
   if (cov > 4.5 && cov < 6.5 && r > 0.55) plant = false;
   if (cov > 10.5 && cov < 11.5 && r > 0.30) plant = false; // wetland, sparse
@@ -1197,7 +1368,13 @@ void main(){
   float rs = hash(w * 1.13 + 4.7);
   float rt = hash(w * 2.71 + 19.3);
   float sp;
-  if (cov > 5.5 && cov < 6.5)      sp = 11.0;                   // vineyard
+  // 12 gyümölcsfa (apple, plum, cherry)  13 dió (walnut)
+  // 14 lucfenyő/tuja (spruce, thuja)      15 nyír (birch)
+  if (cov > 6.5 && cov < 7.5)      sp = rs < 0.40 ? 12.0         // gardens
+                                      : rs < 0.58 ? 13.0
+                                      : rs < 0.76 ? 14.0
+                                      : rs < 0.88 ? 15.0 : 2.0;
+  else if (cov > 5.5 && cov < 6.5) sp = 11.0;                   // vineyard
   else if (cov > 4.5 && cov < 5.5) sp = rs < 0.30 ? 9.0 : 5.0;  // orchard
   else if (cov > 12.5)             sp = rs < 0.30 ? 1.0          // park:
                                       : rs < 0.55 ? 9.0          // planted,
@@ -1230,12 +1407,21 @@ void main(){
   else if (sp == 8.0)  tall = 13.0 + r *  8.0;  // alder
   else if (sp == 9.0)  tall = 12.0 + r *  7.0;  // sweet chestnut
   else if (sp == 10.0) tall =  2.2 + r *  3.4;  // hazel, blackthorn
+  else if (sp == 12.0) tall =  3.8 + r *  3.2;  // fruit tree
+  else if (sp == 13.0) tall = 10.0 + r *  7.0;  // walnut
+  else if (sp == 14.0) tall =  7.0 + r * 10.0;  // spruce, thuja
+  else if (sp == 15.0) tall = 11.0 + r *  8.0;  // birch
   else                 tall =  1.5 + r *  0.5;  // vine
   tall *= clamp((railDist - 30.0) / 22.0, 0.30, 1.0);
   tall *= 0.86 + rt * 0.28;                     // no two trees the same
+  if (uDense > 0.5) tall *= 0.62;               // the understorey is lower
   if (sp == 11.0) tall *= mix(0.55, 1.0, uSeason.x);
 
-  float wide = tall * (sp == 6.0 ? 0.24 + rt * 0.08
+  float wide = tall * (sp == 12.0 ? 0.95 + rt * 0.25
+                     : sp == 13.0 ? 0.72 + rt * 0.16
+                     : sp == 14.0 ? 0.34 + rt * 0.08
+                     : sp == 15.0 ? 0.36 + rt * 0.10
+                     : sp == 6.0 ? 0.24 + rt * 0.08
                      : sp == 5.0 ? 0.34 + rt * 0.10
                      : sp == 11.0 ? 1.10
                      : sp == 7.0 ? 0.78 + rt * 0.26
@@ -1269,7 +1455,7 @@ void main(){
   vec2 p = vUv - vec2(0.5, 0.0);
   float y = vUv.y;
   int sp = int(vSp + 0.5);
-  bool evergreen = (sp == 5);            // only the pines keep their needles
+  bool evergreen = (sp == 5 || sp == 14);   // pines and spruces keep their needles
 
   // crown shape per species: base width, tip width, taper, lobe size and
   // frequency, where the canopy starts, trunk width
@@ -1301,6 +1487,18 @@ void main(){
   } else if (sp == 9) {     // sweet chestnut: a wide round head, short bole
     base_ = 0.50; tip = 0.18; power = 2.70; lobeAmp = 0.060; lobeFreq = 12.0;
     canopyFrom = 0.30; trunkW = 0.090;
+  } else if (sp == 12) {    // a fruit tree: a low round head on a short trunk
+    base_ = 0.48; tip = 0.16; power = 2.20; lobeAmp = 0.060; lobeFreq = 14.0;
+    canopyFrom = 0.34; trunkW = 0.060;
+  } else if (sp == 13) {    // walnut: a big round spreading head
+    base_ = 0.50; tip = 0.18; power = 2.60; lobeAmp = 0.055; lobeFreq = 10.0;
+    canopyFrom = 0.26; trunkW = 0.075;
+  } else if (sp == 14) {    // spruce, thuja: a dense dark cone to the ground
+    base_ = 0.42; tip = 0.02; power = 0.95; lobeAmp = 0.050; lobeFreq = 34.0;
+    canopyFrom = 0.04; trunkW = 0.040;
+  } else if (sp == 15) {    // birch: slender, light, open
+    base_ = 0.30; tip = 0.08; power = 1.45; lobeAmp = 0.070; lobeFreq = 20.0;
+    canopyFrom = 0.30; trunkW = 0.034;
   } else if (sp == 10) {    // hazel and blackthorn: no trunk, bushy from the base
     base_ = 0.46; tip = 0.16; power = 1.60; lobeAmp = 0.080; lobeFreq = 19.0;
     canopyFrom = 0.02; trunkW = 0.030;
@@ -1314,7 +1512,7 @@ void main(){
   // turned down, which is what made a January wood read as a summer one.
   float leaf = evergreen ? 1.0 : mix(0.12, 1.0, uSeason.x);
   float w;
-  if (sp == 1 || sp == 3 || sp == 9 || sp == 0) {
+  if (sp == 1 || sp == 3 || sp == 9 || sp == 0 || sp == 12 || sp == 13) {
     float t = clamp((y - canopyFrom) / (1.0 - canopyFrom), 0.0, 1.0);
     w = base_ * sqrt(max(0.0, 1.0 - pow(2.0 * t - 1.0, 2.0))) + tip * 0.4;
   } else if (sp == 7) {
@@ -1364,6 +1562,10 @@ void main(){
   }
 
   vec3 leafCol = sp == 5  ? vec3(0.10,0.20,0.14)   // pine, blue-dark
+               : sp == 14 ? vec3(0.08,0.18,0.12)   // spruce, darker still
+               : sp == 15 ? vec3(0.30,0.42,0.18)   // birch, light
+               : sp == 12 ? vec3(0.24,0.36,0.16)   // fruit tree
+               : sp == 13 ? vec3(0.22,0.33,0.15)   // walnut
                : sp == 0  ? vec3(0.19,0.33,0.15)   // beech, bright green
                : sp == 4  ? vec3(0.30,0.40,0.20)   // locust, pale and yellowish
                : sp == 6  ? vec3(0.25,0.35,0.18)   // poplar
@@ -1375,12 +1577,17 @@ void main(){
                           : vec3(0.17,0.29,0.14);  // sessile oak, hornbeam, scrub
   leafCol *= 0.84 + fract(vSeed * 13.7) * 0.32;
   leafCol = mix(leafCol, vec3(0.44,0.60,0.24), uSeason.z * (evergreen ? 0.08 : 0.55));
+  // April: the fruit trees flower, white and pale pink, before the leaves
+  if (sp == 12) leafCol = mix(leafCol, fract(vSeed * 3.3) < 0.5 ? vec3(0.96,0.93,0.92) : vec3(0.95,0.78,0.84),
+                              uSeason.z * 0.85);
 
   // Autumn, and each species turns to its own colour: beech to copper,
   // hornbeam and locust to clear yellow, oak to rust and brown, poplar to
   // gold. A pine does none of it.
   float turn = clamp(uSeason.y * (0.55 + fract(vSeed * 5.9) * 0.9), 0.0, 1.0);
-  vec3 gold = sp == 0 ? vec3(0.62,0.32,0.12)
+  vec3 gold = sp == 15 ? vec3(0.86,0.72,0.20)   // birch, clear yellow
+            : sp == 12 ? vec3(0.76,0.40,0.14)   // fruit trees, orange and red
+            : sp == 0 ? vec3(0.62,0.32,0.12)
             : sp == 2 || sp == 4 ? vec3(0.78,0.62,0.16)
             : sp == 6 || sp == 7 ? vec3(0.72,0.60,0.20)
             : sp == 9 ? vec3(0.70,0.46,0.14)
@@ -1390,7 +1597,8 @@ void main(){
   vec3 dead = vec3(0.31, 0.25, 0.18);
   if (!evergreen) leafCol = mix(dead, leafCol, smoothstep(0.0, 0.45, uSeason.x));
 
-  vec3 bark = sp == 0 ? vec3(0.42,0.42,0.40)      // beech, smooth pale grey
+  vec3 bark = sp == 15 ? vec3(0.86,0.85,0.82)     // birch, white
+            : sp == 0 ? vec3(0.42,0.42,0.40)      // beech, smooth pale grey
             : sp == 6 ? vec3(0.46,0.45,0.40)      // poplar
             : sp == 5 ? vec3(0.34,0.22,0.14)      // pine, red-brown
             : sp == 4 ? vec3(0.30,0.24,0.17)      // locust, deeply furrowed
@@ -1424,8 +1632,44 @@ void main(){ vUv = aPos*0.5+0.5; gl_Position = vec4(aPos,0.0,1.0); }`;
 export const BLIT_FS = `#version 300 es
 precision highp float;
 in vec2 vUv; out vec4 fc;
-uniform sampler2D uTex, uBloom;
+uniform sampler2D uTex, uBloom, uDepth;
 uniform float uVignette, uExposure, uBloomAmt, uTime, uGrain, uChroma;
+// Photo mode. uDof: x mode (0 off, 1 depth of field, 2 tilt-shift
+// "miniature"), y focus distance (m), z blur strength, w the sharp band's
+// centre (0..1 up the picture, tilt-shift). uNF: the projection's near and
+// far planes, to turn the depth buffer back into metres. uGrade: x hue shift
+// (radians), y saturation, z contrast, w warmth (−1 cool … +1 warm).
+uniform vec4 uDof, uGrade;
+uniform vec2 uNF;
+// Settings → graphics. uFx: x motion blur amount (0 off), y corner shading
+// (ambient occlusion) strength (0 off), z: nearer than this (m) is left
+// sharp and still (the cab, drawn with its own projection)
+uniform vec3 uFx;
+uniform mat4 uInvVP, uPrevVP;
+
+float linDepth(vec2 uv){
+  float z = texture(uDepth, uv).r * 2.0 - 1.0;
+  return 2.0 * uNF.x * uNF.y / (uNF.y + uNF.x - z * (uNF.y - uNF.x));
+}
+// how blurred a point is, 0..1: by its distance from the focus plane, or in
+// the miniature mode by its height in the picture (a lens tilted so only a
+// band across the view is sharp, which makes a real town look like a model)
+float coc(vec2 uv){
+  if (uDof.x > 1.5) {
+    float d = abs(uv.y - uDof.w);
+    return smoothstep(0.06, 0.42, d);
+  }
+  // |f/z − 1|: 0 at the focus distance, 1 at half of it, growing slowly
+  // behind it — the way a real lens's blur disc goes
+  float z = linDepth(uv);
+  if (z < uFx.z) return 0.0;
+  return clamp(abs(uDof.y / max(z, 0.5) - 1.0) * 0.8, 0.0, 1.0);
+}
+vec3 hueShift(vec3 c, float a){
+  const vec3 k = vec3(0.57735);
+  float ca = cos(a);
+  return c * ca + cross(k, c) * sin(a) + k * dot(k, c) * (1.0 - ca);
+}
 
 // Narkowicz's fit to the ACES curve: keeps saturation in the highlights
 vec3 aces(vec3 x){
@@ -1450,10 +1694,71 @@ void main(){
                texture(uTex, vUv - vec2(0.0, px.y)).rgb) * 0.25;
   c = mix(c, soft, smoothstep(0.15, 0.55, dist2) * 0.30 * uChroma);
 
+  // 2b. Photo mode: depth of field / tilt-shift. A gather blur over a golden
+  // spiral; each tap counts only if it is itself blurred that far, so a
+  // sharp foreground does not smear over the background behind it.
+  if (uDof.x > 0.5) {
+    float r0 = coc(vUv);
+    float R = uDof.z * 14.0;                   // largest radius, in pixels
+    vec3 acc = c; float wsum = 1.0;
+    for (int i = 1; i < 24; i++) {
+      float fi = float(i);
+      float rr = sqrt(fi / 24.0) * R * max(r0, 0.1);   // the disc grows with the blur
+      float th = fi * 2.39996;
+      vec2 o = vec2(cos(th), sin(th)) * rr * px;
+      float ct = coc(vUv + o) * R;
+      float w = smoothstep(rr - 1.5, rr + 0.5, max(ct, r0 * R));
+      acc += texture(uTex, vUv + o).rgb * w; wsum += w;
+    }
+    c = mix(c, acc / wsum, smoothstep(0.04, 0.55, r0));
+  }
+
+  // 2c. Motion blur: where this pixel was last frame (its world position
+  // from the depth, through last frame's camera), and a smear along the way
+  if (uFx.x > 0.0) {
+    float dz = texture(uDepth, vUv).r;
+    if (linDepth(vUv) > uFx.z) {
+      vec4 wp = uInvVP * vec4(vUv * 2.0 - 1.0, dz * 2.0 - 1.0, 1.0);
+      wp /= wp.w;
+      vec4 pp = uPrevVP * wp;
+      vec2 vel = (vUv - (pp.xy / pp.w * 0.5 + 0.5)) * uFx.x;
+      float L = length(vel);
+      if (L > 0.05) vel *= 0.05 / L;
+      if (L > 0.0015) {
+        vec3 acc = vec3(0.0);
+        for (int i = 0; i < 8; i++) acc += texture(uTex, vUv - vel * (float(i) / 7.0 - 0.5)).rgb;
+        c = acc / 8.0;
+      }
+    }
+  }
+
+  // 2d. Corner shading: a pixel whose neighbours on BOTH sides are nearer
+  // sits in a crease (a wall's foot, a courtyard, under the eaves); a plane
+  // at any slope averages out and is left alone
+  if (uFx.y > 0.0) {
+    float z0 = linDepth(vUv), occ = 0.0;
+    for (int i = 0; i < 6; i++) {
+      float a = float(i) * 0.5236;
+      vec2 o = vec2(cos(a), sin(a)) * px * 3.0;
+      float za = linDepth(vUv + o), zb = linDepth(vUv - o);
+      float crease = z0 - 0.5 * (za + zb);
+      occ += smoothstep(0.004, 0.03, crease / z0) * step(crease, z0 * 0.25);
+    }
+    c *= 1.0 - uFx.y * 0.45 * occ / 6.0;
+  }
+
   // 3. HDR Bloom & Filmic Tonemapping
   c += texture(uBloom, vUv).rgb * uBloomAmt;
   c *= uExposure;
   c = aces(c);
+
+  // 3b. Grading: hue, saturation, contrast, warmth (neutral outside photo mode)
+  c = hueShift(c, uGrade.x);
+  float lumG = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  c = mix(vec3(lumG), c, uGrade.y);
+  c = (c - 0.5) * uGrade.z + 0.5;
+  c *= vec3(1.0 + 0.10 * uGrade.w, 1.0 + 0.02 * uGrade.w, 1.0 - 0.12 * uGrade.w);
+  c = clamp(c, 0.0, 1.0);
 
   // 4. Adjustable Dynamic 35mm analogue film grain
   float noise = fract(sin(dot(gl_FragCoord.xy + fract(uTime * 23.17) * 97.0, vec2(12.9898, 78.233))) * 43758.5453);
@@ -2078,8 +2383,49 @@ uniform sampler2D uReflect; uniform vec2 uViewport;
 ${WATER_GLSL}
 void main(){
   // the same surface as the river, a little muddier: flood water carries silt
-  vec3 col = waterSurface(vWorld, vDist, vec3(1.08, 1.02, 0.86));
+  vec3 col = waterSurface(vWorld, vDist, vec3(1.08, 1.02, 0.86), true);
   float f = 1.0 - exp(-vDist * uFogDensity);
   col = mix(col, uFogCol, clamp(f, 0.0, 1.0));
   fc = vec4(col, uDepthFade);
+}`;
+
+
+// Textured models, instanced (the road traffic's cars, tools/bake_models.py).
+// Per instance: position, heading, length, atlas cell. A model is unit
+// length facing +z; heading 0 faces north, like everything else.
+export const MODEL_VS = `#version 300 es
+layout(location = 0) in vec3 aPos; layout(location = 1) in vec2 aUv; layout(location = 2) in vec3 aNrm;
+layout(location = 3) in vec4 aInst; layout(location = 4) in vec4 aInst2;
+uniform mat4 uVP; uniform vec3 uEye; uniform vec2 uGrid; uniform float uPull;
+out vec2 vUv; out vec3 vN; out vec3 vWorld; out float vDist;
+void main(){
+  float c = cos(aInst.w), s = sin(aInst.w);
+  // model x maps to the car's LEFT: (x, y, z) → (left, up, forward) keeps
+  // the model right-handed; mapping x to the right mirrored it inside out
+  vec3 f = vec3(s, 0.0, -c), l = vec3(-c, 0.0, -s);
+  vec3 p = aPos * aInst2.x;
+  vec3 w = aInst.xyz + l * p.x + vec3(0.0, p.y, 0.0) + f * p.z;
+  vN = l * aNrm.x + vec3(0.0, aNrm.y, 0.0) + f * aNrm.z;
+  float cell = aInst2.y;
+  vec2 cr = vec2(mod(cell, uGrid.x), floor(cell / uGrid.x));
+  vUv = (cr + aUv) / uGrid;
+  vWorld = w; vDist = length(w - uEye);
+  w += (uEye - w) * uPull;
+  gl_Position = uVP * vec4(w, 1.0);
+}`;
+export const MODEL_FS = `#version 300 es
+precision highp float;
+in vec2 vUv; in vec3 vN; in vec3 vWorld; in float vDist;
+out vec4 fc;
+uniform sampler2D uTex;
+uniform vec3 uSunDir, uSunCol, uSkyCol, uFogCol;
+uniform float uFogDensity, uLift;
+void main(){
+  vec3 base = texture(uTex, vUv).rgb;
+  base = pow(base, vec3(2.0));                 // the atlas is sRGB; light in linear-ish
+  vec3 n = normalize(vN);
+  float lam = max(dot(n, uSunDir), 0.0);
+  vec3 col = base * (uSunCol * lam * 0.9 + uSkyCol * (0.55 + uLift * 0.38) + 0.06 + uLift * 0.085);
+  float fg = 1.0 - exp(-vDist * uFogDensity);
+  fc = vec4(mix(col, uFogCol, clamp(fg, 0.0, 1.0)), 1.0);
 }`;

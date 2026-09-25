@@ -1,3 +1,4 @@
+import { tt } from "./i18n.js";
 // The dispatcher's board: the whole line at once, the way a Domino panel or
 // a SimSig screen shows it. Kilometres left to right.
 //
@@ -55,10 +56,10 @@ export function drawPanel(c, canvas, st) {
   c.textAlign = "left";
   c.fillStyle = "rgba(63,203,210,.95)";
   c.font = `700 ${Math.round(19*s)}px "Archivo", system-ui, sans-serif`;
-  c.fillText("Forgalomirányítás", L.left, 40*s);
+  c.fillText(tt("Forgalomirányítás", "Dispatcher"), L.left, 40*s);
   c.fillStyle = "rgba(130,160,178,.85)";
   c.font = `400 ${Math.round(11*s)}px "IBM Plex Mono", monospace`;
-  c.fillText(`${first} – ${last}` + (isSingle ? " · egyvágányú szakaszokkal" : " · kétvágányú"), L.left, 58*s);
+  c.fillText(`${first} – ${last}` + (isSingle ? tt(" · egyvágányú szakaszokkal", " · with single-track sections") : tt(" · kétvágányú", " · double track")), L.left, 58*s);
   const hh = String(Math.floor(clockSec/3600)%24).padStart(2,"0");
   const mm = String(Math.floor(clockSec%3600/60)).padStart(2,"0");
   const ss = String(Math.floor(clockSec%60)).padStart(2,"0");
@@ -66,6 +67,20 @@ export function drawPanel(c, canvas, st) {
   c.fillStyle = "rgba(236,244,248,.96)";
   c.font = `600 ${Math.round(26*s)}px "IBM Plex Mono", monospace`;
   c.fillText(`${hh}:${mm}:${ss}`, L.right, 50*s);
+  // the dispatcher game: time left, and your lateness against the automatic
+  const D = st.dispatching;
+  if (D) {
+    c.font = `600 ${Math.round(12*s)}px "IBM Plex Mono", monospace`;
+    c.fillStyle = "rgba(255,224,138,.95)";
+    c.fillText(tt(`hátra ${Math.ceil(D.left / 60)} perc  ·  várakozás pirosnál: te ${Math.round(D.mine / 60)}′  ·  automatika ${Math.round(D.auto / 60)}′`,
+                  `${Math.ceil(D.left / 60)} min left  ·  waiting at red: you ${Math.round(D.mine / 60)}′  ·  automatic ${Math.round(D.auto / 60)}′`),
+               L.right, 72*s);
+    if (D.broken && D.broken.failT > 0) {
+      c.fillStyle = "rgba(255,114,100,.95)";
+      c.fillText(tt(`${D.broken.name} meghibásodott a km ${(D.broken.m / 1000).toFixed(1)}-nél · még ${Math.ceil(D.broken.failT / 60)} perc`,
+                   `${D.broken.name} failed at km ${(D.broken.m / 1000).toFixed(1)} · ${Math.ceil(D.broken.failT / 60)} min more`), L.right, 90*s);
+    }
+  }
   c.textAlign = "left";
 
   // kilometre scale (chainage from the first station)
@@ -96,6 +111,7 @@ export function drawPanel(c, canvas, st) {
     // two lines where there are two tracks, one where there is one; a
     // single-track section someone has claimed is drawn in their colour
     const sorted = single.slice().sort((a, b) => a[0] - b[0]);
+    st.hitSections = [];
     let at = L.km0 * 1000;
     const dbl = (a, b) => {
       const x0 = L.x(Math.max(L.km0, a / 1000)), x1 = L.x(Math.min(L.km1, b / 1000));
@@ -115,6 +131,21 @@ export function drawPanel(c, canvas, st) {
         line(x1 - 8*s, L.mid, x1, L.yUp, TRACK, 1.6);
         const cl = traffic.claim && traffic.claim[i];
         line(x0 + 8*s, L.mid, x1 - 8*s, L.mid, cl ? DIR_COL[cl.dir] : TRACK, cl ? 3.2 : 2);
+        // the dispatcher's order for this section: who goes next
+        const pf = traffic.prefer && traffic.prefer[i];
+        const xm = (x0 + x1) / 2;
+        if (pf) {
+          c.fillStyle = DIR_COL[pf];
+          c.font = `700 ${Math.round(15*s)}px "IBM Plex Sans", system-ui, sans-serif`;
+          c.textAlign = "center";
+          c.fillText(pf > 0 ? "▶" : "◀", xm, L.mid - 8*s);
+          c.textAlign = "left";
+        } else if (x1 - x0 > 18*s) {
+          c.fillStyle = "rgba(170,196,210,.45)";
+          c.font = `600 ${Math.round(11*s)}px "IBM Plex Sans", system-ui, sans-serif`;
+          c.textAlign = "center"; c.fillText("⇄", xm, L.mid - 7*s); c.textAlign = "left";
+        }
+        st.hitSections.push({ x0, x1, y: L.mid, i });
       }
       at = Math.max(at, b);
     });
@@ -220,7 +251,7 @@ export function drawPanel(c, canvas, st) {
   const ly = H - 132*s;
   c.fillStyle = "rgba(120,150,168,.8)";
   c.font = `500 ${Math.round(10*s)}px "IBM Plex Mono", monospace`;
-  c.fillText("KÖVETKEZŐ INDULÁSOK", L.left, ly);
+  c.fillText(tt("KÖVETKEZŐ INDULÁSOK", "NEXT DEPARTURES"), L.left, ly);
   const upcoming = traffic.services.slice(traffic.cursor, traffic.cursor + 6);
   upcoming.forEach((sv, i) => {
     const t = sv.enter_s;
@@ -235,10 +266,10 @@ export function drawPanel(c, canvas, st) {
   });
   const gx = L.left + 470*s;
   const leg = [
-    [DIR_COL[1], `→ ${last} felé`], [DIR_COL[-1], `← ${first} felé`], ["rgba(63,203,210,.98)", "◆ a te vonatod"],
-    ["rgba(255,84,72,1)", "piros jelző / vár"], ["rgba(243,196,82,1)", "sárga: a következő piros"], ["rgba(69,217,131,1)", "szabad"],
+    [DIR_COL[1], tt(`→ ${last} felé`, `→ to ${last}`)], [DIR_COL[-1], tt(`← ${first} felé`, `← to ${first}`)], ["rgba(63,203,210,.98)", tt("◆ a te vonatod", "◆ your train")],
+    ["rgba(255,84,72,1)", tt("piros jelző / vár", "red signal / waiting")], ["rgba(243,196,82,1)", tt("sárga: a következő piros", "yellow: next is red")], ["rgba(69,217,131,1)", tt("szabad", "clear")],
   ];
-  if (isSingle) leg.push(["rgba(236,244,248,.85)", "egy vágány: a színe azé, aki lefoglalta"]);
+  if (isSingle) leg.push(["rgba(236,244,248,.85)", tt("egy vágány: a színe azé, aki lefoglalta", "single track: coloured by who holds it")]);
   leg.forEach(([col, txt], i) => {
     const y = ly + (i % 4) * 16*s, x = gx + Math.floor(i / 4) * 260*s;
     c.fillStyle = col; c.fillRect(x, y - 7*s, 14*s, 7*s);
@@ -250,8 +281,8 @@ export function drawPanel(c, canvas, st) {
   c.fillStyle = "rgba(110,140,158,.8)";
   c.font = `400 ${Math.round(10.5*s)}px "IBM Plex Mono", monospace`;
   c.textAlign = "right";
-  c.fillText("jelzőre kattintva: tartás / feloldás  ·  vonatra kattintva: követés"
-           + "  ·  görgő: nagyítás, húzás: mozgatás  ·  Q: bezár", L.right, H - 24*s);
+  c.fillText((isSingle ? tt("szakaszra kattintva: ki megy előbb (▶ ◀)  ·  ", "click a section: who goes first (▶ ◀)  ·  ") : "")
+           + tt("jelző: tartás  ·  vonat: követés  ·  görgő, húzás: nagyítás  ·  Q: bezár", "signal: hold  ·  train: follow  ·  wheel, drag: zoom  ·  Q: close"), L.right, H - 24*s);
   c.textAlign = "left";
   return L;
 }

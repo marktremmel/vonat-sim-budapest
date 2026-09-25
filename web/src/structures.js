@@ -21,7 +21,7 @@
 // and a radius.
 
 const CLS_CHIMNEY = 0, CLS_SILO = 1, CLS_TANK = 2, CLS_WATER = 3,
-      CLS_LATTICE = 4, CLS_LIGHT = 5, CLS_CRANE = 6, CLS_PYLON = 7;
+      CLS_LATTICE = 4, CLS_LIGHT = 5, CLS_CRANE = 6, CLS_PYLON = 7, CLS_TV = 8;
 
 const ST_BRICK  = [0.42, 0.29, 0.24];
 const ST_BAND   = [0.72, 0.71, 0.68];
@@ -133,6 +133,22 @@ export function buildStructures(list, demAt) {
     }
   };
 
+  // each pylon's line direction: from its two nearest neighbours (50–380 m)
+  {
+    const py = (list || []).filter(s => s.cls === CLS_PYLON);
+    for (const s of py) {
+      const nb = py.filter(o => o !== s).map(o => ({ o, d: Math.hypot(o.x - s.x, o.y - s.y) }))
+                   .filter(n => n.d >= 50 && n.d <= 380).sort((a, b) => a.d - b.d).slice(0, 2);
+      let dx = 0, dy = 0;
+      for (const { o, d } of nb) {
+        let ux = (o.x - s.x) / d, uy = (o.y - s.y) / d;
+        if (ux * dx + uy * dy < 0) { ux = -ux; uy = -uy; }        // both neighbours, one direction
+        dx += ux; dy += uy;
+      }
+      const L = Math.hypot(dx, dy);
+      if (L > 1e-3) { s.ax = dx / L; s.ay = dy / L; }
+    }
+  }
   for (const s of list || []) {
     const g = demAt(s.x, s.y);
     if (!isFinite(g)) continue;
@@ -206,41 +222,58 @@ export function buildStructures(list, demAt) {
              ST_STEEL);
         break;
       }
+      case CLS_TV: {
+        // A concrete TV tower (the Határ út tower, Széchenyi-hegy): a tapering
+        // shaft, a two-storey pod of dark glass and railings about two
+        // thirds up, and a red and white antenna mast to the top
+        const H = s.h, r = Math.max(3.2, s.r);
+        drum(s.x, s.y, gy, r, r * 0.72, 0, H * 0.64, ST_CONC, 12);
+        drum(s.x, s.y, gy, r * 0.72, r * 2.3, H * 0.64, H * 0.67, ST_CONC, 16);
+        drum(s.x, s.y, gy, r * 2.3, r * 2.3, H * 0.67, H * 0.71, [0.16, 0.19, 0.21], 16);
+        drum(s.x, s.y, gy, r * 2.4, r * 2.4, H * 0.71, H * 0.715, ST_STEEL2, 16);
+        drum(s.x, s.y, gy, r * 2.0, r * 2.0, H * 0.715, H * 0.75, [0.16, 0.19, 0.21], 16);
+        drum(s.x, s.y, gy, r * 2.1, r * 0.8, H * 0.75, H * 0.77, ST_CONC, 16);
+        drum(s.x, s.y, gy, r * 0.55, r * 0.35, H * 0.77, H * 0.82, ST_CONC, 10);
+        for (let b = 0; b < 6; b++)
+          drum(s.x, s.y, gy, 0.9, 0.8, H * (0.82 + b * 0.03), H * (0.82 + (b + 1) * 0.03),
+               b % 2 ? ST_WHITE : ST_RED, 8);
+        break;
+      }
       case CLS_PYLON: {
         // High-voltage transmission pylon: steel lattice tower with 2 tiers of
-        // wide cantilever crossarms, vertical ceramic insulator strings and top peak.
+        // wide cantilever crossarms, vertical ceramic insulator strings and top
+        // peak. The arms stand ACROSS the line (s.ax, s.ay: the line's
+        // direction here, from the neighbouring pylons); they were always
+        // east–west, so on a north–south line every pylon stood side-on.
         const r0 = Math.max(3.2, s.r * 0.9), rWaist = 1.15, rTop = 0.85;
         const waistH = s.h * 0.65;
         lattice(s.x, s.y, gy, r0, rWaist, waistH, false);
         lattice(s.x, s.y, gy + waistH, rWaist, rTop, s.h - waistH, false);
-        // Lower crossarm tier at 0.74 * h (span 16 m)
-        const yArm1 = gy + s.h * 0.74;
-        const wArm1 = 8.2;
-        quad([s.x - wArm1, yArm1, s.y - 0.25], [s.x + wArm1, yArm1, s.y - 0.25],
-             [s.x + wArm1, yArm1 + 0.9, s.y - 0.25], [s.x - wArm1, yArm1 + 0.9, s.y - 0.25], ST_STEEL);
-        quad([s.x - wArm1, yArm1, s.y + 0.25], [s.x + wArm1, yArm1, s.y + 0.25],
-             [s.x + wArm1, yArm1 + 0.9, s.y + 0.25], [s.x - wArm1, yArm1 + 0.9, s.y + 0.25], ST_STEEL);
+        const fx = s.ax || 0, fy = s.ay || 1;             // along the line
+        const qx = -fy, qy = fx;                            // across it: the arms
+        const A = (u, y, v) => [s.x + qx * u + fx * v, y, s.y + qy * u + fy * v];
+        const arm = (w, y, t, th) => {
+          quad(A(-w, y, -t), A(w, y, -t), A(w, y + th, -t), A(-w, y + th, -t), ST_STEEL);
+          quad(A(-w, y, t), A(w, y, t), A(w, y + th, t), A(-w, y + th, t), ST_STEEL);
+        };
+        const yArm1 = gy + s.h * 0.74, wArm1 = 8.2;
+        arm(wArm1, yArm1, 0.25, 0.9);
         for (const sgn of [-1, 1]) {
-          quad([s.x + sgn * wArm1, yArm1, s.y - 0.15], [s.x + sgn * rWaist, gy + waistH + 1.0, s.y - 0.15],
-               [s.x + sgn * rWaist, gy + waistH + 1.2, s.y - 0.15], [s.x + sgn * wArm1, yArm1 + 0.2, s.y - 0.15], ST_STEEL2);
-          quad([s.x + sgn * wArm1, yArm1, s.y + 0.15], [s.x + sgn * rWaist, gy + waistH + 1.0, s.y + 0.15],
-               [s.x + sgn * rWaist, gy + waistH + 1.2, s.y + 0.15], [s.x + sgn * wArm1, yArm1 + 0.2, s.y + 0.15], ST_STEEL2);
-          drum(s.x + sgn * (wArm1 - 0.5), s.y, yArm1 - 1.8, 0.12, 0.12, 0, 1.8, ST_INSUL, 6);
+          for (const t of [-0.15, 0.15])
+            quad(A(sgn * wArm1, yArm1, t), A(sgn * rWaist, gy + waistH + 1.0, t),
+                 A(sgn * rWaist, gy + waistH + 1.2, t), A(sgn * wArm1, yArm1 + 0.2, t), ST_STEEL2);
+          const p = A(sgn * (wArm1 - 0.5), 0, 0);
+          drum(p[0], p[2], yArm1 - 1.8, 0.12, 0.12, 0, 1.8, ST_INSUL, 6);
         }
-        // Upper crossarm tier at 0.88 * h (span 11 m)
-        const yArm2 = gy + s.h * 0.88;
-        const wArm2 = 5.6;
-        quad([s.x - wArm2, yArm2, s.y - 0.22], [s.x + wArm2, yArm2, s.y - 0.22],
-             [s.x + wArm2, yArm2 + 0.8, s.y - 0.22], [s.x - wArm2, yArm2 + 0.8, s.y - 0.22], ST_STEEL);
-        quad([s.x - wArm2, yArm2, s.y + 0.22], [s.x + wArm2, yArm2, s.y + 0.22],
-             [s.x + wArm2, yArm2 + 0.8, s.y + 0.22], [s.x - wArm2, yArm2 + 0.8, s.y + 0.22], ST_STEEL);
+        const yArm2 = gy + s.h * 0.88, wArm2 = 5.6;
+        arm(wArm2, yArm2, 0.22, 0.8);
         for (const sgn of [-1, 1]) {
-          drum(s.x + sgn * (wArm2 - 0.4), s.y, yArm2 - 1.8, 0.12, 0.12, 0, 1.8, ST_INSUL, 6);
+          const p = A(sgn * (wArm2 - 0.4), 0, 0);
+          drum(p[0], p[2], yArm2 - 1.8, 0.12, 0.12, 0, 1.8, ST_INSUL, 6);
         }
         // Earth wire peak
         const tipY = gy + s.h + 2.8;
-        quad([s.x - 0.12, gy + s.h, s.y], [s.x + 0.12, gy + s.h, s.y],
-             [s.x + 0.12, tipY, s.y], [s.x - 0.12, tipY, s.y], ST_STEEL);
+        quad(A(-0.12, gy + s.h, 0), A(0.12, gy + s.h, 0), A(0.12, tipY, 0), A(-0.12, tipY, 0), ST_STEEL);
         break;
       }
     }
@@ -271,20 +304,15 @@ export function buildStructures(list, demAt) {
       if (!isFinite(gB)) continue;
       const sag = dist * dist * 0.00016 + 1.2;
       const SEGS = 6;
-      const pointsA = [
-        [pA.x - 7.7, gA + pA.h * 0.74 - 1.8, pA.y],
-        [pA.x + 7.7, gA + pA.h * 0.74 - 1.8, pA.y],
-        [pA.x - 5.2, gA + pA.h * 0.88 - 1.8, pA.y],
-        [pA.x + 5.2, gA + pA.h * 0.88 - 1.8, pA.y],
-        [pA.x, gA + pA.h + 2.8, pA.y],
-      ];
-      const pointsB = [
-        [pB.x - 7.7, gB + pB.h * 0.74 - 1.8, pB.y],
-        [pB.x + 7.7, gB + pB.h * 0.74 - 1.8, pB.y],
-        [pB.x - 5.2, gB + pB.h * 0.88 - 1.8, pB.y],
-        [pB.x + 5.2, gB + pB.h * 0.88 - 1.8, pB.y],
-        [pB.x, gB + pB.h + 2.8, pB.y],
-      ];
+      const att = (p, g, flip) => {
+        const qx = -(p.ay || 1) * flip, qy = (p.ax || 0) * flip;
+        return [[-7.7, 0.74], [7.7, 0.74], [-5.2, 0.88], [5.2, 0.88]]
+          .map(([u, f]) => [p.x + qx * u, g + p.h * f - 1.8, p.y + qy * u])
+          .concat([[p.x, g + p.h + 2.8, p.y]]);
+      };
+      // the same side of both pylons: flip B if its "across" points the other way
+      const sameSide = ((pA.ay || 1) * (pB.ay || 1) + (pA.ax || 0) * (pB.ax || 0)) >= 0 ? 1 : -1;
+      const pointsA = att(pA, gA, 1), pointsB = att(pB, gB, sameSide);
       for (let k = 0; k < pointsA.length; k++) {
         const ptA = pointsA[k], ptB = pointsB[k];
         for (let s = 0; s < SEGS; s++) {

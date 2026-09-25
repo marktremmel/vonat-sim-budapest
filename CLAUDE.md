@@ -79,8 +79,9 @@ Boot takes ~7 s in the preview pane before the menu appears.
 `main.js boot(assets)` builds everything once, then `frame(now)` runs the
 loop. Bundling order matters for top-level `const`s:
 
-    shaders engine env route geom trains traffic aircraft catenary structures audio
-    clouds weather landmarks parts tour panel cab hud input settings main
+    shaders engine env route geom trains traffic collide car aircraft catenary
+    structures audio clouds weather landmarks parts city tour panel cab hud input
+    score missions settings main
 
 | file | what it owns |
 | --- | --- |
@@ -95,7 +96,10 @@ loop. Bundling order matters for top-level `const`s:
 | `shaders.js` | All GLSL: sky, terrain rings, track program, buildings, vegetation, water, clouds, precipitation, post. |
 | `weather.js`, `clouds.js`, `env.js` | 15 weather situations, moving fronts, 10 cloud types, sun position, seasons. |
 | `audio.js` | Fully synthesised sound (no samples used at runtime). |
-| `cab.js`, `hud.js`, `panel.js`, `input.js`, `settings.js` | Desk instruments, overlay, dispatcher board, keys/pointer, settings panel wiring. |
+| `cab.js`, `hud.js`, `panel.js`, `input.js`, `settings.js` | Desk instruments, overlay, dispatcher board, keys/pointer, settings panel wiring and remembered settings (`loadPrefs`/`savePrefs`, localStorage `szobPrefs`). |
+| `city.js`, `car.js` | Budapest city tiles streamed round the camera; the drivable car. |
+| `collide.js` | `Solids`: every footprint, part and structure as a solid in a 25 m grid (`at`, `topAt`, `push`); city tiles add and remove theirs by owner. |
+| `score.js`, `missions.js` | `RunScore` (the scorecard of a hand-driven run); the missions, licence grades, the daily challenge, the dispatcher prototype. |
 
 ### Coordinate frames (the #1 source of past bugs)
 
@@ -404,13 +408,146 @@ Owner feedback:
 - Slopes: the ground is also sampled inside the footprint, and 1 m is added when the slope is real. Parts stand on the median ground of their ring.
 - The castle dome anchor is now made before the city exclusion (it had vanished).
 
+## Work done 25 Sep 2026 (seventh pass: REVIEW.md carried out)
+
+The owner asked for everything in `szob-fele/REVIEW.md`, step by step, and
+supplied a cover image (`web/data/cover.webp`). The table "Done from this
+review" in REVIEW.md lists each item and how it was checked. In short:
+
+- **First five minutes:**
+  - a loading screen (cover, progress, tips) and parallel downloads;
+  - a Hungarian menu with Indulás (quick start), Szolgálat, Fotóalbum, Napi kihívás;
+  - first-run hints and remembered settings;
+  - touch controls and a quality setting.
+- **Game:**
+  - `score.js` scorecard with stars;
+  - ten missions in four licence grades;
+  - a daily challenge;
+  - a photo album (Z);
+  - station announcements (speechSynthesis, hu-HU voice only, sound on);
+  - derailment on excessive curve speed.
+- **Physics** (`collide.js`):
+  - the car slides along walls, bumps AI cars (they brake for it) and stops at closed booms;
+  - trains emergency-brake for a car on the line and hit it if they cannot stop;
+  - roofs are ground for the plane, the helicopter and the drone, and flying into a wall is a crash.
+- **Driving fixes:**
+  - by hand, the train stops where you stop it (it used to be snapped onto the mark from 45 m out);
+  - your own G70, EC and freight skip the stops their path does not call at;
+  - `Driver.targetStop()` is the stop being braked for (`nextStop` moves on 30 m short).
+- **Tests:**
+  - `tools/test_sim.mjs` (node, headless, 28 checks) and `.github/workflows/test.yml`;
+  - `SIM.step(n, ms)` steps frames by hand;
+  - `SIM.tick(t)` no longer queues an extra frame loop per call.
+- **Dispatcher game: a prototype, not in the menu.** It has section orders on the board (click ▶/◀), a failed unit, late trains, and a shadow `Traffic` run by the automatic rule to score against. At the current timetable density trains hardly ever meet on the single track (1 min of waiting in a 50-min shift, orders or not), so it cannot be won or lost yet.
+
+Git: the owner reviews before anything is committed or pushed (memory
+`git-after-review`).
+
+## Work done 25 Sep 2026 (eighth pass: owner's review of the seventh)
+
+Owner feedback:
+- Liked the scale.
+- Wanted the title logo on the main screen, the name changed to Dunakanyar Szimulátor, and an English toggle.
+- Wanted more façade variety in the outskirts, and less of the grey Eastern European look.
+- Népsziget buildings were still warehouses.
+- Cars kept to little paths instead of the big roads.
+- A car stood on the line before Rákosrendező.
+- Wanted a photo mode with depth of field and tilt-shift, plus DOF and motion blur in the game (switchable).
+- Wanted recorded station announcements.
+
+All of it was checked in the preview unless it says otherwise.
+
+- **Name and logo:** "Dunakanyar Szimulátor" / "Dunakanyar Simulator" in the title and on the panel. The menu shows `data/logo.webp`, cut from the owner's image, over `data/menu_bg.webp`, a strip of the cover.
+- **English** (`web/src/i18n.js`):
+  - `tt(hu, en)` in the JS; `data-en`, `data-en-html` and `data-en-title` in the HTML; a second help card with `data-lang="en"`.
+  - `window.LANG` is decided in the first inline script: the saved `szobPrefs.lang`, else the browser's language.
+  - The HU/EN button on the menu saves the choice and reloads.
+  - Place names stay Hungarian.
+- **Photo mode** (⇧Z or the Fotó button; Z is still the quick shot):
+  - Pauses the sim, gives a free camera, and hides the UI behind a side panel (`#photoUI`).
+  - Controls: focus mode (off / depth / miniature), focus distance, blur, field of view, exposure, hue, saturation, contrast, warmth, vignette, grain, time of day.
+  - Clicking the picture focuses there: a ray march over `demAt` and `solids.topAt`, since WebGL cannot read depth back.
+  - The main target's depth is now a TEXTURE (`depthTex`), read by `BLIT_FS`: a gather DOF, tilt-shift, grading.
+- **Gameplay graphics switches** (Beállítás, remembered in `szobPrefs.gfx`), all in `BLIT_FS` via `uFx`:
+  - Depth of field in the outside views and Kilátás only, auto-focused on the middle of the picture every 0.3 s. On by default.
+  - Motion blur from reprojection with last frame's VP. Off by default.
+  - Crease AO. On by default.
+  - Anything nearer than 3 m (the cab) is exempt.
+- **Station announcements:** `tools/make_announcements.py` (macOS `say`, Tünde Premium) writes `data/audio/ann/<slug>.m4a` (+ `_veg` for the line ends): 65 files, 1 MB. `announce()` plays them through `Sound`, with speechSynthesis as the fallback.
+- **Façades:**
+  - `tools/bake_facades.py` builds `data/facades.webp`: five panel-block tiles from the cortino and utilizator2011 packs, destained, lifted and half-desaturated. The raw packs stay in ~/Downloads; their licences forbid redistributing the originals.
+  - Shader kind 3 (panel) uses a tile for 75% of blocks, tinted a per-building pastel; texture unit 6, `uFacTex`.
+  - Houses and tenements have four variants each:
+    - houses: shutters, brick plinth, wide window;
+    - tenements: balconies, pilasters, renovated.
+  - A lighter palette of 14 colours.
+- **OSM colours:**
+  - `building:colour` and `roof:colour` are baked as a sparse `polys.colours` list (`bake_context.py osm_colour`, carried per tile by `bake_city.py`): 1,533 polygons in the city.
+  - A negative seed in `aBld.w` tells the shader to keep the wall colour.
+  - City and all line contexts rebaked. Building counts are identical to before (checked against a backup).
+- **Népsziget:** a building on industrial land becomes a hall only if it is 220 m² or more and has no name, amenity, tourism, leisure, shop, office or historic tag. `ruins=yes` is a ruin. Népsziget has 35 class-3 buildings (was 55). The OSM data there is mostly `building=yes`, 1 level.
+- **Road traffic:**
+  - Vehicles are placed per kilometre of road by class (`PER_KM`).
+  - The target count follows the network (it was 90 + 5 per way, which overflowed into side streets).
+  - Turns prefer the same class.
+  - Near Nyugati about 85% of vehicles are now on secondary and tertiary roads.
+- **Parked wagons** (`geom.js` yard rakes): a wagon is placed only where its siding is 9 m or more from the running line. Siding ends converge onto the main line.
+
+Not done from that feedback:
+- 3D models from the packs (garages, bus stop, electric boxes, whole Panelak meshes) would need an FBX → mesh converter (Blender is installed) and a textured mesh program.
+- Car looks.
+- The flight cockpit.
+- More OSM building parts outside the city box.
+- Tenement textures (the packs have no Pest-style façades).
+
+## Work done 25 Sep 2026 (ninth pass: round 9 of the owner's feedback)
+
+Status per item, marked seen or not: `szob-fele/REVIEW.md` → "Round 9: where it stands".
+
+**Engine and data**
+- **`demAt` half-pixel fix** (main.js). It was 13 m off the GPU terrain; NOTES.md Traps 12.
+- TERRAIN_VS flood level from the vertex's own north (Trap 13).
+- City extras:
+  - `tools/q_cityx_*.ql` + `fetch_cityx.sh` + `bake_cityx.py` put an `x` layer (rails, trams, structures, pipes, solar, ranked labels) into every city tile;
+  - `geom.js buildCityExtras` meshes it;
+  - `KNOWN` in bake_cityx.py holds the Határ út TV tower (class 8, ~100 m estimate).
+- Line extras: `tools/q_linex_*.ql` + `bake_linex.py` → `web/data/extras{,_line2,_s21}.json`.
+- Bake: the village-house rule (`cover_mean` in bake_context.py); round roofs over 1,500 m² → `rtype 6` (low vaults).
+- Car models: `tools/bake_models.py` → `web/data/models/cars.{json,webp}`; MODEL_VS/FS, instanced, texture unit 7.
+- Stickers: `tools/bake_stickers.py` → `web/data/stickers_{a,b}.webp` + `stickers.json`.
+- **Never commit the raw asset packs.** Only derived atlases and meshes.
+
+**Kisvasút** (`web/src/kisvasut.js`, `tools/q_kisvasut.ql`, `bake_kisvasut.py` → `web/data/kisvasut.json`)
+- Line 70 only.
+- Resampled to 5 m; the rail height is max(smoothed ground, ground) + 0.35.
+- Trees are cleared by writing alpha 0 into the cover texture along the track; VEG_VS reads `cc4.a < 0.5`.
+- The train follows a fixed daily schedule (8:30–18:30, 5 m/s, 15 min at each end).
+- `SIM.kisvasut()` and `SIM.demAt` are exposed for the console.
+
+**Photo mode** (`web/src/photofx.js` + main.js `photoMode`)
+- Freezes all vehicles.
+- Orbit (`state.photo.orbit`); placed lights override the street lights.
+- Stickers, caption and effects are composed into the PNG by `compose()`.
+
+**Other**
+- U has three levels (`bareLevel`).
+- Car and plane chase cameras orbit with the mouse; the drone follow is fixed.
+- DOF focuses on the followed target.
+- Pylons are oriented from their neighbours (structures.js).
+- New trees: VEG species 12–15.
+
+**Debugging a hidden preview pane.** Screenshots of a hidden pane are stale. Instead:
+- Step frames with `SIM.step(n, ms)`.
+- Read the canvas right after, in the same script: `drawImage` it into a 2D canvas and `toDataURL`.
+- POST that to a throwaway local receiver, then open the saved JPEG.
+
 ## Still open
 
 1. City layer follow-ups:
    - Stadium roofs cover the pitch (inner rings are not cut).
    - Tiles have no chimneys or other structures.
    - Keleti's and Kelenföld's yards are not drawn (yard tracks come only from the lines' own extracts).
-   - The car ignores collisions.
+   - City-tile roads stay in the traffic and car grids after their tile is dropped.
    - Beyond the line's near heightmap (south of 47.456 on line 70, e.g. Kispest and Budafok) buildings stand on the 100 m far heightmap.
    - The original expansion request (districts 8–9, Keleti, Kelenföld, Budafok, Háros, Kispest) is covered by the city box; the notes below are older.
    - Today each line bakes only a 2–5 km ring, as one JSON.
@@ -421,7 +558,7 @@ Owner feedback:
 4. ~60% of road way-ends have no junction link (600 m bake cut-off).
 5. Ships do not avoid each other; aircraft do not avoid anything.
 6. Landmark to-dos in `szob-fele/LANDMARKS.md`.
-7. Drivable car (owner idea); needs item 4 first.
+7. The dispatcher game needs denser traffic (see the seventh pass).
 8. MÁV GTFS for lines 70 and S21 (line 2 now uses the printed timetable).
 9. The rail tunnel portal model (`portal`) exists, but no road tunnels are in the data yet.
 

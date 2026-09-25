@@ -1,13 +1,14 @@
+import { tt, LANG } from "./i18n.js";
 // The canvas overlay. Everything drawn in 2D over the finished scene:
 // the hill and place labels, the inset map, the speed and brake read-outs
 // and the banners. It reads the frame's state and writes nothing back.
 
 export const LAYERS = [
-  { key: "hills", label: "hills" },
-  { key: "places", label: "towns and villages" },
-  { key: "landmarks", label: "landmarks and churches" },
-  { key: "all", label: "everything" },
-  { key: "none", label: "nothing" },
+  { key: "hills", label: tt("hegyek", "hills") },
+  { key: "places", label: tt("települések", "towns and villages") },
+  { key: "landmarks", label: tt("nevezetességek, templomok", "landmarks and churches") },
+  { key: "all", label: tt("minden", "everything") },
+  { key: "none", label: tt("semmi", "nothing") },
 ];
 
 function project(vp, w) {
@@ -27,14 +28,14 @@ function drawCarHud(c, W, H, s) {
   c.fillText(kmh.toFixed(0), 28*s, H - 74*s);
   c.font = `500 ${Math.round(11*s)}px "IBM Plex Mono", monospace`;
   c.fillStyle = "rgba(150,180,196,.9)";
-  c.fillText(`km/h${car.v < -0.3 ? " · hátra" : ""}${car.onBridge ? " · hídon" : ""}`, 100*s, H - 74*s);
-  c.fillText("autó", 28*s, H - 104*s);
+  c.fillText(`km/h${car.v < -0.3 ? tt(" · hátra", " · reverse") : ""}${car.onBridge ? tt(" · hídon", " · on a bridge") : ""}`, 100*s, H - 74*s);
+  c.fillText(tt("autó", "car"), 28*s, H - 104*s);
   c.fillStyle = "rgba(150,180,196,.85)";
   c.font = `400 ${Math.round(10.5*s)}px "IBM Plex Mono", monospace`;
-  c.fillText("W gáz · S fék / hátra · A/D kormány · Space kézifék · C vezetőülés · görgő: távolság", 16*s, H - 16*s);
+  c.fillText(tt("W gáz · S fék / hátra · A/D kormány · Space kézifék · C vezetőülés · görgő: távolság", "W throttle · S brake / reverse · A/D steer · Space handbrake · C driver's seat · wheel: distance"), 16*s, H - 16*s);
   c.fillStyle = "rgba(63,203,210,.95)";
   c.font = `600 ${Math.round(13*s)}px "IBM Plex Mono", monospace`;
-  c.fillText("Esc — vissza a vonatra", 16*s, H - 34*s);
+  c.fillText(tt("Esc — vissza a vonatra", "Esc — back to the train"), 16*s, H - 34*s);
 }
 
 function drawPlaneHud(c, W, H, s) {
@@ -45,10 +46,10 @@ function drawPlaneHud(c, W, H, s) {
   const agl = Math.round(pl.p[1] - (isFinite(g) ? g : 0));
   const hdg = Math.round(((pl.yaw * 180 / Math.PI) % 360 + 360) % 360);
   const vs = pl.vel[1];
-  const lines = [[T.name, "#3fcbd2"], [`${Math.round(spd)} km/h`], [`${agl} m a talaj felett · ${Math.round(pl.p[1])} m tszf`],
-                 [`irány ${String(hdg).padStart(3, "0")}° · emelkedés ${vs >= 0 ? "+" : ""}${vs.toFixed(1)} m/s`],
-                 [`${pl.type === "heli" ? "kollektív" : "gáz"} ${Math.round(pl.throttle * 100)}%` +
-                  (pl.type === "gripen" && pl.throttle > 0.92 ? " · UTÁNÉGETŐ" : "") + (pl.ground ? " · a földön" : "")]];
+  const lines = [[T.name, "#3fcbd2"], [`${Math.round(spd)} km/h`], [tt(`${agl} m a talaj felett · ${Math.round(pl.p[1])} m tszf`, `${agl} m above ground · ${Math.round(pl.p[1])} m ASL`)],
+                 [`${tt("irány", "heading")} ${String(hdg).padStart(3, "0")}° · ${tt("emelkedés", "climb")} ${vs >= 0 ? "+" : ""}${vs.toFixed(1)} m/s`],
+                 [`${pl.type === "heli" ? tt("kollektív", "collective") : tt("gáz", "throttle")} ${Math.round(pl.throttle * 100)}%` +
+                  (pl.type === "gripen" && pl.throttle > 0.92 ? tt(" · UTÁNÉGETŐ", " · AFTERBURNER") : "") + (pl.ground ? tt(" · a földön", " · on the ground") : "")]];
   // bottom left, above the key help: the top left is the panel's
   const y0 = H - 58*s - lines.length * 20*s;
   c.fillStyle = "rgba(8,16,22,.62)"; c.fillRect(16*s, y0 - 22*s, 300*s, 14*s + lines.length * 20*s);
@@ -61,18 +62,19 @@ function drawPlaneHud(c, W, H, s) {
     c.fillStyle = "rgba(255,90,80,.98)";
     c.font = `700 ${Math.round(22*s)}px "IBM Plex Mono", monospace`;
     c.textAlign = "center";
-    c.fillText(pl.crashed > 0 ? "LEZUHANT — újra 400 m-en" : "ÁTESÉS — nyomd le az orrát, adj gázt", W / 2, H * 0.3);
+    c.fillText(pl.crashed > 0 ? tt("LEZUHANT — újra 400 m-en", "CRASHED — back at 400 m") : tt("ÁTESÉS — nyomd le az orrát, adj gázt", "STALL — nose down, add power"), W / 2, H * 0.3);
     c.textAlign = "left";
   }
   c.fillStyle = "rgba(150,180,196,.85)";
   c.font = `400 ${Math.round(10.5*s)}px "IBM Plex Mono", monospace`;
   c.fillText(pl.type === "heli"
-    ? "W/S/A/D ciklikus · Q/E pedál · R/F kollektív · C pilótafülke · 1 2 3 gép"
-    : "W/S bólint · A/D dönt (a dőlés megmarad!) · Q/E oldalkormány · R/F gáz · Space fék a földön · C fülke · 1 2 3 gép",
+    ? tt("W/S/A/D ciklikus · Q/E pedál · R/F kollektív · C pilótafülke · 1 2 3 gép", "W/S/A/D cyclic · Q/E pedals · R/F collective · C cockpit · 1 2 3 aircraft")
+    : tt("W/S bólint · A/D dönt (a dőlés megmarad!) · Q/E oldalkormány · R/F gáz · Space fék a földön · C fülke · 1 2 3 gép",
+         "W/S pitch · A/D roll (the bank stays in!) · Q/E rudder · R/F throttle · Space brakes on the ground · C cockpit · 1 2 3 aircraft"),
     16*s, H - 16*s);
   c.fillStyle = "rgba(63,203,210,.95)";
   c.font = `600 ${Math.round(13*s)}px "IBM Plex Mono", monospace`;
-  c.fillText("Esc — vissza a vonatra", 16*s, H - 34*s);
+  c.fillText(tt("Esc — vissza a vonatra", "Esc — back to the train"), 16*s, H - 34*s);
 }
 
 // The inset map (and the full map on Tab): the line, every other train,
@@ -170,9 +172,6 @@ export function drawHud(c, canvas, st, world) {
   const W = canvas.width, H = canvas.height, s = W / 1200;
   c.clearRect(0, 0, W, H);
   c.textBaseline = "alphabetic";
-  if (state.plane && state.plane.active) { drawPlaneHud(c, W, H, s); drawMap(c, W, H, s, st, world); return; }
-  if (state.car && state.car.active) { drawCarHud(c, W, H, s); drawMap(c, W, H, s, st, world); return; }
-
   const layer = LAYERS[state.layer].key;
   const used = [];
   // You cannot name a hill you cannot see. In fog the labels used to hang
@@ -223,7 +222,10 @@ export function drawHud(c, canvas, st, world) {
       const d = Math.hypot(pk.xy[0] - st.camEye[0], pk.xy[1] + st.camEye[2]);
       if (d > 24000 || d < 220 || !visible(d)) continue;
       const rise = pk.ele - st.camEye[1];
-      if (Math.atan2(rise, d) < 0.012) continue;
+      // from the ground a hill has to stand above the line of sight; from the
+      // air (above it) every summit in range is named
+      if (rise > 0 && Math.atan2(rise, d) < 0.012) continue;
+      if (rise <= 0 && st.camEye[1] < pk.ele + 60) continue;
       const pr = project(st.vp, [pk.xy[0], pk.ele, -pk.xy[1]]);
       if (!pr) continue;
       const sx = (pr[0]*0.5+0.5)*W, sy = (1-(pr[1]*0.5+0.5))*H;
@@ -233,52 +235,59 @@ export function drawHud(c, canvas, st, world) {
     }
   }
 
+  // U once: the names stay, everything else goes
+  if (state.bareLevel === 1) return;
+  // in the plane and the car the names were never drawn at all (the Pilis
+  // from the air had no hill on it); now they are, under their own read-outs
+  if (state.plane && state.plane.active) { drawPlaneHud(c, W, H, s); drawMap(c, W, H, s, st, world); return; }
+  if (state.car && state.car.active) { drawCarHud(c, W, H, s); drawMap(c, W, H, s, st, world); return; }
   drawMap(c, W, H, s, st, world);
 
   // station banner — the stop was happening but was easy to miss
   {
     const d = st.driver;
-    const next = st.route.nextStop(d.m);
+    const next = st.driver.targetStop();
     const dist = next ? (next.km * 1000 - d.m) * st.route.dir : 1e9;
     let banner = null, tone = "rgba(63,203,210,.95)";
     if (d.dwell > 0) {
-      banner = `${d.lastStop || ""} — ${d.doors ? "DOORS OPEN" : "DOORS CLOSING"}`
-             + `   ${d.boarding} passengers   ${d.dwell.toFixed(0)} s`;
-    } else if (next && dist < 900 && d.v > 0.5) {
-      banner = `${next.name} in ${Math.round(dist)} m — prepare to stop`;
-      tone = "rgba(243,196,82,.95)";
+      banner = `${d.lastStop || ""} — ${d.doors ? tt("AJTÓK NYITVA", "DOORS OPEN") : tt("AJTÓZÁRÁS", "DOORS CLOSING")}`
+             + `   ${d.boarding} ${tt("utas", "passengers")}   ${d.dwell.toFixed(0)} s`;
+    } else if (next && dist < 900 && (d.v > 0.5 || !d.auto && dist > 30)) {
+      banner = dist >= 0 ? `${next.name} ${Math.round(dist)} m — ${tt("készülj a megállásra", "prepare to stop")}`
+                         : `${next.name}: ${tt(`${Math.round(-dist)} m-rel túl — állj meg!`, `${Math.round(-dist)} m past — stop!`)}`;
+      tone = dist >= 0 ? "rgba(243,196,82,.95)" : "rgba(255,90,78,.95)";
     }
     // the vigilance warning has to be visible from outside the cab too
     if (st.driver.vigPenalty > 0) {
-      banner = "ÉBER — kényszerfékezés · E a nyugtázás";
+      banner = tt("ÉBER — kényszerfékezés · E a nyugtázás", "VIGILANCE — penalty brake · E to acknowledge");
       tone = "rgba(255,90,78,.95)";
     } else if (st.driver.vigWarn > 0) {
-      banner = `ÉBER — nyugtázd (E) · ${(5 - st.driver.vigWarn).toFixed(1)} s`;
+      banner = `${tt("ÉBER — nyugtázd (E)", "VIGILANCE — acknowledge (E)")} · ${(5 - st.driver.vigWarn).toFixed(1)} s`;
       tone = "rgba(243,196,82,.95)";
     }
     if (state.jumpedTo && (!state.jumpedToUntil || performance.now() < state.jumpedToUntil) && !banner) {
-      banner = `${state.jumpedTo}  ·  , . to step between stations`;
+      banner = `${state.jumpedTo}  ·  , . ${tt("állomásról állomásra", "station to station")}`;
       tone = "rgba(140,190,240,.95)";
     }
     if (state.followIdx >= 0) {
       const list = st.traffic.trains.filter(t => t.svc.id !== "player");
       const f = list[state.followIdx];
-      banner = f ? `Following ${f.name} · ${f.stock} · ${f.cars} cars`
-                   + ` — ${f.dir > 0 ? "to Szob" : "to Budapest"}`
-                   + `  ·  F next train, ESC cab` : null;
+      banner = f ? `${tt("Követés:", "Following")} ${f.name} · ${f.stock} · ${f.cars} ${tt("kocsi", "cars")}`
+                   + ` — ${f.dir > 0 ? tt("kifelé", "outbound") : tt("Budapest felé", "to Budapest")}`
+                   + `  ·  ${tt("F következő vonat, Esc fülke", "F next train, Esc cab")}` : null;
       tone = "rgba(140,190,240,.95)";
     } else if (state.followCarIdx >= 0 && st.traffic.roadTraffic && st.traffic.roadTraffic.vehicles.length) {
       const v = st.traffic.roadTraffic.vehicles[state.followCarIdx % st.traffic.roadTraffic.vehicles.length];
-      banner = v ? `Following road ${v.type.kind.toUpperCase()} · ${(v.v * 3.6).toFixed(0)} km/h · V next vehicle, ESC cab` : null;
+      banner = v ? `${tt("Jármű követése", "Following a vehicle")} (${v.type.kind}) · ${(v.v * 3.6).toFixed(0)} km/h · ${tt("V következő, Esc fülke", "V next, Esc cab")}` : null;
       tone = "rgba(120,220,180,.95)";
     } else if (state.followShipIdx >= 0 && st.traffic.riverTraffic) {
       const rt = st.traffic.riverTraffic;
       const allShips = [...(rt.ferries || []), ...(rt.ships || [])];
       const sh = allShips[state.followShipIdx % allShips.length];
-      banner = sh ? `Following ${sh.name || (sh.type && sh.type.kind.toUpperCase()) || "VESSEL"} · ${(sh.v * 3.6).toFixed(0)} km/h · B next ship, ESC cab` : null;
+      banner = sh ? `${tt("Követés:", "Following")} ${sh.name || (sh.type && sh.type.kind) || tt("hajó", "ship")} · ${(sh.v * 3.6).toFixed(0)} km/h · ${tt("B következő hajó, Esc fülke", "B next ship, Esc cab")}` : null;
       tone = "rgba(100,200,255,.95)";
     } else if (state.drone && state.drone.active) {
-      banner = `DRONE FPV · WASD pitch/roll · Q/E yaw · Space/Shift thrust · Shift+D exit`;
+      banner = tt("DRÓN · WASD dönt · Q/E fordul · Space/Shift emelkedik/süllyed · ⇧D ki", "DRONE · WASD tilt · Q/E yaw · Space/Shift up/down · ⇧D exit");
       tone = "rgba(255,200,80,.95)";
     }
     if (banner) {
@@ -373,35 +382,6 @@ export function drawHud(c, canvas, st, world) {
     c.textAlign = "left";
   }
   
-  // Gamification overlay (Score & Messages)
-  if (state.gamificationActive) {
-    const gx = 24 * s;
-    const gy = 100 * s;
-    
-    // Draw Score
-    c.fillStyle = "rgba(8,14,18,.75)";
-    c.fillRect(gx, gy, 200 * s, 44 * s);
-    c.fillStyle = "rgba(240,248,252,.98)";
-    c.font = `700 ${Math.round(24 * s)}px "Archivo", system-ui, sans-serif`;
-    c.fillText(String(state.score).padStart(6, "0"), gx + 16 * s, gy + 32 * s);
-    c.fillStyle = "rgba(63,203,210,.95)";
-    c.font = `600 ${Math.round(12 * s)}px "IBM Plex Sans", system-ui, sans-serif`;
-    c.fillText("SCORE", gx + 130 * s, gy + 30 * s);
-
-    // Draw Messages
-    if (state.messages && state.messages.length > 0) {
-      for (let i = 0; i < state.messages.length; i++) {
-        const msg = state.messages[i];
-        const alpha = Math.min(1.0, msg.t);
-        c.fillStyle = msg.text.startsWith("+") 
-          ? `rgba(69,217,131,${alpha})` 
-          : `rgba(255,114,100,${alpha})`;
-        c.font = `600 ${Math.round(16 * s)}px "IBM Plex Sans", system-ui, sans-serif`;
-        c.fillText(msg.text, gx, gy + 64 * s + i * 22 * s);
-      }
-    }
-  }
-
   // In the cab the desk already carries all of it; the strip over the desk
   // was the same numbers twice, on top of each other.
   if (st.inCab && state.pitch < -0.2) { drawMessages(c, H, s, st, 0); return; }
@@ -421,7 +401,7 @@ export function drawHud(c, canvas, st, world) {
   const kmh = (follow ? follow.v : st.driver.v) * 3.6;
   const okm = st.route.officialKm(st.driver.m);
   const lim = st.route.limitAt(st.driver.m);
-  const next = st.route.nextStop(st.driver.m);
+  const next = st.driver.targetStop();
   const DIM = "rgba(150,180,196,.9)", FAINT = "rgba(120,150,166,.8)", BRIGHT = "rgba(240,248,252,.95)";
   const F = (w, px, fam) => `${w} ${Math.round(px*s)}px ${fam === "m" ? '"IBM Plex Mono", monospace'
                             : fam === "a" ? '"Archivo", system-ui, sans-serif' : '"IBM Plex Sans", system-ui, sans-serif'}`;
@@ -441,7 +421,7 @@ export function drawHud(c, canvas, st, world) {
     return Math.max(w0 + 40*s, tw(`limit ${lim}`, F(500, 11, "m")));
   }});
   // where to
-  if (follow) cell([`${follow.name} → ${follow.dir > 0 ? "Szob" : "Budapest"}`, F(600, 15), BRIGHT],
+  if (follow) cell([`${follow.name} → ${follow.dir > 0 ? tt("kifelé", "outbound") : "Budapest"}`, F(600, 15), BRIGHT],
                    [`${follow.cars} kocsi · km ${(follow.m/1000).toFixed(2)}`, F(400, 11, "m"), DIM]);
   else if (next) {
     const d = (next.km*1000 - st.driver.m) * st.route.dir;
@@ -477,27 +457,27 @@ export function drawHud(c, canvas, st, world) {
     const mm = Math.floor(Math.abs(L) / 60), ss = Math.floor(Math.abs(L) % 60);
     cell([`${early ? "−" : "+"}${mm}:${String(ss).padStart(2,"0")}`, F(600, 14, "m"),
           Math.abs(L) < 60 ? "rgba(69,217,131,.95)" : early ? "rgba(140,190,240,.95)" : "rgba(243,196,82,.95)"],
-         ["menetrendhez", F(400, 10, "m"), FAINT]);
+         [tt("menetrendhez", "to timetable"), F(400, 10, "m"), FAINT]);
   }
   // station work, or who is on board
   if (st.driver.dwell > 0)
-    cell([`${st.driver.doors ? "ajtók nyitva" : "ajtózárás"} · ${st.driver.dwell.toFixed(0)} s`, F(600, 13), "rgba(63,203,210,.95)"],
-         [`${st.driver.boarding} utas cserél`, F(400, 11, "m"), DIM]);
-  else if (!follow) cell([`${st.driver.pax}`, F(600, 14, "m"), BRIGHT], ["utas", F(400, 10, "m"), FAINT]);
+    cell([`${st.driver.doors ? tt("ajtók nyitva", "doors open") : tt("ajtózárás", "doors closing")} · ${st.driver.dwell.toFixed(0)} s`, F(600, 13), "rgba(63,203,210,.95)"],
+         [`${st.driver.boarding} ${tt("utas cserél", "passengers on and off")}`, F(400, 11, "m"), DIM]);
+  else if (!follow) cell([`${st.driver.pax}`, F(600, 14, "m"), BRIGHT], [tt("utas", "passengers"), F(400, 10, "m"), FAINT]);
   // weather
   if (state.wx) {
     const w = state.wx;
-    const p = w.precip.kind && w.precip.rate > 0.02 ? `${PRECIP[w.precip.kind]} ${(w.precip.rate * 100) | 0}%` : "száraz";
+    const p = w.precip.kind && w.precip.rate > 0.02 ? `${(LANG === "en" ? PRECIP_EN : PRECIP)[w.precip.kind]} ${(w.precip.rate * 100) | 0}%` : tt("száraz", "dry");
     cell([`${w.tempC.toFixed(0)}°C · ${compass(w.wind.from)} ${w.wind.speed.toFixed(0)} m/s`, F(400, 12, "m"), DIM],
          [`${p} · ${fmtVis(visibilityOf(st.pal.fog))}`, F(400, 10, "m"),
           w.precip.kind && w.precip.rate > 0.02 ? "rgba(120,190,226,.95)" : FAINT]);
   }
   // score, if the run is being scored
   if (st.state && st.state.score != null)
-    cell([`${st.state.score}`, F(600, 14, "m"), "#3fcbd2"], ["pont", F(400, 10, "m"), FAINT]);
+    cell([`${st.state.score}%`, F(600, 14, "m"), "#3fcbd2"], [st.state.mission ? tt("feladat", "mission") : tt("értékelés", "rating"), F(400, 10, "m"), FAINT]);
   // time compression / pause: only when it is not plain real time
   if (state.speedMul !== 1 || state.paused)
-    cell([state.paused ? "SZÜNET" : `×${state.speedMul}`, F(600, 14, "m"), "rgba(243,196,82,.95)"], ["idő", F(400, 10, "m"), FAINT]);
+    cell([state.paused ? tt("SZÜNET", "PAUSED") : `×${state.speedMul}`, F(600, 14, "m"), "rgba(243,196,82,.95)"], [tt("idő", "time"), F(400, 10, "m"), FAINT]);
 
   // lay them out; the signal repeater owns the right end
   const right = W - 160*s;
@@ -534,7 +514,7 @@ export function drawHud(c, canvas, st, world) {
     c.fillText(ASPECT_NAME[asp], W - 108*s, H - 42*s);
     c.fillStyle = FAINT;
     c.font = F(400, 10, "m");
-    c.fillText(dist < 9000 ? `jelző ${Math.round(dist)} m` : "—", W - 108*s, H - 27*s);
+    c.fillText(dist < 9000 ? `${tt("jelző", "signal")} ${Math.round(dist)} m` : "—", W - 108*s, H - 27*s);
   }
 
   // the numbers only a developer wants: F3
@@ -552,14 +532,16 @@ export function drawHud(c, canvas, st, world) {
 // score pop-ups (+50 on time …), above the strip on the left
 function drawMessages(c, H, s, st, bh) {
   if (st.state && st.state.messages && st.state.messages.length) {
-    let msgY = H - bh - 40*s;
+    // (under 1100 px the mode bar sits just above the strip, on the left)
+    let msgY = H - bh - (innerWidth < 1100 ? 84 : 40) * s;
     for (const msg of st.state.messages) {
       const alpha = Math.min(1.0, msg.t);
       c.font = `600 ${Math.round(13*s)}px "IBM Plex Sans", system-ui, sans-serif`;
       const w = c.measureText(msg.text).width;
       c.fillStyle = `rgba(8,14,18,${alpha * 0.8})`;
       c.fillRect(24*s, msgY, w + 20*s, 26*s);
-      c.fillStyle = msg.text.startsWith("+") ? `rgba(69,217,131,${alpha})` : `rgba(255,114,100,${alpha})`;
+      c.fillStyle = msg.tone === "good" ? `rgba(69,217,131,${alpha})` : msg.tone === "bad" ? `rgba(255,114,100,${alpha})`
+                  : `rgba(243,196,82,${alpha})`;
       c.fillText(msg.text, 34*s, msgY + 18*s);
       msgY -= 31*s;
     }

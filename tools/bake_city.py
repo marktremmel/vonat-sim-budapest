@@ -47,7 +47,7 @@ def origin(i, j):
 tiles = {}
 def T(k):
     if k not in tiles:
-        tiles[k] = {"polys": bytearray(), "np": 0, "roads": bytearray(), "nr": 0, "ids": [],
+        tiles[k] = {"polys": bytearray(), "np": 0, "colours": [], "roads": bytearray(), "nr": 0, "ids": [],
                     "parts": [], "portals": []}
     return tiles[k]
 
@@ -68,8 +68,9 @@ for i in range(C["buildings"]["count"]):
     t["polys"] += bytes((0, 1, 2, 0, 2, 3))
     t["np"] += 1
 
-# polygons, re-based to their tile
+# polygons, re-based to their tile, with their OSM colours where they have them
 P = base64.b64decode(C["polys"]["data"])
+COL = {c[0]: c for c in C["polys"].get("colours", [])}
 o = 0
 for i in range(C["polys"]["count"]):
     cx, cy, h, cls, roof, n, nt, rh = struct.unpack_from("<ffHBBBBH", P, o)
@@ -77,6 +78,8 @@ for i in range(C["polys"]["count"]):
     k = tile_of(cx, cy); _, _, ox, oy = origin(*k)
     t = T(k)
     t["polys"] += struct.pack("<ff", cx - ox, cy - oy) + P[o + 8:o + size]
+    if i in COL:
+        t["colours"].append([t["np"], COL[i][1], COL[i][2]])
     t["np"] += 1
     o += size
 
@@ -121,7 +124,7 @@ for (i, j), t in sorted(tiles.items()):
     la0, lo0, _, _ = origin(i, j)
     name = f"t_{i}_{j}.json"
     body = {"lat0": la0, "lon0": lo0,
-            "polys": {"count": t["np"], "data": base64.b64encode(bytes(t["polys"])).decode()},
+            "polys": {"count": t["np"], "colours": t["colours"], "data": base64.b64encode(bytes(t["polys"])).decode()},
             "roads": {"count": t["nr"], "ids": t["ids"], "data": base64.b64encode(bytes(t["roads"])).decode()},
             "parts": t["parts"], "portals": t["portals"]}
     json.dump(body, open(f"web/data/city/{name}", "w"), separators=(",", ":"))
@@ -132,3 +135,7 @@ for (i, j), t in sorted(tiles.items()):
 json.dump(index, open("web/data/city/index.json", "w"), separators=(",", ":"))
 print(f"city: {len(index['tiles'])} tiles, {sum(t['n'] for t in index['tiles'])} buildings, "
       f"{total / 1e6:.1f} MB")
+
+# and the extras (rails, industry, power, solar, labels), if downloaded
+if os.path.isdir("data/raw/cityx"):
+    subprocess.run([sys.executable, "tools/bake_cityx.py"])

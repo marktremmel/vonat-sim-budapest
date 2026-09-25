@@ -106,7 +106,11 @@ export function makePlane(at, yaw, type = "cessna") {
            stall: 0, crashed: 0, prop: 0, ground: false, drift: 0 };
 }
 
-export function stepPlane(pl, keys, dt, demAt) {
+// the tops of buildings and structures (collide.js Solids.topAt), set for
+// the step by stepPlane: a roof is ground you can land on, a wall is not
+let roofAt = null;
+export function stepPlane(pl, keys, dt, demAt, topAt = null) {
+  roofAt = topAt;
   const T = PLANES[pl.type] || PLANES.cessna;
   return T.heli ? stepHeli(pl, keys, dt, demAt) : stepWing(pl, T, keys, dt, demAt);
 }
@@ -194,9 +198,20 @@ function stepHeli(pl, keys, dt, demAt) {
 
 // Touching the ground: a landing if it was gentle, a crash if it was not.
 function groundContact(pl, T, demAt, speed) {
-  const g = demAt(pl.p[0], -pl.p[2]);
+  let g = demAt(pl.p[0], -pl.p[2]);
   if (!isFinite(g)) return;
   const clear = T.heli ? 1.3 : 1.5;
+  // Buildings, chimneys, masts. Coming in over the top of one is a roof to
+  // land on (the helicopter, gently); being below its top inside it means
+  // you flew into the side of it.
+  const roof = roofAt ? roofAt(pl.p[0], -pl.p[2]) : -Infinity;
+  if (roof > g) {
+    if (pl.p[1] < roof - 2.5) {
+      crash(pl, T, g, "Épületnek ütköztél");
+      return;
+    }
+    g = roof;
+  }
   if (pl.p[1] < g + clear) {
     const gentle = pl.vel[1] > (T.heli ? -3.5 : -4.5) && Math.abs(pl.roll) < 0.3
                    && (T.heli || (pl.pitch > -0.12 && speed < T.vStall * 1.8));
@@ -204,13 +219,15 @@ function groundContact(pl, T, demAt, speed) {
       pl.p[1] = g + clear; pl.vel[1] = Math.max(0, pl.vel[1]);
       pl.ground = true; pl.roll *= 0.8;
       if (!T.heli) pl.pitch = Math.max(pl.pitch, -0.02);
-    } else {
-      pl.crashed = 2.5; pl.ground = false;
-      pl.p[1] = g + 400; pl.pitch = 0; pl.roll = 0; pl.stall = 0;
-      const v0 = T.heli ? 0 : (PLANES[pl.type] || PLANES.cessna).start;
-      pl.vel = [Math.sin(pl.yaw) * v0, 0, -Math.cos(pl.yaw) * v0];
-    }
+    } else crash(pl, T, g, "Lezuhantál");
   } else if (pl.p[1] > g + clear + 0.8) pl.ground = false;
+}
+// a crash: a message (main.js shows pl.crashWhy), and a restart 400 m up
+function crash(pl, T, g, why) {
+  pl.crashed = 2.5; pl.ground = false; pl.crashWhy = why; pl.crashes = (pl.crashes || 0) + 1;
+  pl.p[1] = g + 400; pl.pitch = 0; pl.roll = 0; pl.stall = 0;
+  const v0 = T.heli ? 0 : (PLANES[pl.type] || PLANES.cessna).start;
+  pl.vel = [Math.sin(pl.yaw) * v0, 0, -Math.cos(pl.yaw) * v0];
 }
 
 // --------------------------------------------------------------- geometry

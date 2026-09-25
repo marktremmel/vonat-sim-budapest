@@ -35,7 +35,8 @@ export function dateOfYear(day) {
   while (m < 11 && d > len[m]) { d -= len[m]; m++; }
   return { month: m + 1, day: d, name: HU_MONTHS[m],
            short: `${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
-           hu: `${HU_MONTHS[m]} ${d}.` };
+           hu: `${HU_MONTHS[m]} ${d}.`,
+           en: `${["January","February","March","April","May","June","July","August","September","October","November","December"][m]} ${d}` };
 }
 
 /**

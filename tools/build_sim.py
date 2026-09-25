@@ -6,9 +6,9 @@ SRC = "web/src"
 # Concatenated in this order into one flat scope, so a name must be declared
 # before anything reads it at load time. Functions are hoisted; top-level
 # `const` is not.
-ORDER = ["shaders.js", "engine.js", "env.js", "route.js", "geom.js", "trains.js",
-         "traffic.js", "car.js", "aircraft.js", "catenary.js", "structures.js", "audio.js", "clouds.js", "weather.js", "landmarks.js", "parts.js", "city.js", "tour.js",
-         "panel.js", "cab.js", "hud.js", "input.js", "settings.js", "main.js"]
+ORDER = ["i18n.js", "shaders.js", "engine.js", "env.js", "route.js", "geom.js", "trains.js",
+         "traffic.js", "collide.js", "car.js", "aircraft.js", "catenary.js", "structures.js", "audio.js", "clouds.js", "weather.js", "landmarks.js", "parts.js", "city.js", "tour.js",
+         "panel.js", "cab.js", "hud.js", "input.js", "score.js", "missions.js", "easter.js", "photofx.js", "kisvasut.js", "settings.js", "main.js"]
 
 def strip_modules(text):
     text = re.sub(r'^\s*import[^;]*;\s*$', '', text, flags=re.M)

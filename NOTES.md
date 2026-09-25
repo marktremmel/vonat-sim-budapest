@@ -366,6 +366,19 @@ mistake each one represents. Check these before believing anything.
     day there was one, every pantograph on the railway stood clean through
     it. Adding something real is a good moment to ask what was only right
     because the real thing was missing.
+12. **`demAt` and the GPU disagreed by half a pixel (fixed 25 Sep 2026).**
+    `bake_world.py` samples each heightmap pixel at its centre, `(i + 0.5)`
+    steps in, and the GPU's linear filter reads it the same way. `demAt`
+    in main.js treated pixel i as the point i steps in. So everything laid
+    on the ground from the CPU was 13 m off the drawn terrain: roads, cars,
+    buildings, the corridor, the kisvasút. On flat ground that doesn't
+    show. On a 20% slope it is 2.6 m, which is how the forest railway ended
+    up under the hillside. Any new CPU sampler of a linearly filtered
+    texture needs the same `- 0.5`.
+13. **An `out` read before it is written.** TERRAIN_VS computed the river
+    level from `vWorld.z` before setting `vWorld`, so the flood rule used
+    the level at the frame's south edge everywhere (about 5 m low at Szob).
+    It now uses the vertex's own north.
 
 ## Twelfth pass — the wire, the platforms, and Nyugati
 - **The overhead line.** A 25 kV railway with no catenary anywhere on it now

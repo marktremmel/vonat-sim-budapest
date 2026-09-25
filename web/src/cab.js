@@ -1,3 +1,4 @@
+import { tt } from "./i18n.js";
 // The driver's desk. Drawn flat over the scene the way EasyLine and the
 // DOS-era simulators did it — pillars, a roof edge, and a console you read
 // rather than a modelled interior you fly through.
@@ -31,7 +32,7 @@ export function drawInstruments(c, canvas, st) {
     const x = X(280);
     c.fillStyle = "rgba(140,170,190,.8)";
     c.font = `500 ${Math.round(12*s)}px "IBM Plex Mono", monospace`;
-    c.fillText("KONTROLLER", x, Y(46));
+    c.fillText(tt("KONTROLLER", "CONTROLLER"), x, Y(46));
     const lv = st.lever;
     c.fillStyle = lv == null ? "rgba(150,180,196,.85)" : lv === "EB" ? "rgba(255,90,80,1)"
                 : lv[0] === "P" ? "rgba(69,217,131,1)" : lv[0] === "B" ? "rgba(255,150,120,1)" : "rgba(236,244,248,1)";
@@ -47,13 +48,13 @@ export function drawInstruments(c, canvas, st) {
     roundRect(c, x, y, X(170), Y(46), 3*s); c.stroke();
     c.fillStyle = "rgba(150,180,196,.8)";
     c.font = `400 ${Math.round(10*s)}px "IBM Plex Mono", monospace`;
-    c.fillText("FELSŐVEZETÉK", x + 9*s, y + 14*s);
+    c.fillText(tt("FELSŐVEZETÉK", "CATENARY"), x + 9*s, y + 14*s);
     c.fillStyle = st.kv < 21 ? "rgba(243,196,82,.95)" : "rgba(120,226,206,.95)";
     c.font = `600 ${Math.round(20*s)}px "IBM Plex Mono", monospace`;
     c.fillText(`${st.kv.toFixed(1)} kV`, x + 9*s, y + 37*s);
     c.fillStyle = "rgba(140,170,190,.8)";
     c.font = `400 ${Math.round(13*s)}px "IBM Plex Mono", monospace`;
-    c.fillText(`${st.pax} utas`, x, Y(226));
+    c.fillText(`${st.pax} ${tt("utas", "pax")}`, x, Y(226));
   }
 
   // ---- brake pipe pressure, the second dial a driver actually watches
@@ -104,15 +105,15 @@ export function drawInstruments(c, canvas, st) {
   // the ray hits it, the UV gives a pixel, and the pixel gives a switch.
   st.hits = [];
   const SW = [
-    { id: "feny",  label: "FÉNY",  on: st.lights > 0, val: ["KI","TOMP","TÁVOL"][st.lights] },
-    { id: "torlo", label: "TÖRLŐ", on: st.wiper > 0, val: ["KI","LASSÚ","GYORS"][st.wiper] },
-    { id: "kurt",  label: "KÜRT",  on: st.horn,
-      val: ["MINDKETTŐ", "MÉLY", "MAGAS", "LÉGSÍP"][st.hornMode || 0] },
-    { id: "eber",  label: "ÉBER",  on: st.vigilance || st.vigAck,
-      val: st.vigilance ? "NYUGTÁZ" : st.vigAck ? "NYUGTÁZVA" : "OK",
+    { id: "feny",  label: tt("FÉNY", "LIGHTS"),  on: st.lights > 0, val: tt(["KI","TOMP","TÁVOL"], ["OFF","DIP","MAIN"])[st.lights] },
+    { id: "torlo", label: tt("TÖRLŐ", "WIPER"), on: st.wiper > 0, val: tt(["KI","LASSÚ","GYORS"], ["OFF","SLOW","FAST"])[st.wiper] },
+    { id: "kurt",  label: tt("KÜRT", "HORN"),  on: st.horn,
+      val: tt(["MINDKETTŐ", "MÉLY", "MAGAS", "LÉGSÍP"], ["BOTH", "LOW", "HIGH", "WHISTLE"])[st.hornMode || 0] },
+    { id: "eber",  label: tt("ÉBER", "VIGIL."),  on: st.vigilance || st.vigAck,
+      val: st.vigilance ? tt("NYUGTÁZ", "ACK!") : st.vigAck ? tt("NYUGTÁZVA", "ACKED") : "OK",
       alarm: st.vigilance },
-    { id: "ajto",  label: "AJTÓ",  on: st.doors, val: st.doors ? "NYITVA" : "ZÁRVA" },
-    { id: "homok", label: "HOMOK", on: st.sand, val: st.sand ? "SZÓR" : "KI" },
+    { id: "ajto",  label: tt("AJTÓ", "DOORS"),  on: st.doors, val: st.doors ? tt("NYITVA", "OPEN") : tt("ZÁRVA", "SHUT") },
+    { id: "homok", label: tt("HOMOK", "SAND"), on: st.sand, val: st.sand ? tt("SZÓR", "ON") : tt("KI", "OFF") },
   ];
   // two across, three down, in the right-hand column
   const swW = X(128), swH = Y(60), gap = X(8);

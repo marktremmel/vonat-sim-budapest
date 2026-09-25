@@ -144,6 +144,14 @@ export class Driver {
     this.bcp = 0;              // brake cylinder pressure, 0..1 of full service
     this.edb = 0;              // electrodynamic brake share, 0..1
     this.slip = 0;             // wheel slip under power, 0..1, for HUD and sound
+    // for the scorecard (score.js): what happened, in order, and running
+    // totals of traction energy, energy fed back by the ED brake (J), and
+    // the actual acceleration (m/s², from the speed change)
+    this.events = [];
+    // the stops this train calls at, by name (null: all of them). A G70, an
+    // EC or a freight runs through the rest.
+    this.callsAt = null;
+    this.eTr = 0; this.eRegen = 0; this.aEff = 0;
   }
   setLever(n) {
     this.lever = Math.max(-LEVER_MAX, Math.min(LEVER_MAX, n));
@@ -170,6 +178,21 @@ export class Driver {
     this.brake = Math.min(1, this.edb + this.bcp);
   }
 
+  /** The stop the train is working towards: the one it will call at next,
+   *  and it stays that stop until the train has called there or run 30 m
+   *  past it (nextStop moves on 30 m short, which is no use to a driver
+   *  braking for the mark). Stops this train runs through are skipped. */
+  targetStop() {
+    const R = this.route;
+    let st = R.stops[this.stopIdx];
+    while (st && this.callsAt && !this.callsAt.has(st.name)) st = R.stops[++this.stopIdx];
+    return st || null;
+  }
+  /** The next stop this train calls at, at least 30 m ahead. */
+  nextStop(m) {
+    const R = this.route;
+    return R.stops.find(s => (s.km * 1000 - m) * R.dir > 30 && (!this.callsAt || this.callsAt.has(s.name))) || null;
+  }
   // a rough demand model: the bigger the place, the more people, and more of
   // them get off as you come back toward Budapest
   callAt(stop) {
@@ -193,7 +216,7 @@ export class Driver {
       const tgt = Math.min(R.limitAt(mm) / 3.6, s.vMax);
       cap = Math.min(cap, Math.sqrt(tgt * tgt + 2 * s.bServ * 0.85 * d));
     }
-    const st = R.nextStop(m);
+    const st = this.nextStop(m);
     if (st) {
       // aim to be stopped a few metres short: braking to exactly zero at the
       // stop mark leaves a couple of km/h on and the train sails through
@@ -251,8 +274,12 @@ export class Driver {
     let a = f / m - this.brake * s.bServ * grip;
     if (this.vigPenalty > 0) a -= s.bEmerg * 0.75 * grip;
     if (this.emergency) a -= (s.bEmerg - s.bServ) * grip * Math.min(1, this.bcp);
+    const v0 = this.v;
     this.v = Math.max(0, this.v + a * dt);
     this.v = Math.min(this.v, s.vMax);
+    this.aEff = dt > 0 ? (this.v - v0) / dt : 0;
+    this.eTr += fTr * v0 * dt;
+    if (s.ed) this.eRegen += Math.min(this.edb, this.brake) * s.bServ * grip * m * v0 * dt * 0.75;
     this.m += R.dir * this.v * dt;
     this.t += dt;
 
@@ -269,21 +296,40 @@ export class Driver {
       this.vigPenalty = 0; this.vigT = 40; this.vigWarn = 0;
     }
 
-    const st = R.stops[this.stopIdx];
+    const st = this.targetStop();
     if (st) {
       const d = (st.km * 1000 - this.m) * R.dir;
-      if (d < 45 && d > -25) {
-        // final approach: hold the brake on and settle onto the mark
-        if (this.auto) { this.throttle = 0; this.brake = Math.max(this.brake, 0.75); }
-        if (this.v < 1.4 || d < 1.0) {
-          this.v = 0;
-          this.m = st.km * 1000;
-          this.brake = 0;
+      if (this.auto) {
+        if (d < 45 && d > -25) {
+          // final approach: hold the brake on and settle onto the mark
+          this.throttle = 0; this.brake = Math.max(this.brake, 0.75);
+          if (this.v < 1.4 || d < 1.0) {
+            this.v = 0;
+            this.m = st.km * 1000;
+            this.brake = 0;
+            this.dwell = this.callAt(st);
+            this.stopIdx++;
+            this.departed = false;
+            this.events.push({ type: "stop", name: st.name, err: 0, auto: true });
+          }
+        } else if (d < -45) { this.stopIdx++; }
+      } else {
+        // Driving yourself, the train stops where YOU stop it (it used to be
+        // pulled onto the mark from 45 m short, which made every stop
+        // "perfect"). Stood still within 30 m of the mark: the doors open,
+        // and how far off it was goes on the scorecard. Past it by more than
+        // 30 m: the stop is missed.
+        if (this.v < 0.05 && Math.abs(d) < 30) {
+          this.v = 0; this.brake = 0;
           this.dwell = this.callAt(st);
           this.stopIdx++;
           this.departed = false;
+          this.events.push({ type: "stop", name: st.name, err: d });
+        } else if (d < -30) {
+          this.stopIdx++;
+          this.events.push({ type: "miss", name: st.name });
         }
-      } else if (d < -45) { this.stopIdx++; }
+      }
     }
     if ((this.m - R.endM) * R.dir >= 0) {
       this.m = R.endM; this.v = 0;

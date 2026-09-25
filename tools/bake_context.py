@@ -75,6 +75,34 @@ CLS = {"church": 1, "chapel": 1, "train_station": 2, "station": 2,
 # because OSM rarely says: a long, narrow, tall, rectangular apartment block.
 PANEL = 7
 
+# OSM building:colour / roof:colour: "#rrggbb", "#rgb" or a colour name. A
+# named colour means the kind of colour, not the CSS swatch: a "red" roof is
+# terracotta, a "yellow" house is a Pest ochre, not a traffic sign.
+NAMED_COLOUR = {
+    "white": (0.92, 0.91, 0.88), "ivory": (0.93, 0.91, 0.84), "cream": (0.92, 0.88, 0.76),
+    "beige": (0.86, 0.80, 0.66), "tan": (0.80, 0.70, 0.54), "yellow": (0.92, 0.82, 0.52),
+    "orange": (0.90, 0.64, 0.40), "pink": (0.92, 0.74, 0.72), "salmon": (0.92, 0.66, 0.56),
+    "red": (0.64, 0.30, 0.22), "maroon": (0.48, 0.22, 0.18), "brown": (0.46, 0.32, 0.24),
+    "green": (0.50, 0.64, 0.46), "lightgreen": (0.70, 0.82, 0.62), "darkgreen": (0.28, 0.38, 0.28),
+    "blue": (0.46, 0.58, 0.74), "lightblue": (0.70, 0.80, 0.88), "darkblue": (0.24, 0.30, 0.44),
+    "grey": (0.60, 0.60, 0.60), "gray": (0.60, 0.60, 0.60), "lightgrey": (0.76, 0.76, 0.75),
+    "lightgray": (0.76, 0.76, 0.75), "darkgrey": (0.36, 0.36, 0.37), "darkgray": (0.36, 0.36, 0.37),
+    "silver": (0.72, 0.73, 0.75), "black": (0.16, 0.16, 0.17), "purple": (0.56, 0.44, 0.60),
+    "violet": (0.66, 0.56, 0.74), "gold": (0.82, 0.68, 0.36), "copper": (0.40, 0.58, 0.50),
+}
+def osm_colour(v):
+    if not v:
+        return None
+    v = v.strip().lower().replace(" ", "").replace("_", "")
+    try:
+        if v.startswith("#") and len(v) == 7:
+            return tuple(int(v[i:i + 2], 16) / 255 for i in (1, 3, 5))
+        if v.startswith("#") and len(v) == 4:
+            return tuple(int(v[i] * 2, 16) / 255 for i in (1, 2, 3))
+    except ValueError:
+        return None
+    return NAMED_COLOUR.get(v)
+
 ROOF = {"flat": 0, "skillion": 0, "gabled": 1, "hipped": 1, "half-hipped": 1,
         "round": 3, "dome": 4, "onion": 4, "pyramidal": 2, "many": 1, "gambrel": 1,
         "mansard": 1, "quadruple_saltbox": 1, "saltbox": 1}
@@ -259,7 +287,14 @@ def main():
     # Local density is the best proxy available: a 300 m2 footprint with
     # forty neighbours inside a hundred metres is a city block, the same
     # footprint on its own is a farm building.
-    dens = {}
+    #
+    # The count alone was not enough: a village of small houses packed along
+    # its streets (Verőce, 148 in the block around the station) counts as
+    # many as a Pest block, and every one of its cottages became a 15 m
+    # tenement. So the ground covered is measured too, and the average
+    # footprint (measured 25 Sep: Pest VII–VIII 30–40% covered, 470–550 m² a
+    # building; Verőce, Göd, Rákospalota, Kispest 12–27%, 150–210 m²).
+    dens, dens_a = {}, {}
     for e in els:
         t = e.get("tags", {})
         if "building" not in t:
@@ -269,10 +304,22 @@ def main():
             continue
         key = (int(g[0]["lat"] * 900), int(g[0]["lon"] * 600))
         dens[key] = dens.get(key, 0) + 1
+        if len(g) >= 3:
+            k = math.cos(math.radians(g[0]["lat"]))
+            xs = [(p["lon"] * 111320 * k, p["lat"] * 111130) for p in g]
+            dens_a[key] = dens_a.get(key, 0) + abs(sum(xs[i][0] * xs[i - 1][1] - xs[i - 1][0] * xs[i][1]
+                                                       for i in range(len(xs)))) / 2
     def around(lat, lon):
         a, b = int(lat * 900), int(lon * 600)
         return sum(dens.get((a + i, b + j), 0)
                    for i in (-1, 0, 1) for j in (-1, 0, 1))
+    def cover_mean(lat, lon):
+        """share of the ground under buildings nearby, and the mean footprint (m²)"""
+        a, b = int(lat * 900), int(lon * 600)
+        n = sum(dens.get((a + i, b + j), 0) for i in (-1, 0, 1) for j in (-1, 0, 1))
+        s = sum(dens_a.get((a + i, b + j), 0) for i in (-1, 0, 1) for j in (-1, 0, 1))
+        cell = (3 / 900 * 111130) * (3 / 600 * 111320 * math.cos(math.radians(lat)))
+        return s / cell, (s / n if n else 0)
 
     # Buildings big enough for a bounding box to be visibly wrong get their
     # real footprint extruded instead. Classical Budapest downtown blocks,
@@ -311,6 +358,7 @@ def main():
     DERIVED = {}
     anchors = []
     ppack, pcount, ptri = bytearray(), 0, 0
+    pcolours = []          # [poly index, wall rgb or None, roof rgb or None]
     poly_ids = set()
 
     # ---- OSM 3D building parts (q_building_parts.ql). Where mappers have
@@ -621,11 +669,20 @@ def main():
             cls = 3
         if h is None:
             h = DEFAULT_H.get(kind, 7.0)
+            covered, mean_fp = cover_mean(lat, lon)
             # an untyped building in a dense block is a bérház, not a cottage
-            if kind in ("yes", "residential") and crowd > 26:
+            # — in a real city block: well covered, with big footprints
+            if kind in ("yes", "residential") and crowd > 26 and covered >= 0.26 and mean_fp >= 300:
                 if area > 420 and crowd > 60: h, cls = 19.0, 9
                 elif area > 260: h, cls = 15.5, 9
                 elif area > 150: h, cls = 11.5, 9
+            # and in a village or a garden suburb a small untagged house is
+            # one storey under its roof, a shed less
+            elif kind in ("yes", "house", "detached", "residential", "semidetached_house") and covered < 0.26:
+                if area < 60:
+                    h = 3.2
+                elif area < 220:
+                    h = 4.6
 
         # A panelház is long, narrow, tall and rectangular. The proportions
         # are the giveaway: 45–120 m of frontage, 10–16 m deep, four storeys
@@ -642,7 +699,7 @@ def main():
 
         # Ruins (the Aquincum amphitheatre is one, a multipolygon round an open
         # arena) are low roofless walls, not a solid block with a lid
-        ruin = t.get("historic") in ("ruins", "archaeological_site") or kind == "ruins"
+        ruin = t.get("historic") in ("ruins", "archaeological_site") or kind == "ruins" or t.get("ruins") == "yes"
         if ruin:
             cls, h = 13, (h if t.get("height") else 3.5)
         # Stadiums and sports halls are not tenements (the Puskás Aréna and
@@ -672,7 +729,12 @@ def main():
                 cls = 12
             elif kind == "hotel":
                 cls = 9
-            elif (ox and on_rail_land(ox, oy)) and kind not in ("house", "residential", "apartments", "detached"):
+            elif ((ox and on_rail_land(ox, oy)) and kind not in ("house", "residential", "apartments", "detached")
+                  # a hut, a boathouse, a pub or a hotel on industrial land is
+                  # still a hut, a boathouse, a pub or a hotel (Népsziget: the
+                  # rowing clubs and the Partizán Hajó had become sheds)
+                  and area >= 220
+                  and not any(t.get(k) for k in ("name", "amenity", "tourism", "leisure", "shop", "office", "historic"))):
                 cls = 3
         h = max(2.5, min(70.0, h))
         # flat roof: everything industrial, commercial or prefabricated. A
@@ -687,6 +749,8 @@ def main():
         if area >= POLY_AREA and 3 <= len(ring) <= 96:
             rshape = t.get("roof:shape")
             rtype = ROOF.get(rshape, 0 if flat else 1)
+            if rtype == 3 and area > 1500 and kind not in ("train_station", "station"):
+                rtype = 6                      # a row of low vaults, not one hangar
             if cls == 13:
                 rtype = 5                      # no roof: open to the sky
             elif kind in ("train_station", "station") and area > 1200 and not t.get("building:levels"):
@@ -714,6 +778,11 @@ def main():
                         max(-32767, min(32767, int((q[1]-cy2) * 10))))
                 for a, b, c in tris[:255]:
                     ppack += struct.pack("<BBB", a, b, c)
+                wc = osm_colour(t.get("building:colour"))
+                rc = osm_colour(t.get("roof:colour"))
+                if wc or rc:
+                    pcolours.append([pcount, [round(x, 3) for x in wc] if wc else None,
+                                     [round(x, 3) for x in rc] if rc else None])
                 pcount += 1
                 ptri += len(tris)
                 poly_ids.add(id(e))
@@ -1277,6 +1346,7 @@ def main():
                   "f32 cx, f32 cy, u16 height dm, u8 class, u8 roof, u8 npts, "
                   "u8 ntri, u16 roofheight cm, npts x (i16 dx, i16 dy) dm, "
                   "ntri x (u8,u8,u8)",
+                  "colours": pcolours,
                   "data": base64.b64encode(bytes(ppack)).decode()},
         "landmarks": anchors,
         "parts": parts,

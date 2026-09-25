@@ -14,6 +14,7 @@ const LANDMARK_NAME = {
   eszakivasut: "Északi összekötő vasúti híd", maria_valeria: "Mária Valéria híd",
   hosok: "Hősök tere", gellert: "Gellért-hegy", diadaliv: "Váci Diadalív",
   cementworks: "Váci cementgyár", hulladek: "Hulladékhasznosító Mű",
+  bigwheel: "Budapest Eye óriáskerék", budavar: "Budavári Palota",
 };
 
 /** [{name, x, y, w}] in the route's (east, north) frame; w is importance. */
@@ -21,7 +22,7 @@ export function buildPOIs(routeData, landmarks) {
   const out = [];
   for (const a of landmarks || []) {
     const nm = LANDMARK_NAME[a.key] || (a.key === "viztorony" ? a.name : null);
-    if (nm) out.push({ name: nm, x: a.x, y: a.y, w: a.key === "viztorony" ? 1.2 : 3.0 });
+    if (nm) out.push({ name: nm, x: a.x, y: a.y, w: a.key === "viztorony" ? 1.2 : 3.0, lm: true });
   }
   for (const p of routeData.peaks || []) {
     if (p.ele >= 330) out.push({ name: `${p.name} (${Math.round(p.ele)} m)`, x: p.xy[0], y: p.xy[1],

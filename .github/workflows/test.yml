@@ -1,0 +1,14 @@
+name: test
+# The headless simulation checks (tools/test_sim.mjs): physics, stops,
+# scoring, six hours of traffic per line, collisions, missions.
+on: [push, pull_request]
+jobs:
+  sim:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tools/test_sim.mjs
+      - run: python3 tools/build_sim.py

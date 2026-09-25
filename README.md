@@ -1,4 +1,4 @@
-# Vonat-sim Budapest — v0.1 alpha
+# Dunakanyar Szimulátor (vonat-sim-budapest) — v0.1 alpha
 
 A browser train simulator of Budapest's suburban lines, built from
 OpenStreetMap and elevation data: hand-rolled WebGL2, no dependencies, and a
@@ -14,9 +14,24 @@ places.
   - S21: Nyugati – Kőbánya-Kispest – Ócsa – Lajosmizse.
 - **Budapest:** the whole of the central city is loaded in 1 km tiles around the camera, about 250k buildings, with the Parliament and the Bazilika from OSM's 3D building parts.
 - **Ways to play:**
-  - drive the train (master controller, signals, single-track crossings), or ride as a passenger;
-  - watch it in sightseeing mode (Kilátás), or run the dispatcher board;
-  - fly (Cessna, Gripen, helicopter), fly a drone, or drive a car.
+  - **Indulás:** one click onto the next train from Budapest, on automatic; M takes over.
+  - **Szolgálat:** ten missions on real stretches (a FLIRT through Újpest, the KISS in the rain, the fog on the Pilis, a 1,280-tonne freight), scored for punctuality, stopping at the mark, safety, comfort and energy, with stars and four licence grades.
+  - **Napi kihívás:** a mission, time and weather chosen by the date, the same for everyone.
+  - **Fotóalbum:** photograph landmarks, peaks and towns (Z) from the train, a plane or the car.
+  - **Photo mode (⇧Z or Fotó):** everything stops (trains, cars, planes). You get:
+    - a free camera, or orbit round a clicked point;
+    - lights you place yourself;
+    - exposure, hue, saturation, contrast, warmth, vignette, grain, field of view;
+    - depth of field (click to focus) and a tilt-shift "miniature" mode;
+    - stickers (drag, wheel to scale, ⇧wheel to turn, double-click to flip) and a caption;
+    - a light leak, a flare, a print or film border and a date stamp. These are drawn into the saved PNG.
+- **The Királyréti kisvasút** (line 70's world): the 760 mm forest railway from Kismaros up to Királyrét. It is taken from OSM (9.7 km, 8 stops). An Mk48 with three coaches runs it by itself all day. You cannot drive it.
+  - Ride as a passenger, watch in sightseeing mode (Kilátás), give orders on the dispatcher board;
+    fly (Cessna, Gripen, helicopter), fly a drone, or drive a car. Buildings are solid, trains brake for a car on the line, and the car stops at a closed boom.
+  - On a phone: touch buttons for the lever, the car and the plane.
+- **Hungarian or English:** the HU/EN button on the menu (the first visit follows the browser's language).
+- **Station announcements:** a local Hungarian voice (macOS Tünde, `tools/make_announcements.py`), with the sound on (G).
+- **Graphics switches** (Beállítás): quality, depth of field in the outside views, motion blur, corner shading (AO).
 - **Help:** press `?` in the game for every key.
 
 ## Run locally
@@ -25,6 +40,8 @@ places.
     python3 tools/serve.py 8177 dist           # then http://localhost:8177
 
 `dist/` has to be served over HTTP; opening the file directly will not work.
+
+    node tools/test_sim.mjs                    # headless checks, also run by CI
 
 GitHub Pages ("Deploy from a branch", `main`, root) serves the `index.html` at
 the repository root: `build_sim.py` writes it along with `dist/`, pointing it
@@ -40,6 +57,19 @@ The baked runtime data is in `web/data/`. The raw downloads (`data/raw/`,
 ~660 MB) are not in the repository; `tools/` fetches and bakes them again
 (`build_line2.sh`, `build_s21.sh`, `fetch_city.sh` + `bake_city.py`).
 
+The cover, logo and menu art are the owner's own. The panel-block façades
+(`web/data/facades.webp`) are cut from two texture packs:
+- "Eastern European Urban Decay - Building Pack Vol. 1" by cortino (https://cortino.itch.io/psx-slav-panel-building);
+- "WEIRD HOUSE PACK" by utilizator2011 (https://utilizator2011.itch.io/free-weire).
+
+The car models (`web/data/models/cars.*`) are baked from GGBot's "PSX Style
+Cars" pack (`tools/bake_models.py`), and the photo-mode stickers
+(`web/data/stickers_*.webp`) from Designsoup's "Urban Grunge" decal pack
+(`tools/bake_stickers.py`). Both were bought by the owner.
+
+None of these packs may be redistributed as the original files, so only the
+derived atlases and meshes are here. The tools rebuild them from the packs.
+
 For how everything fits together, start with `CLAUDE.md`, then `NOTES.md`,
 `LANDMARKS.md` and `DATA_SOURCES.md`.
 
@@ -49,6 +79,31 @@ For how everything fits together, start with `CLAUDE.md`, then `NOTES.md`,
 
 Data foundation for a driving-and-dispatching simulator on MÁV line 70,
 Budapest-Nyugati → Vác → Szob.
+
+## How big it is (25 Sep 2026)
+
+| | area | what is there |
+| --- | --- | --- |
+| Budapest city tiles | 508 km² (47.39–47.58 N, 18.93–19.25 E) | every building, part and road OSM has: 252k buildings, 59k road ways |
+| Line corridors (70, 2, S21) | about 950 km² | buildings, roads, land cover within 2–5 km of each track |
+| Terrain, near (per line) | 1,650–3,300 km² | 25 m heightmap and land cover raster, drawn with vegetation |
+| Terrain, far (per line) | 6,500–9,500 km² | 100 m heightmap to the horizon, coloured, no buildings |
+
+All of Budapest is 525 km², so the city box is nearly all of it. The whole
+download is 65 MB of baked data, of which a session fetches the line's own
+7–9 MB plus the city tiles around the camera (about 20 at a time).
+
+**"Near region"**: each line bakes buildings, roads and land cover only near
+its own track, because a line is one JSON file and one heightmap; everything
+beyond is the far terrain. The city tiles are the way past that — streamed
+1 km pieces — and doing the same for the terrain and the countryside is the
+"one world" step in `REVIEW.md`.
+
+**Will it run on small hardware?** On a laptop it holds 60 fps at medium
+quality. A uConsole-class device (a Raspberry Pi CM4, OpenGL ES 3.1) has
+WebGL2 but roughly a twentieth of the GPU: expect "Alacsony" quality, a
+single-digit frame rate in the city, and possibly running out of memory with
+city tiles loaded. Not tested.
 
 ## Layout
 
@@ -133,6 +188,12 @@ Budapest-Nyugati → Vác → Szob.
   track centres by proximity rather than by shared nodes.
 
 Both read the shared stylesheet at `tools/atlas.css`.
+
+## Design notes
+
+The sections from here on were written as each part was built (Aug–Sep 2026).
+They explain why things are the way they are. Where one disagrees with
+`CLAUDE.md` or `REVIEW.md`, those are newer.
 
 ## The simulator
 
@@ -519,11 +580,12 @@ other is wrong in both directions.
 
 ## What is not a building
 
-Every context query filters on `["building"]`. That one word had been quietly
-deciding what this corridor could contain, because a chimney is not a
-building — it is a `man_made=chimney` — and neither is a silo, a tank, a
-gasometer, a lighting mast or a monument. None of them had ever been
-downloaded. The cement works had no chimney not because OSM lacks it but
+**They are all in the game now** (chimneys, tanks, silos, masts, water towers,
+cranes, pylons — `q_structures.ql` → `structures.js`); this section is the
+story of how they were missing. The context queries filtered on
+`["building"]`, and a chimney is not a building — it is a `man_made=chimney` —
+and neither is a silo, a tank, a gasometer, a lighting mast or a monument.
+Until then none of them had ever been downloaded. The cement works had no chimney not because OSM lacks it but
 because nothing had asked.
 
 `q_structures.ql` asks. 201 of them stand within 2.4 km of the line:
@@ -1007,6 +1069,12 @@ controller and per-scenario stock, lane-aware traffic with overtaking and
 junction turns, passenger mode, aircraft, flood plane, mode bar.
 
 ## Known gaps
+
+**The current list is in `REVIEW.md`** ("Bugs and weak spots still open" and
+the backlog at its end) and in `CLAUDE.md` ("Still open"). What follows is
+the list as it stood in August 2026, kept for its history: several items are
+done (buildings along the whole line, the city, land cover processed into
+vegetation), and the Királyréti narrow gauge is still to come.
 
 Six things in this list were wrong until 23 Aug 2026, recorded because the
 same mistakes are easy to make again.

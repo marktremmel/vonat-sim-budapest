@@ -13,8 +13,8 @@
 // speckle. Every surface here is cut into abutting pieces instead, so nothing
 // is ever coplanar with anything else.
 
-const CAR_LEN = { KISS: 25.0, FLIRT: 18.5, EC: 26.4, FREIGHT: 14.5 };
-const CAR_H   = { KISS: 4.60, FLIRT: 4.12, EC: 4.05, FREIGHT: 3.90 };
+export const CAR_LEN = { KISS: 25.0, FLIRT: 18.5, EC: 26.4, FREIGHT: 14.5 };
+export const CAR_H   = { KISS: 4.60, FLIRT: 4.12, EC: 4.05, FREIGHT: 3.90 };
 const LOCO_LEN = 19.5;
 
 // How much of its own length a vehicle gives up to the gap at each end. A

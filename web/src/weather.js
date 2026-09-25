@@ -1,5 +1,6 @@
 // ------------------------------------------------------------------ weather
 import { CLOUD_BY_ID } from "./clouds.js";
+import { tt, LANG } from "./i18n.js";
 
 // Central European weather situations. The cloud atlas in clouds.js is the
 // vocabulary — the ten base types at their real heights; this is the grammar.
@@ -162,7 +163,9 @@ export function beaufort(ms) {
 }
 const COMPASS = ["É", "ÉÉK", "ÉK", "KÉK", "K", "KDK", "DK", "DDK",
                  "D", "DDNy", "DNy", "NyDNy", "Ny", "NyÉNy", "ÉNy", "ÉÉNy"];
-export function compass(deg) { return COMPASS[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16]; }
+const COMPASS_EN = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+                    "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+export function compass(deg) { return (LANG === "en" ? COMPASS_EN : COMPASS)[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16]; }
 
 /**
  * Resolve a situation and an intensity into everything the frame needs.

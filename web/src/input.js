@@ -13,6 +13,12 @@ export function installInput(ctx) {
           traffic, roadTraffic, riverTraffic, playerTrain, sound, startRun, toggleMenu } = ctx;
   addEventListener("keydown", e => {
     keys.add(e.code);
+    // photo mode (main.js) owns Esc, Space and Z; the rest of its keys are the
+    // free camera's
+    if (state.photo) {
+      if (e.code === "Escape" || e.code === "Space" || e.code === "KeyZ") return;
+      if (e.shiftKey && ["KeyC", "KeyP", "KeyA", "KeyD"].includes(e.code)) return;   // no changing modes mid-photo
+    }
 
     // Fly a plane: shift+P. Starts 300 m above where the camera is, heading
     // the way it looks. W/S pitch, A/D roll, Q/E rudder, R/F throttle,
@@ -28,7 +34,7 @@ export function installInput(ctx) {
         state.followCarIdx = -1; state.followShipIdx = -1;
         if (state.drone) state.drone.active = false;
         if (state.car) state.car.active = false;
-        state.pitch = 0; state.zoom = 1;
+        state.pitch = 0; state.yaw = 0; state.zoom = 1;     // (yaw is the orbit round the plane now)
       }
       return;
     }
@@ -146,6 +152,10 @@ export function installInput(ctx) {
     }
     // The master controller. One notch per press; held, it steps every
     // 0.18 s rather than at the keyboard's repeat rate.
+    // In the free camera W A S D R F Q E fly it. They used to fall through
+    // to their train meanings as well: R hid the track, F jumped to following
+    // another train, Q opened the dispatcher board.
+    if (state.fly && !e.shiftKey && ["KeyW", "KeyA", "KeyS", "KeyD", "KeyR", "KeyF", "KeyQ", "KeyE"].includes(e.code)) return;
     const freeCam = state.fly || (state.drone && state.drone.active);
     if (state.manual && !freeCam && ["KeyW", "ArrowUp", "KeyS", "ArrowDown"].includes(e.code)) {
       const t = performance.now();
@@ -180,8 +190,7 @@ export function installInput(ctx) {
         state.fly = null;
       }
     }
-    // off / slow / fast, the three positions a real wiper switch has.
-    // Not X: that already toggles the cab interior.
+    // off / slow / fast, the three positions a real wiper switch has
     if (e.code === "KeyX") { state.wiperAuto = false; state.wiper = (state.wiper + 1) % 3; }
     if (e.code === "KeyE") driver.acknowledge();
     if (e.code === "KeyJ") driver.sand = !driver.sand;
@@ -233,7 +242,7 @@ export function installInput(ctx) {
     if (e.code === "KeyN") state.show.roads = !state.show.roads;
     if (e.code === "KeyO") state.show.catenary = !state.show.catenary;
     // everything off: no panel, no read-outs, just the railway
-    if (e.code === "KeyU" && window.__setBare) window.__setBare(!state.bare);
+    if (e.code === "KeyU" && window.__setBare) window.__setBare(((state.bareLevel || 0) + 1) % 3);
     if (e.code === "Tab") { state.map = !state.map; e.preventDefault(); }
     if (e.code === "KeyP" && !e.shiftKey) state.layer = (state.layer + 1) % LAYERS.length;
     if (e.code === "BracketLeft") state.zoom = Math.max(0.35, state.zoom / 1.25);
@@ -271,7 +280,11 @@ export function installInput(ctx) {
   });
   addEventListener("keyup", e => keys.delete(e.code));
   let drag = null, panDrag = null;
+  // (no text selection or native drag starting from the picture: that is what
+  // dragged "the window away" instead of turning the view)
+  cv.addEventListener("dragstart", e => e.preventDefault());
   cv.addEventListener("pointerdown", e => {
+    e.preventDefault();
     if (state.panel && state.hit) {
       const r = cv.getBoundingClientRect();
       const px = (e.clientX - r.left) * (hud.width / r.width);
@@ -282,6 +295,14 @@ export function installInput(ctx) {
           const i = list.indexOf(t.train);
           state.followIdx = i;             // -1 lands back in the cab
           state.panel = false;
+          return;
+        }
+      }
+      for (const q of state.hit.hitSections || []) {
+        if (px >= q.x0 && px <= q.x1 && Math.abs(py - q.y) < 14 * (hud.width / 1200)) {
+          // ▶, then ◀, then back to first come, first served
+          const p = traffic.prefer[q.i] || 0;
+          traffic.prefer[q.i] = p === 0 ? 1 : p === 1 ? -1 : 0;
           return;
         }
       }
@@ -346,7 +367,13 @@ export function installInput(ctx) {
     }
     drag = [e.clientX, e.clientY]; cv.setPointerCapture(e.pointerId);
   });
-  cv.addEventListener("pointerup", e => { drag = null; panDrag = null; });
+  // A drag ends however it ends — a release outside the window, a lost
+  // capture, the tab switching — or it stayed "stuck" until the next click
+  const endDrag = () => { drag = null; panDrag = null; };
+  cv.addEventListener("pointerup", endDrag);
+  cv.addEventListener("pointercancel", endDrag);
+  cv.addEventListener("lostpointercapture", endDrag);
+  addEventListener("blur", endDrag);
   cv.addEventListener("wheel", e => {
     e.preventDefault();
     if (state.panel) {
@@ -368,6 +395,7 @@ export function installInput(ctx) {
       return;
     }
     if (!drag) return;
+    if (e.buttons === 0) { drag = null; return; }       // released where we did not hear it
     state.yaw += (e.clientX - drag[0]) * 0.004;
     state.pitch = Math.max(-1.1, Math.min(1.1, state.pitch - (e.clientY - drag[1]) * 0.003));
     drag = [e.clientX, e.clientY];

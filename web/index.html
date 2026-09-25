@@ -1,14 +1,15 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>Szob felé</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dunakanyar Szimulátor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600;700&display=swap">
 <style>
-  html,body{margin:0;height:100%;background:#06090c;overflow:hidden;
+  html,body{margin:0;height:100%;background:#06090c;overflow:hidden;-webkit-user-select:none;user-select:none;
     font-family:"IBM Plex Sans",system-ui,sans-serif;color:#dbe7ee}
   #wrap{position:fixed;inset:0}
-  canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
   #hud{pointer-events:none}
   #panel{position:absolute;left:14px;top:12px;z-index:5;font-size:12px;
     background:rgba(8,16,22,.6);border:1px solid rgba(120,160,180,.22);
@@ -73,7 +74,8 @@
     border-radius:3px;padding:5px 9px;font:inherit;font-size:11px;cursor:pointer;
     font-family:"IBM Plex Mono",monospace;letter-spacing:.08em}
   #hideHud:hover{color:#dff3f5;border-color:#2b7f88}
-  body.bare #panel, body.bare #hud, body.bare #dispBtn{display:none}
+  body.bare #panel, body.bare #dispBtn{display:none}
+  body.bare2 #hud{display:none}
   body.bare #hideHud{opacity:.25}
   body.bare #hideHud:hover{opacity:1}
   #keys b{color:#9fb8c6;font-weight:500}
@@ -129,70 +131,332 @@
     border:1px solid rgba(120,160,180,0.3);border-radius:4px;padding:8px 16px;
     cursor:pointer;font-family:"IBM Plex Mono",monospace;font-size:12px;text-transform:uppercase;}
   #endModal .btns button:hover{background:#12414a;border-color:#2b7f88;}
+  /* the loading screen: the cover, a progress bar, and a tip */
+  #loader{position:fixed;inset:0;z-index:200;background:#06090c;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:20px;transition:opacity .7s ease;overflow:hidden}
+  #loader.gone{opacity:0;pointer-events:none}
+  #loader .bg{position:absolute;inset:-60px;background-size:cover;background-position:center;
+    filter:blur(34px) brightness(.38) saturate(1.2)}
+  #loader img{position:relative;max-width:min(92vw,1040px);max-height:calc(100vh - 150px);
+    border-radius:4px;box-shadow:0 24px 70px rgba(0,0,0,.65);opacity:0;transition:opacity .5s}
+  #loader img.on{opacity:1}
+  #loader .ui{position:relative;width:min(560px,86vw)}
+  #loader .bar{height:6px;background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden}
+  #loader .fill{height:100%;width:0;background:linear-gradient(90deg,#f0b429,#ffe08a);
+    transition:width .25s ease;box-shadow:0 0 12px rgba(255,200,80,.6)}
+  #loader .step{display:flex;justify-content:space-between;margin-top:8px;
+    font:11px "IBM Plex Mono",monospace;letter-spacing:.08em;color:#b7cad6;text-transform:uppercase}
+  #loader .tip{margin-top:10px;font-size:12.5px;color:#8ea9b8;text-align:center;min-height:1.4em}
+  #loader .tip b{color:#ffe08a;font-weight:600}
+  #loader .fail{color:#ff8a7a;text-transform:none;letter-spacing:0}
+  #menu{padding:0;overflow:hidden;width:min(430px,92vw);min-width:0;max-height:92vh;overflow-y:auto}
+  #menu #mBanner{display:block;width:100%;height:132px;object-fit:cover;object-position:50% 12%}
+  #menu .mbody{padding:16px 24px 18px}
+  #mLines{display:flex;gap:6px;margin:4px 0 12px}
+  #mLines button{flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:1px;
+    background:rgba(255,255,255,.05);border:1px solid rgba(120,160,180,.22);color:#b7cad6;
+    padding:7px 9px;border-radius:3px;cursor:pointer;font:inherit;text-align:left}
+  #mLines button b{font:700 17px "Archivo",sans-serif;color:#fff}
+  #mLines button span{font-size:10.5px}
+  #mLines button.on{background:#12414a;border-color:#3fcbd2}
+  #menu #mQuick{width:100%;display:flex;flex-direction:column;align-items:center;gap:2px;
+    background:linear-gradient(180deg,#f0b429,#d6901a);color:#1a1204;border:0;border-radius:4px;
+    padding:11px;cursor:pointer;box-shadow:0 4px 18px rgba(240,180,41,.25)}
+  #menu #mQuick b{font:700 20px "Archivo",sans-serif;letter-spacing:.01em}
+  #menu #mQuick span{font-size:11.5px;opacity:.85}
+  #menu #mQuick:hover{filter:brightness(1.08)}
+  #menu #mMission{width:100%;margin-top:7px;background:rgba(255,255,255,.06);
+    border:1px solid rgba(240,180,41,.45);color:#ffe08a;border-radius:4px;padding:8px;font:inherit;
+    font-size:12.5px;cursor:pointer}
+  #menu #mMission:hover{background:rgba(240,180,41,.12)}
+  #mMore{margin-top:12px;border-top:1px solid rgba(120,160,180,.18);padding-top:8px}
+  #mMore summary{cursor:pointer;color:#8ea9b8;font-size:11.5px;list-style:none}
+  #mMore summary::before{content:"▸ "} #mMore[open] summary::before{content:"▾ "}
+  #menu .btns{margin-top:12px}
+  #menu #mGo{background:#12414a}
+  #intro{position:absolute;left:50%;bottom:130px;transform:translateX(-50%);z-index:40;display:none;
+    width:min(420px,90vw);background:rgba(9,17,24,.95);border:1px solid rgba(240,180,41,.55);
+    border-radius:5px;padding:14px 16px 12px;box-shadow:0 10px 40px rgba(0,0,0,.5);font-size:13.5px;
+    line-height:1.5;color:#dbe7ee}
+  #intro.on{display:block}
+  #intro .n{font:10.5px "IBM Plex Mono",monospace;letter-spacing:.14em;color:#f0b429;margin-bottom:4px}
+  #intro b{color:#ffe08a}
+  #intro .ib{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+  #intro button{background:rgba(255,255,255,.06);color:#b7cad6;border:1px solid rgba(120,160,180,.25);
+    border-radius:3px;padding:5px 12px;font:inherit;font-size:12px;cursor:pointer}
+  #intro #iNext{background:#f0b429;color:#1a1204;border-color:#f0b429;font-weight:600}
+  #modebar.glow{box-shadow:0 0 0 2px #f0b429,0 0 24px rgba(240,180,41,.5)}
+  #missions{position:absolute;inset:0;z-index:60;display:none;place-items:center;background:rgba(3,7,10,.6)}
+  #missions.on{display:grid}
+  #missions .card{background:rgba(9,17,24,.97);border:1px solid rgba(240,180,41,.4);border-radius:5px;
+    width:min(760px,94vw);max-height:88vh;overflow:auto;padding:18px 22px}
+  #missions .mh{display:flex;align-items:center;gap:14px}
+  #missions h2{margin:0;font:700 24px "Archivo",sans-serif}
+  #missions .mh .tot{color:#f0b429;font:600 14px "IBM Plex Mono",monospace}
+  #missions .x{margin-left:auto;background:none;border:0;color:#8ea9b8;font-size:18px;cursor:pointer}
+  #missions h3{margin:16px 0 8px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#3fcbd2}
+  #missions h3 em{color:#6d8593;font-style:normal;text-transform:none;letter-spacing:0}
+  #missions .ml{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+  #missions .mc{text-align:left;background:rgba(255,255,255,.04);border:1px solid rgba(120,160,180,.22);
+    border-radius:4px;padding:10px 11px;color:#b7cad6;font:inherit;cursor:pointer}
+  #missions .mc:hover{border-color:#f0b429;background:rgba(240,180,41,.07)}
+  #missions .mc.lock{opacity:.4;cursor:default}
+  #missions .mc .t{display:flex;justify-content:space-between;gap:6px}
+  #missions .mc b{color:#fff;font-size:14px}
+  #missions .st{color:#f0b429;letter-spacing:2px;white-space:nowrap}
+  #missions .st i,#endStars i{font-style:normal;color:rgba(255,255,255,.18)}
+  #missions .r{font:10.5px "IBM Plex Mono",monospace;color:#8ea9b8;margin:3px 0 5px}
+  #missions .d{font-size:12px;line-height:1.45}
+  #missions .b{margin-top:5px;font:10.5px "IBM Plex Mono",monospace;color:#ffe08a}
+  #endModal .sc{display:grid;grid-template-columns:90px 1fr 34px;gap:10px;align-items:center;margin:7px 0;font-size:13px}
+  #endModal .sb{height:7px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden}
+  #endModal .sb div{height:100%;background:linear-gradient(90deg,#3fcbd2,#9ff0f3)}
+  #endModal .sc b{text-align:right;color:#dff3f5;font:600 13px "IBM Plex Mono",monospace}
+  #endModal .tot{text-align:center;font:700 34px "Archivo",sans-serif;color:#fff;margin:14px 0 4px}
+  #endModal .note{font-size:12px;color:#8ea9b8;text-align:center;margin:6px 0}
+  #endModal .note.good{color:#7de0a4}
+  #endModal{width:min(380px,92vw)}
+  #menu #mDaily{width:100%;margin-top:7px;display:flex;justify-content:space-between;align-items:center;gap:8px;
+    background:rgba(63,203,210,.08);border:1px solid rgba(63,203,210,.4);color:#dff3f5;border-radius:4px;
+    padding:8px 10px;font:inherit;font-size:12.5px;cursor:pointer;text-align:left}
+  #menu #mDaily span{font-size:11px;color:#8ea9b8}
+  #menu #mDaily:hover{background:rgba(63,203,210,.16)}
+  #menu .mrow{display:flex;gap:7px} #menu .mrow button{flex:1}
+  #menu #mAlbum{margin-top:7px;background:rgba(255,255,255,.06);border:1px solid rgba(120,160,180,.3);
+    color:#b7cad6;border-radius:4px;padding:8px;font:inherit;font-size:12.5px;cursor:pointer;flex:0 0 auto}
+  #album{position:absolute;inset:0;z-index:60;display:none;place-items:center;background:rgba(3,7,10,.6)}
+  #album.on{display:grid}
+  #album .card{background:rgba(9,17,24,.97);border:1px solid rgba(120,160,180,.3);border-radius:5px;
+    width:min(860px,94vw);max-height:88vh;overflow:auto;padding:18px 22px}
+  #album .mh{display:flex;align-items:center;gap:14px}
+  #album h2{margin:0;font:700 24px "Archivo",sans-serif}
+  #album .tot{color:#3fcbd2;font:600 14px "IBM Plex Mono",monospace}
+  #album .x{margin-left:auto;background:none;border:0;color:#8ea9b8;font-size:18px;cursor:pointer}
+  #album .lede{color:#8ea9b8;font-size:12px;margin:6px 0 14px}
+  #album .ag{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+  #album .ac{background:rgba(255,255,255,.04);border:1px solid rgba(120,160,180,.2);border-radius:4px;padding:6px;
+    display:flex;flex-direction:column;gap:3px}
+  #album .ac img,#album .ac .ph{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:2px;background:#0d1a22}
+  #album .ac .ph{display:grid;place-items:center;font:700 28px "Archivo",sans-serif;color:#23404b}
+  #album .ac b{font-size:12.5px;color:#fff} #album .ac span{font-size:10.5px;color:#8ea9b8}
+  #album .ac.lock b{color:#6d8593}
+  #flash{position:absolute;inset:0;z-index:50;background:#fff;opacity:0;pointer-events:none}
+  #flash.on{animation:flash .45s ease-out}
+  @keyframes flash{0%{opacity:.75}100%{opacity:0}}
+  #photoToast{position:absolute;right:14px;bottom:70px;z-index:45;display:flex;gap:10px;align-items:center;
+    background:rgba(9,17,24,.95);border:1px solid rgba(120,160,180,.3);border-radius:5px;padding:8px;
+    transform:translateY(20px);opacity:0;pointer-events:none;transition:all .3s;max-width:360px}
+  #photoToast.on{transform:none;opacity:1;pointer-events:auto}
+  #photoToast img{width:120px;border-radius:2px}
+  #photoToast div{display:flex;flex-direction:column;gap:3px;font-size:12px}
+  #photoToast b{color:#fff;font-size:13px} #photoToast span{color:#8ea9b8}
+  #photoToast a{color:#3fcbd2;font-size:11.5px}
+  /* touch controls: only on a touch screen, and only the buttons the
+     current mode needs */
+  #touch{position:absolute;left:0;right:0;bottom:78px;z-index:8;display:none;justify-content:space-between;
+    padding:0 12px;pointer-events:none}
+  body.touch #touch{display:flex}
+  #touch .tg{display:flex;gap:8px;align-items:flex-end;pointer-events:none}
+  #touch button{pointer-events:auto;width:58px;height:58px;border-radius:50%;border:1px solid rgba(160,200,215,.35);
+    background:rgba(8,16,22,.55);color:#dff3f5;font:600 12px "IBM Plex Sans",sans-serif;backdrop-filter:blur(3px);
+    touch-action:none;user-select:none;-webkit-user-select:none}
+  #touch button.big{width:70px;height:70px;font-size:13px}
+  #touch button.red{background:rgba(140,30,24,.7);border-color:#ff7264}
+  #touch button.gold{background:rgba(160,110,20,.7);border-color:#f0b429}
+  #touch button:active,#touch button.down{background:rgba(63,203,210,.45)}
+  body.touch #modebar{top:60px;bottom:auto;left:50%;transform:translateX(-50%);max-width:96vw;overflow-x:auto}
+  body.touch #keys{display:none}
+  @media (max-width:700px){#panel{max-width:200px;font-size:11px} #menu .mbody{padding:12px 14px}}
+  body.en [data-lang="hu"], body:not(.en) [data-lang="en"]{display:none}
+  #menu #mLang{position:absolute;right:12px;top:10px;z-index:2;background:rgba(8,16,22,.7);color:#dff3f5;
+    border:1px solid rgba(120,160,180,.4);border-radius:3px;padding:3px 8px;font:600 11px "IBM Plex Mono",monospace;cursor:pointer}
+  #menu #mLang:hover{border-color:#f0b429;color:#ffe08a}
+  #menu{position:absolute}
+  #menu{background-repeat:no-repeat}
+  #menu #mBanner{height:auto;object-fit:contain;width:calc(100% - 36px);margin:18px 18px 4px;
+    filter:drop-shadow(0 6px 14px rgba(0,0,0,.6))}
+  #menu h2#menuTitle{font-size:18px;color:#b7cad6}
+  /* photo mode: everything else hidden, the panel on the right */
+  body.photo #panel, body.photo #hud, body.photo #modebar, body.photo #attrib, body.photo #touch{display:none}
+  #photoUI{position:absolute;right:12px;top:12px;bottom:12px;z-index:30;width:250px;display:none;flex-direction:column;
+    gap:2px;overflow-y:auto;background:rgba(8,16,22,.78);border:1px solid rgba(120,160,180,.3);border-radius:5px;
+    padding:10px 12px;backdrop-filter:blur(4px);font-size:11.5px;color:#b7cad6}
+  #photoUI.on{display:flex}
+  #photoUI h3{margin:0 0 2px;font:700 16px "Archivo",sans-serif;color:#fff;display:flex;justify-content:space-between}
+  #photoUI h3 button{background:none;border:0;color:#8ea9b8;font-size:15px;cursor:pointer}
+  #photoUI .ph-hint{margin:0 0 6px;font-size:10.5px;color:#6d8593}
+  #photoUI .grp{margin:8px 0 2px;font:600 10px "IBM Plex Mono",monospace;letter-spacing:.14em;text-transform:uppercase;color:#f0b429}
+  #photoUI label{display:grid;grid-template-columns:84px 1fr 44px;gap:6px;align-items:center}
+  #photoUI input[type=range]{accent-color:#f0b429;min-width:0}
+  #photoUI output{font:10.5px "IBM Plex Mono",monospace;color:#ffe08a;text-align:right}
+  #photoUI #phFocusC{margin:3px 0 4px;background:rgba(255,255,255,.06);color:#dff3f5;border:1px solid rgba(120,160,180,.3);
+    border-radius:3px;padding:4px;font:inherit;cursor:pointer}
+  #photoUI .band{display:none} #photoUI[data-dof="2"] .band{display:block}
+  #photoUI[data-dof="0"] label:has(#phFocus), #photoUI[data-dof="0"] label:has(#phAperture), #photoUI[data-dof="0"] #phFocusC{opacity:.45}
+  #photoUI .phb{display:flex;gap:6px;margin-top:10px}
+  #photoUI .row2{display:flex;gap:4px;margin:3px 0}
+  #photoUI .row2 button{flex:1;background:rgba(255,255,255,.06);color:#dff3f5;border:1px solid rgba(120,160,180,.3);
+    border-radius:3px;padding:4px;font:inherit;font-size:11px;cursor:pointer}
+  #photoUI .row2.tabs button.on{border-color:#f0b429;color:#ffe08a}
+  #photoUI select{min-width:0;background:rgba(255,255,255,.07);color:#e6eef4;border:1px solid rgba(120,160,180,.25);border-radius:3px;font:inherit;font-size:11px}
+  #photoUI #phCap{background:rgba(255,255,255,.07);color:#fff;border:1px solid rgba(120,160,180,.3);border-radius:3px;padding:5px;font:inherit}
+  #phPicker{display:flex;flex-wrap:wrap;gap:4px;max-height:150px;overflow-y:auto;background:rgba(0,0,0,.2);padding:4px;border-radius:3px;min-height:20px}
+  #phPicker .stk{background-repeat:no-repeat;cursor:pointer;flex:0 0 auto}
+  #phPicker .stk:hover{outline:1px solid #f0b429}
+  #photoStage{position:absolute;inset:0;z-index:25;pointer-events:none;display:none;overflow:hidden}
+  #photoStage.on{display:block}
+  #photoStage .phcap{position:absolute;transform:translate(-50%,-50%);color:#fff;white-space:nowrap;pointer-events:auto;cursor:move;
+    text-shadow:0 0 4px #000,0 0 2px #000}
+  #photoStage .phleak{position:absolute;inset:0;mix-blend-mode:screen;opacity:0;pointer-events:none}
+  #photoStage .phborder{position:absolute;inset:0;pointer-events:none;display:none}
+  #photoStage .phborder[data-kind="1"]{border:4vh solid #f4f1ea;border-bottom-width:12vh}
+  #photoStage .phborder[data-kind="2"]{border-top:6.4vh solid #0b0b0b;border-bottom:6.4vh solid #0b0b0b}
+  #photoStage .phstamp{position:absolute;right:5%;bottom:5%;font:600 3.5vh "IBM Plex Mono",monospace;color:rgba(255,150,40,.92);
+    text-shadow:0 0 6px rgba(255,90,0,.8);display:none;pointer-events:none}
+  #photoUI .phb button{flex:1;padding:9px;border-radius:4px;font:600 13px "IBM Plex Sans",sans-serif;cursor:pointer;
+    background:rgba(255,255,255,.06);color:#dff3f5;border:1px solid rgba(120,160,180,.3)}
+  #photoUI #phShoot{background:#f0b429;color:#1a1204;border-color:#f0b429}
+  @media (max-width:700px){#photoUI{top:auto;height:46vh;width:auto;left:8px;right:8px}}
+  input,textarea,select{-webkit-user-select:auto;user-select:auto}
+  img{-webkit-user-drag:none}
+  #endStars{font-size:30px;letter-spacing:6px;color:#f0b429;margin:-8px 0 12px;min-height:8px}
+  #endStars i{font-style:normal;color:rgba(255,255,255,.18)}
 </style>
 <div id="wrap">
+  <div id="loader"><div class="bg" id="lBg"></div><img id="lImg" alt="Dunakanyar Szimulátor">
+    <div class="ui"><div class="bar"><div class="fill" id="lFill"></div></div>
+      <div class="step"><span id="lStep">…</span><span id="lPct">0%</span></div>
+      <div class="tip" id="lTip"></div></div></div>
+  <script>
+  // The loading screen. window.__loadStep(text, 0..1) moves the bar;
+  // window.__loadDone() fades it out. Tips rotate while it waits.
+  (function () {
+    // the language: what was chosen before, else the browser's
+    let L = null;
+    try { L = JSON.parse(localStorage.getItem("szobPrefs") || "{}").lang; } catch (e) {}
+    window.LANG = L === "en" || L === "hu" ? L : /^hu/i.test(navigator.language || "") ? "hu" : "en";
+    document.documentElement.lang = window.LANG;
+    document.body.classList.toggle("en", window.LANG === "en");
+    if (window.LANG === "en") document.title = "Dunakanyar Simulator";
+    const src = (window.DATA_BASE || "data/") + "cover.webp";
+    const img = document.getElementById("lImg");
+    img.onload = () => { img.classList.add("on"); document.getElementById("lBg").style.backgroundImage = `url(${src})`; };
+    img.src = src;
+    const tips = window.LANG === "en" ? [
+      "<b>M</b> — drive by hand: <b>W</b>/<b>S</b> the controller, <b>Backspace</b> emergency brake",
+      "<b>E</b> — acknowledge the vigilance device, or it stops the train",
+      "<b>⇧P</b> — fly a Cessna, a Gripen or a helicopter over the Danube Bend",
+      "<b>⇧A</b> — a car: Budapest's streets, bridges and underpasses",
+      "<b>Y</b> — ride as a passenger, upstairs by the window",
+      "<b>Tab</b> — map · <b>Q</b> — dispatcher board",
+      "The Danube slider makes a flood or a drought",
+      "<b>⇧Z</b> — photo mode: stop time, fly the camera, tilt-shift",
+      "<b>?</b> — every key in one place",
+    ] : [
+      "<b>⇧Z</b> — fotó mód: megáll az idő, repül a kamera, makett-hatás",
+      "<b>M</b> — kézi vezetés: <b>W</b>/<b>S</b> a kontroller, <b>Backspace</b> vészfék",
+      "<b>E</b> — éberség nyugtázása, különben az EVM megállítja a vonatot",
+      "<b>⇧P</b> — repülés: Cessna, Gripen vagy helikopter a Dunakanyar fölött",
+      "<b>⇧A</b> — autó: Budapest utcái, hidak, aluljárók",
+      "<b>Y</b> — utasként az emeleti ablak mellett",
+      "<b>Tab</b> — térkép · <b>Q</b> — diszpécser tábla",
+      "A Duna csúszkával árvíz vagy aszály is lehet",
+      "<b>?</b> — minden billentyű egy helyen",
+    ];
+    let k = Math.floor(Math.random() * tips.length);
+    const tip = document.getElementById("lTip");
+    const next = () => { tip.innerHTML = (window.LANG === "en" ? "Tip: " : "Tipp: ") + tips[k++ % tips.length]; };
+    next(); const iv = setInterval(next, 3500);
+    let shown = 0;
+    window.__loadStep = (text, f) => {
+      if (text) document.getElementById("lStep").textContent = text;
+      if (f != null) { shown = Math.max(shown, Math.min(1, f));
+        document.getElementById("lFill").style.width = (shown * 100).toFixed(1) + "%";
+        document.getElementById("lPct").textContent = Math.round(shown * 100) + "%"; }
+    };
+    window.__loadFail = (msg) => {
+      const s = document.getElementById("lStep"); s.textContent = msg; s.className = "fail";
+      clearInterval(iv);
+    };
+    window.__loadDone = () => {
+      if (window.__loadDoneOnce) return; window.__loadDoneOnce = true;
+      window.__loadStep(window.LANG === "en" ? "ready" : "kész", 1); clearInterval(iv);
+      const l = document.getElementById("loader");
+      setTimeout(() => { l.classList.add("gone"); setTimeout(() => l.remove(), 800); }, 250);
+    };
+  })();
+  </script>
   <canvas id="gl"></canvas>
   <canvas id="hud"></canvas>
   <div id="panel">
-    <h1><span id="panelTitle">Szob felé</span><button class="fold" id="foldBtn" title="panel össze / szét">▾</button></h1>
+    <h1><span id="panelTitle">Dunakanyar Szimulátor</span><button class="fold" id="foldBtn" title="panel össze / szét" data-en-title="fold / unfold">▾</button></h1>
     <div id="buildTag" style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#6d8593;margin:-3px 0 8px;letter-spacing:0.08em;text-transform:uppercase"></div>
     <div id="tabs">
-      <button id="tabRun" class="on">Menet</button>
-      <button id="tabSet">Beállítás</button>
+      <button id="tabRun" class="on" data-en="Run">Menet</button>
+      <button id="tabSet" data-en="Settings">Beállítás</button>
     </div>
     <div id="paneRun" class="pane on">
-    <label>Time <input id="timeSlider" type="range" min="0" max="24" step="0.05" value="19.4"><span id="hourOut" class="ro">19:24</span></label>
-    <label>Date <input id="daySlider" type="range" min="1" max="365" step="1" value="200"><span id="dayOut" class="ro">július 19.</span></label>
-    <label>Időjárás <select id="wxSit"></select></label>
-    <label class="chk"><input id="wxChange" type="checkbox" checked> változékony — frontok jönnek</label>
-    <label>Erősség <input id="wxInt" type="range" min="0" max="2" step="0.02" value="1"></label>
-    <label>Duna <input id="danSlider" type="range" min="-4" max="14" step="0.1" value="0"><span id="danOut" class="ro">±0.0 m</span></label>
+    <label><span data-en="Time">Idő</span> <input id="timeSlider" type="range" min="0" max="24" step="0.05" value="19.4"><span id="hourOut" class="ro">19:24</span></label>
+    <label><span data-en="Date">Dátum</span> <input id="daySlider" type="range" min="1" max="365" step="1" value="200"><span id="dayOut" class="ro">július 19.</span></label>
+    <label><span data-en="Weather">Időjárás</span> <select id="wxSit"></select></label>
+    <label class="chk"><input id="wxChange" type="checkbox" checked> <span data-en="changeable — fronts come through">változékony — frontok jönnek</span></label>
+    <label><span data-en="Strength">Erősség</span> <input id="wxInt" type="range" min="0" max="2" step="0.02" value="1"></label>
+    <label><span data-en="Danube">Duna</span> <input id="danSlider" type="range" min="-4" max="14" step="0.1" value="0"><span id="danOut" class="ro">±0.0 m</span></label>
     <div id="wxNote"></div>
     </div>
 
     <div id="paneSet" class="pane">
-    <label>Felhő <select id="cloudType"></select></label>
-    <label>Pára <input id="fogSlider" type="range" min="0.15" max="4" step="0.02" value="1"></label>
-    <label>Élesség <input id="resSlider" type="range" min="0.6" max="2.6" step="0.1" value="1.4"><span id="resOut" class="ro"></span></label>
-    <label>Exposure <input id="expSlider" type="range" min="0.5" max="2.6" step="0.02" value="1.35"></label>
+    <label><span data-en="Clouds">Felhő</span> <select id="cloudType"></select></label>
+    <label><span data-en="Haze">Pára</span> <input id="fogSlider" type="range" min="0.15" max="4" step="0.02" value="1"></label>
+    <label><span data-en="Quality">Minőség</span> <select id="qualSel">
+        <option value="low" data-en="low — phone, older computer">alacsony — telefon, régi gép</option>
+        <option value="med" selected data-en="medium">közepes</option>
+        <option value="high" data-en="high — the city loads further out">magas — messzebb látszik a város</option>
+      </select></label>
+    <label><span data-en="Sharpness">Élesség</span> <input id="resSlider" type="range" min="0.6" max="2.6" step="0.1" value="1.4"><span id="resOut" class="ro"></span></label>
+    <label><span data-en="Exposure">Fényerő</span> <input id="expSlider" type="range" min="0.5" max="2.6" step="0.02" value="1.35"></label>
     <label>Bloom <input id="bloomSlider" type="range" min="0" max="1.5" step="0.02" value="0.5"></label>
-    <label>Film grain <input id="grainSlider" type="range" min="0" max="1" step="0.02" value="0.35"></label>
-    <label>Chroma <input id="chromaSlider" type="range" min="0" max="1" step="0.02" value="0.40"></label>
-    <label>Vignette <input id="vigSlider" type="range" min="0" max="1" step="0.02" value="0.28"></label>
-    <label>Volume <input id="volSlider" type="range" min="0" max="1" step="0.02" value="0.7"></label>
-    <label>Animáció <select id="cineSel">
-        <option value="off">— áll —</option>
-        <option value="day">a nap folyása</option>
-        <option value="year">az év folyása</option>
-        <option value="weather">az idő fordulása</option>
-        <option value="all">mind együtt</option>
+    <label><span data-en="Film grain">Filmszemcse</span> <input id="grainSlider" type="range" min="0" max="1" step="0.02" value="0.35"></label>
+    <label><span data-en="Chroma">Színszórás</span> <input id="chromaSlider" type="range" min="0" max="1" step="0.02" value="0.40"></label>
+    <label><span data-en="Vignette">Vignetta</span> <input id="vigSlider" type="range" min="0" max="1" step="0.02" value="0.28"></label>
+    <label class="chk"><input id="gfxDof" type="checkbox" checked> <span data-en="Depth of field (outside views)">Mélységélesség (külső nézetek)</span></label>
+    <label class="chk"><input id="gfxMotion" type="checkbox"> <span data-en="Motion blur">Mozgási elmosás</span></label>
+    <label class="chk"><input id="gfxAO" type="checkbox" checked> <span data-en="Shading in corners (AO)">Árnyék a zugokban (AO)</span></label>
+    <label><span data-en="Volume">Hangerő</span> <input id="volSlider" type="range" min="0" max="1" step="0.02" value="0.7"></label>
+    <label><span data-en="Animation">Animáció</span> <select id="cineSel">
+        <option value="off" data-en="— still —">— áll —</option>
+        <option value="day" data-en="the day passing">a nap folyása</option>
+        <option value="year" data-en="the year passing">az év folyása</option>
+        <option value="weather" data-en="the weather turning">az idő fordulása</option>
+        <option value="all" data-en="all together">mind együtt</option>
       </select></label>
-    <label>Kamera <select id="camSel">
-        <option value="normal">Kézi / Belső (Normal)</option>
-        <option value="orbit">Keringő (Orbit)</option>
-        <option value="drone">Drón követés (Drone)</option>
+    <label><span data-en="Camera">Kamera</span> <select id="camSel">
+        <option value="normal" data-en="manual / inside">kézi / belső</option>
+        <option value="orbit" data-en="orbit">keringő</option>
+        <option value="drone" data-en="drone follow">drón követés</option>
       </select></label>
-    <label>Tempó <input id="cineRate" type="range" min="0.2" max="6" step="0.1" value="1.6"></label>
-    <div id="keys">Minden billentyű: <b>?</b> · felület elrejtése: <b>U</b> · mérőszámok: <b>F3</b></div>
+    <label><span data-en="Pace">Tempó</span> <input id="cineRate" type="range" min="0.2" max="6" step="0.1" value="1.6"></label>
+    <div id="keys" data-en-html="Every key: <b>?</b> · hide the interface: <b>U</b> · numbers: <b>F3</b>">Minden billentyű: <b>?</b> · felület elrejtése: <b>U</b> · mérőszámok: <b>F3</b></div>
     </div>
   </div>
   <div id="modebar">
-    <button data-mode="tour" title="Kilátás: automatikus kamera, a vonat magától halad — csak nézd">Kilátás</button>
-    <button data-mode="cab" title="Vissza a vezetőállásba">Fülke</button>
-    <button data-mode="passenger" title="Utas: ablak mellett az emeleten (Y · ⇧Y másik oldal)">Utas</button>
-    <button data-mode="chase" title="A vonat kívülről (C)">Kívülről</button>
-    <button data-mode="free" title="Szabad kamera: WASD, R/F fel-le (⇧C)">Szabad</button>
-    <button data-mode="plane" title="Repülés (⇧P) · Esc vissza">Repülő</button>
-    <button data-mode="drone" title="FPV drón (⇧D)">Drón</button>
-    <button data-mode="car" title="Vezess autót (⇧A) · Esc vissza">Autó</button>
+    <button data-mode="tour" title="Kilátás: automatikus kamera, a vonat magától halad — csak nézd" data-en-title="Sightseeing: an automatic camera, the train drives itself — just watch" data-en="Sightseeing">Kilátás</button>
+    <button data-mode="cab" title="Vissza a vezetőállásba" data-en-title="Back to the cab" data-en="Cab">Fülke</button>
+    <button data-mode="passenger" title="Utas: ablak mellett az emeleten (Y · ⇧Y másik oldal)" data-en-title="Passenger: a window seat upstairs (Y · ⇧Y other side)" data-en="Passenger">Utas</button>
+    <button data-mode="chase" title="A vonat kívülről (C)" data-en-title="The train from outside (C)" data-en="Outside">Kívülről</button>
+    <button data-mode="free" title="Szabad kamera: WASD, R/F fel-le (⇧C)" data-en-title="Free camera: WASD, R/F up and down (⇧C)" data-en="Free">Szabad</button>
+    <button data-mode="plane" title="Repülés (⇧P) · Esc vissza" data-en-title="Fly (⇧P) · Esc back" data-en="Fly">Repülő</button>
+    <button data-mode="drone" title="FPV drón (⇧D)" data-en-title="FPV drone (⇧D)" data-en="Drone">Drón</button>
+    <button data-mode="car" title="Vezess autót (⇧A) · Esc vissza" data-en-title="Drive a car (⇧A) · Esc back" data-en="Car">Autó</button>
     <span class="sep"></span>
-    <button data-act="manual" title="Kézi vezetés (M): W/S kontroller, Backspace vészfék">Kézi</button>
-    <button data-act="map" title="Térkép (Tab)">Térkép</button>
-    <button data-act="disp" title="Diszpécser tábla (Q)">Diszpécser</button>
-    <button data-act="bare" title="Felület elrejtése (U)">U</button>
-    <button data-act="help" title="Minden billentyű (?)">?</button>
+    <button data-act="manual" title="Kézi vezetés (M): W/S kontroller, Backspace vészfék" data-en-title="Drive by hand (M): W/S controller, Backspace emergency brake" data-en="Manual">Kézi</button>
+    <button data-act="map" title="Térkép (Tab)" data-en-title="Map (Tab)" data-en="Map">Térkép</button>
+    <button data-act="disp" title="Diszpécser tábla (Q)" data-en-title="Dispatcher board (Q)" data-en="Dispatcher">Diszpécser</button>
+    <button data-act="photo" title="Fénykép (Z): a nevezetességek az albumba kerülnek" data-en-title="Photo (Z): landmarks go into the album" data-en="Photo">Fotó</button>
+    <button data-act="bare" title="Felület elrejtése (U)" data-en-title="Hide the interface (U)" data-en="U">U</button>
+    <button data-act="help" title="Minden billentyű (?)" data-en-title="Every key (?)" data-en="?">?</button>
   </div>
-  <div id="help"><div class="card">
+  <div id="help"><div class="card" data-lang="hu">
     <h3>Vezetés</h3>
     <dl><dt>M</dt><dd>kézi / automata</dd>
       <dt>W / S</dt><dd>kontroller egy fokkal fel / le (P1–P8 vontatás, B1–B8 fék)</dd>
@@ -214,103 +478,168 @@
     <h3>Világ</h3>
     <dl><dt>1 / 2 / 3</dt><dd>idő szorzó</dd><dt>Space</dt><dd>szünet</dd>
       <dt>Tab</dt><dd>térkép</dd><dt>Q</dt><dd>diszpécser tábla</dd>
-      <dt>G</dt><dd>hang be / ki</dd><dt>L</dt><dd>hegynevek</dd><dt>P</dt><dd>feliratok</dd>
+      <dt>Z</dt><dd>fénykép — a nevezetességek a Fotóalbumba kerülnek</dd>
+      <dt>⇧Z</dt><dd>fotó mód: megáll az idő, szabad kamera, fény, színek, mélységélesség, makett</dd>
+      <dt>G</dt><dd>hang be / ki (állomásbemondás is)</dd><dt>L</dt><dd>hegynevek</dd><dt>P</dt><dd>feliratok</dd>
       <dt>U</dt><dd>felület elrejtése</dd></dl>
     <h3>Rétegek</h3>
     <dl><dt>T V R K</dt><dd>terep · növényzet · vágány · ég</dd>
       <dt>B N O</dt><dd>épületek · utak · felsővezeték</dd></dl>
+    <h3>Játék</h3>
+    <dl><dt>Szolgálat</dt><dd>feladatok: pontosság, megállás a jelnél, biztonság, kényelem, energia — csillagok, fokozatok</dd>
+      <dt>Napi kihívás</dt><dd>minden nap másik feladat, mindenkinek ugyanaz</dd>
+      <dt>Ütközés</dt><dd>az autó, a repülő és a drón nem megy át a házakon; a sínen álló autót a vonat elüti</dd>
+      <dt>Kisiklás</dt><dd>ha egy ívbe jóval a korlát fölött hajtasz</dd></dl>
     <h3>Panel</h3>
     <dl><dt>Menet</dt><dd>idő, dátum, időjárás, Duna vízállás (felfelé: árvíz)</dd>
       <dt>Beállítás</dt><dd>felhőtípus, pára, élesség, expozíció, animáció</dd><dt>F3</dt><dd>fejlesztői mérőszámok (fps, zoom…)</dd></dl>
+  </div>
+  <div class="card" data-lang="en">
+    <h3>Driving</h3>
+    <dl><dt>M</dt><dd>manual / automatic</dd>
+      <dt>W / S</dt><dd>controller one notch up / down (P1–P8 power, B1–B8 brake)</dd>
+      <dt>⇧0</dt><dd>controller to zero</dd>
+      <dt>Backspace</dt><dd>emergency brake (holds until you stop)</dd>
+      <dt>E</dt><dd>acknowledge the vigilance device (EVM-120)</dd>
+      <dt>J</dt><dd>sand</dd><dt>H</dt><dd>horn</dd>
+      <dt>⇧F</dt><dd>headlights</dd><dt>X</dt><dd>wipers</dd>
+      <dt>, / .</dt><dd>previous / next station</dd><dt>⇧R</dt><dd>restart the run</dd></dl>
+    <h3>Views</h3>
+    <dl><dt>Y</dt><dd>passenger, upstairs by the window · ⇧Y other side</dd>
+      <dt>C</dt><dd>from outside · mouse wheel: closer / further</dd>
+      <dt>F</dt><dd>follow another train</dd>
+      <dt>⇧C</dt><dd>free camera: WASD, R/F, shift is faster</dd>
+      <dt>⇧P</dt><dd>fly · 1 Cessna, 2 Gripen, 3 helicopter · W/S pitch, A/D roll (the bank stays in), Q/E, R/F throttle, C cockpit, Space brakes on the ground · you can land, gently</dd>
+      <dt>⇧D</dt><dd>drone: WASD, Space up, Q/E turn</dd>
+      <dt>⇧A</dt><dd>car: W throttle, S brake/reverse, A/D steer, Space handbrake, C driver's seat</dd>
+      <dt>I</dt><dd>cab interior</dd><dt>mouse drag</dt><dd>look around</dd></dl>
+    <h3>World</h3>
+    <dl><dt>1 / 2 / 3</dt><dd>time speed</dd><dt>Space</dt><dd>pause</dd>
+      <dt>Tab</dt><dd>map</dd><dt>Q</dt><dd>dispatcher board</dd>
+      <dt>Z</dt><dd>take a photo — landmarks go into the album</dd>
+      <dt>⇧Z</dt><dd>photo mode: time stops, a free camera, light, colour, depth of field, miniature</dd>
+      <dt>G</dt><dd>sound on / off (station announcements too)</dd><dt>L</dt><dd>hill names</dd><dt>P</dt><dd>labels</dd>
+      <dt>U</dt><dd>hide the interface</dd></dl>
+    <h3>Layers</h3>
+    <dl><dt>T V R K</dt><dd>terrain · vegetation · track · sky</dd>
+      <dt>B N O</dt><dd>buildings · roads · overhead line</dd></dl>
+    <h3>Game</h3>
+    <dl><dt>Missions</dt><dd>punctuality, stopping at the mark, safety, comfort, energy — stars, licence grades</dd>
+      <dt>Daily challenge</dt><dd>a different mission every day, the same for everyone</dd>
+      <dt>Collisions</dt><dd>the car, the plane and the drone do not pass through buildings; a car on the line is hit by the train</dd>
+      <dt>Derailment</dt><dd>take a curve far over its limit</dd></dl>
+    <h3>Panel</h3>
+    <dl><dt>Run</dt><dd>time, date, weather, Danube level (up: flood)</dd>
+      <dt>Settings</dt><dd>cloud type, haze, sharpness, exposure, animation</dd><dt>F3</dt><dd>developer numbers (fps, zoom…)</dd></dl>
   </div></div>
-  <div id="attrib">v0.1 alpha · térkép: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> közreműködők · domborzat: Mapzen/AWS Terrain Tiles</div>
+  <div id="intro"><div class="n" id="iN"></div><div id="iText"></div>
+    <div class="ib"><button id="iSkip" data-en="Skip">Kihagyom</button><button id="iNext">Tovább</button></div></div>
+  <div id="attrib" data-en-html='v0.1 alpha · map © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors · terrain: Mapzen/AWS Terrain Tiles'>v0.1 alpha · térkép: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> közreműködők · domborzat: Mapzen/AWS Terrain Tiles</div>
   <div id="err"></div>
   <div id="menu">
-    <h2 id="menuTitle">Szob felé</h2>
-    <p class="lede" id="menuSubtitle">MÁV 70 · Vác – Szob</p>
-    
-    <script>
-      const qs = new URLSearchParams(window.location.search);
-      const l = qs.get('line') || 'line70';
-      const mTitle = document.getElementById("menuTitle");
-      const mSub = document.getElementById("menuSubtitle");
-      if (l === 'line71') {
-        mTitle.textContent = "Veresegyház felé";
-        mSub.textContent = "MÁV 71 · Budapest - Vác";
-      } else if (l === 's21') {
-        mTitle.textContent = "Lajosmizse felé";
-        mSub.textContent = "S21 · Nyugati – Kőbánya-Kispest – Ócsa – Lajosmizse";
-      } else if (l === 'line2') {
-        mTitle.textContent = "Esztergom felé";
-        mSub.textContent = "MÁV 2 · Budapest - Esztergom";
-      }
-    </script>
-    
-    <label class="row">Network
+    <img id="mBanner" alt="">
+    <div class="mbody">
+    <h2 id="menuTitle">Szob felé</h2><button id="mLang" title="Nyelv / Language">EN</button>
+    <p class="lede" id="menuSubtitle">MÁV 70 · Nyugati – Vác – Szob</p>
+    <div id="mLines">
+      <button data-line="line70"><b>70</b><span>Vác – Szob</span></button>
+      <button data-line="line2"><b>2</b><span>Pilis – Esztergom</span></button>
+      <button data-line="s21"><b>S21</b><span>Kispest – Lajosmizse</span></button>
+    </div>
+    <button id="mQuick"><b data-en="Depart">Indulás</b><span id="mQuickSub">a következő vonattal</span></button>
+    <div class="mrow"><button id="mMission" style="display:none" data-en="Missions — earn stars">Szolgálat — feladatok csillagokkal</button>
+      <button id="mAlbum" data-en="Photo album">Fotóalbum</button></div>
+    <button id="mDaily"><b data-en="Daily challenge">Napi kihívás</b><span id="mDailySub"></span></button>
+    <details id="mMore"><summary data-en="Details: train, direction, weather, departure">Részletek: vonat, irány, időjárás, indulás</summary>
+    <label class="row"><span data-en="Line">Vonal</span>
       <select id="mNetwork">
-        <option value="line70">Line 70 (Budapest - Vác - Szob)</option>
-        <option value="line71">Line 71 (Budapest - Veresegyház - Vác)</option>
-        <option value="line2">Line 2 (Budapest - Esztergom)</option>
-        <option value="s21">S21 (Budapest-Nyugati - Kőbánya-Kispest - Lajosmizse)</option>
+        <option value="line70">70 · Budapest – Vác – Szob</option>
+        <option value="line2">2 · Budapest – Esztergom</option>
+        <option value="s21">S21 · Nyugati – Kőbánya-Kispest – Lajosmizse</option>
       </select>
     </label>
-    
-    <label class="row">Scenario
-      <select id="mScenario">
-        <optgroup label="MÁV 70 (Vác-Szob)">
-          <option value="S70">S70 (Minden állomáson megáll)</option>
-          <option value="G70">G70 (Gyorsított személy)</option>
-          <option value="EC">EuroCity (Metropolitan)</option>
-          <option value="Freight">Tehervonat (Bypass)</option>
-        </optgroup>
-        <optgroup label="MÁV 2 (Esztergom)">
-          <option value="S72">S72 (Minden állomáson megáll)</option>
-          <option value="Z72">Z72 (Gyorsított személy)</option>
-        </optgroup>
-      </select>
-    </label>
-    
-    <label class="row">Direction
-      <select id="mDir">
-      </select>
-    </label>
-    <label class="row">Start at <select id="mStart"></select></label>
-    
-    <label class="row">Environment
+    <label class="row"><span data-en="Train">Vonat</span> <select id="mScenario"></select></label>
+    <label class="row"><span data-en="Direction">Irány</span> <select id="mDir"></select></label>
+    <label class="row"><span data-en="From">Honnan</span> <select id="mStart"></select></label>
+    <label class="row"><span data-en="Weather">Időjárás</span>
       <select id="mEnv">
-        <option value="custom">Custom (use settings panel)</option>
-        <option value="summer_morning">Summer Morning (Clear)</option>
-        <option value="autumn_rain">Autumn Afternoon (Rain)</option>
-        <option value="winter_snow">Winter Night (Snow)</option>
-        <option value="storm">Summer Storm</option>
+        <option value="custom" data-en="as set on the panel">a panel szerint</option>
+        <option value="summer_morning" data-en="summer morning, clear">nyári reggel, derült</option>
+        <option value="autumn_rain" data-en="autumn afternoon, rain">őszi délután, eső</option>
+        <option value="winter_snow" data-en="winter evening, snow">téli este, havazás</option>
+        <option value="storm" data-en="summer thunderstorm">nyári zivatar</option>
       </select>
     </label>
-    
-    <label class="row">Depart <input id="mHour" type="range" min="0" max="24" step="0.25" value="10.5"><span id="mHourV">10:30</span></label>
-    <label class="row">Driving
+    <label class="row"><span data-en="Departs">Indulás</span> <input id="mHour" type="range" min="0" max="24" step="0.25" value="10.5"><span id="mHourV">10:30</span></label>
+    <label class="row"><span data-en="Driving">Vezetés</span>
       <select id="mMode">
-        <option value="auto">automatic</option>
-        <option value="manual">manual</option>
+        <option value="auto" data-en="automatic (M to take over)">automata (M: átveszed)</option>
+        <option value="manual" data-en="manual">kézi</option>
       </select></label>
     <div class="btns">
-      <button id="mGo">Start the run</button>
-      <button id="mClose">Back</button>
+      <button id="mGo" data-en="Depart with these">Indulás ezekkel</button>
     </div>
-    <p class="hint">ESC menu · R restart this run · F follow another train</p>
+    </details>
+    <div class="btns"><button id="mClose" data-en="Back">Vissza</button></div>
+    <p class="hint" data-en="Esc menu · ⇧R restart · ? every key">Esc menü · ⇧R újraindítás · ? minden billentyű</p>
+    </div>
   </div>
-  
+
+  <div id="touch"><div class="tg" id="tL"></div><div class="tg" id="tR"></div></div>
+  <div id="photoUI">
+    <h3><span data-en="Photo mode">Fotó mód</span><button id="phExit" title="Esc">✕</button></h3>
+    <p class="ph-hint" data-en="WASD, R/F: move · drag: look · shift: faster · click: focus there">WASD, R/F: mozgás · húzás: nézés · shift: gyorsabban · kattintás: oda fókuszál</p>
+    <div class="grp" data-en="Lens">Objektív</div>
+    <label><span data-en="Focus">Élességmód</span><input id="phDof" type="range" min="0" max="2" step="1"><output id="phDofV"></output></label>
+    <label><span data-en="Focus distance">Fókusz</span><input id="phFocus" type="range" min="0.3" max="4.3" step="0.01"><output id="phFocusV"></output></label>
+    <label><span data-en="Blur">Blende</span><input id="phAperture" type="range" min="0" max="1.5" step="0.02"><output id="phApertureV"></output></label>
+    <div class="band"><label><span data-en="Sharp band">Éles sáv</span><input id="phBand" type="range" min="0.05" max="0.95" step="0.01"><output id="phBandV"></output></label></div>
+    <button id="phFocusC" data-en="Focus on the centre">Fókusz a közepére</button>
+    <label><span data-en="Field of view">Látószög</span><input id="phFov" type="range" min="15" max="110" step="1"><output id="phFovV"></output></label>
+    <div class="grp" data-en="Light and colour">Fény és szín</div>
+    <label><span data-en="Exposure">Fényerő</span><input id="phExp" type="range" min="0.4" max="3" step="0.02"><output id="phExpV"></output></label>
+    <label><span data-en="Hue">Színárnyalat</span><input id="phHue" type="range" min="-1.2" max="1.2" step="0.01"><output id="phHueV"></output></label>
+    <label><span data-en="Saturation">Telítettség</span><input id="phSat" type="range" min="0" max="2" step="0.02"><output id="phSatV"></output></label>
+    <label><span data-en="Contrast">Kontraszt</span><input id="phCon" type="range" min="0.6" max="1.6" step="0.02"><output id="phConV"></output></label>
+    <label><span data-en="Warmth">Színhő</span><input id="phWarm" type="range" min="-1" max="1" step="0.02"><output id="phWarmV"></output></label>
+    <label><span data-en="Vignette">Vignetta</span><input id="phVig" type="range" min="0" max="1" step="0.02"><output id="phVigV"></output></label>
+    <label><span data-en="Grain">Szemcse</span><input id="phGrain" type="range" min="0" max="1" step="0.02"><output id="phGrainV"></output></label>
+    <label><span data-en="Time of day">Napszak</span><input id="phHour" type="range" min="0" max="24" step="0.05"><output id="phHourV"></output></label>
+    <div class="grp" data-en="Camera and lights">Kamera és fények</div>
+    <label><span data-en="Camera">Kamera</span><select id="phCam"><option value="free" data-en="free">szabad</option><option value="orbit" data-en="orbit the focus">körbe a fókusz körül</option></select><output></output></label>
+    <div class="row2"><button id="phLight" data-en="Light here">Fény ide</button><button id="phLightClr" data-en="Clear lights">Fények törlése</button></div>
+    <label><span data-en="Light">Fényerő (lámpa)</span><input id="phLightI" type="range" min="0.2" max="2" step="0.05" value="1"><output id="phLightIV"></output></label>
+    <div class="grp" data-en="Stickers">Matricák</div>
+    <div class="row2 tabs"><button data-k="Sticker" data-en="Stickers">Matrica</button><button data-k="Signs" data-en="Signs">Tábla</button><button data-k="Grafitti">Graffiti</button><button data-k="Torn" data-en="Paper">Papír</button></div>
+    <div id="phPicker"></div>
+    <p class="ph-hint" data-en="drag · wheel: size · shift+wheel: turn · double-click: flip · Delete: remove">húzás · görgő: méret · shift+görgő: forgatás · dupla katt: tükrözés · Delete: törlés</p>
+    <div class="grp" data-en="Caption and effects">Felirat és effektek</div>
+    <input id="phCap" type="text" maxlength="60" placeholder="Felirat…" data-en-ph="Caption…">
+    <label><span data-en="Style">Stílus</span><select id="phCapS"><option value="0">Archivo</option><option value="1">Georgia</option><option value="2">Mono</option></select><output></output></label>
+    <label><span data-en="Light leak">Fényszivárgás</span><input id="phLeak" type="range" min="0" max="1" step="0.02" value="0"><output id="phLeakV"></output></label>
+    <label><span data-en="Flare">Csillanás</span><input id="phFlare" type="range" min="0" max="1" step="0.02" value="0"><output id="phFlareV"></output></label>
+    <label><span data-en="Border">Keret</span><select id="phBorder"><option value="0" data-en="none">nincs</option><option value="1" data-en="print">fotó</option><option value="2">film</option></select><output></output></label>
+    <label class="chk"><input id="phStamp" type="checkbox"> <span data-en="date stamp">dátumbélyeg</span></label>
+    <div class="phb"><button id="phReset" data-en="Reset">Alaphelyzet</button><button id="phShoot" data-en="📷 Take">📷 Fotó</button></div>
+  </div>
+  <div id="photoStage"></div>
+  <div id="missions"></div>
+  <div id="album"></div>
+  <div id="flash"></div>
+  <div id="photoToast"></div>
   <div id="endModal" style="display: none;">
-    <h2>Run Completed</h2>
-    <div class="stats">
-      <p>Passengers: <span id="endPax">0</span></p>
-      <p>Punctuality: <span id="endTimeAcc">100%</span></p>
-      <p>Violations: <span id="endPenalties">0</span></p>
+    <h2 id="endTitle" data-en="Run complete">Menet vége</h2>
+    <div id="endStars"></div>
+    <div class="stats" id="endStats">
+      <p>Utasok: <span id="endPax">0</span></p>
+      <p>Pontosság: <span id="endTimeAcc">100%</span></p>
+      <p>Szabálysértés: <span id="endPenalties">0</span></p>
       <hr>
-      <h3>Score: <span id="endScore">0</span></h3>
+      <h3>Pontszám: <span id="endScore">0</span></h3>
     </div>
     <div class="btns">
-      <button id="endRestart">Play Again</button>
-      <button id="endMenu">Main Menu</button>
+      <button id="endRestart" data-en="Again">Újra</button>
+      <button id="endMenu" data-en="Menu">Menü</button>
     </div>
   </div>
 </div>
@@ -344,7 +673,41 @@
     car: () => { const st = S(); if (st && st.car && st.car.active) return; toCab(); key("KeyA", true); },
     bare: () => key("KeyU"), manual: () => key("KeyM"), map: () => key("Tab"), disp: () => key("KeyQ"),
     help: () => document.getElementById("help").classList.toggle("on"),
+    photo: () => window.__photoMode && window.__photoMode(true),
   };
+  // The first run's four hints (once per browser; ? shows them all later).
+  const EN = window.LANG === "en";
+  const INTRO = EN ? [
+    "<b>Look around:</b> drag the mouse. The wheel takes you closer or further.",
+    "<b>The views are up top:</b> Sightseeing, Passenger, Outside — or switch to a plane, a drone, a car.",
+    "<b>M — you take over.</b> W/S the controller (P power, B brake), E acknowledges the vigilance device, Backspace is the emergency brake.",
+    "<b>Esc</b> the menu, <b>?</b> every key, <b>Tab</b> the map. Have a good trip!",
+  ] : [
+    "<b>Nézz körül:</b> húzd az egeret. A görgővel közelebb és távolabb kerülsz.",
+    "<b>Fent a nézetek:</b> Kilátás, Utas, Kívülről — vagy szállj át repülőbe, drónba, autóba.",
+    "<b>M — átveszed a vezetést.</b> W/S a kontroller (P vontat, B fékez), E nyugtázza az éberséget, Backspace vészfék.",
+    "<b>Esc</b> a menü, <b>?</b> minden billentyű, <b>Tab</b> a térkép. Jó utat!",
+  ];
+  let introAt = -1;
+  const introShow = () => {
+    const el = document.getElementById("intro");
+    document.getElementById("modebar").classList.toggle("glow", introAt === 1);
+    if (introAt < 0 || introAt >= INTRO.length) { el.classList.remove("on"); introAt = -1; return; }
+    document.getElementById("iN").textContent = `${introAt + 1} / ${INTRO.length}`;
+    document.getElementById("iText").innerHTML = INTRO[introAt];
+    document.getElementById("iNext").textContent = introAt === INTRO.length - 1 ? (EN ? "Go" : "Indulás") : (EN ? "Next" : "Tovább");
+    el.classList.add("on");
+  };
+  const introSeen = () => { try { const p = JSON.parse(localStorage.getItem("szobPrefs") || "{}");
+    p.introSeen = 1; localStorage.setItem("szobPrefs", JSON.stringify(p)); } catch (e) {} };
+  window.__intro = (force) => {
+    let seen = false; try { seen = !!JSON.parse(localStorage.getItem("szobPrefs") || "{}").introSeen; } catch (e) {}
+    if (seen && !force) return;
+    introAt = 0; introShow();
+  };
+  document.getElementById("iNext").addEventListener("click", e => { e.stopPropagation(); introAt++;
+    if (introAt >= INTRO.length) introSeen(); introShow(); });
+  document.getElementById("iSkip").addEventListener("click", e => { e.stopPropagation(); introAt = -1; introSeen(); introShow(); });
   document.querySelectorAll("#modebar button").forEach(b => b.addEventListener("click", e => {
     e.stopPropagation(); (act[b.dataset.mode || b.dataset.act] || (() => {}))(); b.blur();
   }));
@@ -354,8 +717,45 @@
     if (e.code === "Slash" || e.code === "F1") { e.preventDefault(); act.help(); }
     if (e.code === "Escape") document.getElementById("help").classList.remove("on");
   });
+  // ---- touch: each button holds its key down while pressed
+  const touch = matchMedia("(pointer: coarse)").matches || "ontouchstart" in window;
+  if (touch) document.body.classList.add("touch");
+  const TOUCH = {
+    auto:   [[], [["M", "KeyM", 0, "gold big", "Kézi"]]],
+    train:  [[["▼", "KeyS", 0, "big", "Fék"], ["▲", "KeyW", 0, "big", "Vontat"]],
+             [["0", "Digit0", 1, "", "Nulla"], ["ÉBER", "KeyE", 0, "gold", ""], ["VÉSZ", "Backspace", 0, "red", ""]]],
+    car:    [[["◀", "KeyA"], ["▶", "KeyD"]], [["fék", "KeyS", 0, "big"], ["gáz", "KeyW", 0, "big"], ["kézi", "Space", 0, "red"]]],
+    plane:  [[["◀", "KeyA"], ["▶", "KeyD"], ["▲", "KeyS", 0, "", "Húz"], ["▼", "KeyW", 0, "", "Nyom"]],
+             [["gáz+", "KeyR"], ["gáz−", "KeyF"], ["kabin", "KeyC"]]],
+    drone:  [[["◀", "KeyA"], ["▶", "KeyD"], ["▲", "KeyW"], ["▼", "KeyS"]], [["fel", "Space", 0, "big"], ["le", "KeyC"]]],
+    free:   [[["◀", "KeyA"], ["▶", "KeyD"], ["▲", "KeyW"], ["▼", "KeyS"]], [["fel", "KeyR"], ["le", "KeyF"]]],
+  };
+  let touchMode = null;
+  const press = (code, shift, down) => dispatchEvent(new KeyboardEvent(down ? "keydown" : "keyup", { code, shiftKey: !!shift }));
+  const layTouch = (mode) => {
+    if (mode === touchMode) return; touchMode = mode;
+    const [L, R] = TOUCH[mode] || [[], []];
+    for (const [id, list] of [["tL", L], ["tR", R]]) {
+      const el = document.getElementById(id); el.innerHTML = "";
+      for (const [label, code, shift, cls, title] of list) {
+        const b = document.createElement("button");
+        b.textContent = label; if (cls) b.className = cls; if (title) b.title = title;
+        let held = false;
+        const up = () => { if (!held) return; held = false; b.classList.remove("down"); press(code, shift, false); };
+        b.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); held = true;
+          b.classList.add("down"); b.setPointerCapture(e.pointerId); press(code, shift, true); });
+        b.addEventListener("pointerup", up); b.addEventListener("pointercancel", up); b.addEventListener("lostpointercapture", up);
+        el.appendChild(b);
+      }
+    }
+  };
   setInterval(() => {
     const st = S(); if (!st) return;
+    if (touch) {
+      layTouch(st.menu ? null : st.car && st.car.active ? "car" : st.plane && st.plane.active ? "plane"
+             : st.drone && st.drone.active ? "drone" : st.fly ? "free" : st.tour || st.passenger ? null
+             : st.manual ? "train" : "auto");
+    }
     const mode = st.tour ? "tour" : st.car && st.car.active ? "car" : st.plane && st.plane.active ? "plane" : st.drone && st.drone.active ? "drone"
                : st.fly ? "free" : st.passenger ? "passenger" : st.follow ? "chase" : "cab";
     document.querySelectorAll("#modebar button[data-mode]").forEach(b =>
@@ -368,47 +768,73 @@
 <script type="module">
   import { boot } from './src/main.js';
   
+  // English: swap in the data-en texts (the Hungarian is in the markup)
+  if (window.LANG === 'en') {
+    document.querySelectorAll('[data-en]').forEach(el => { el.textContent = el.dataset.en; });
+    document.querySelectorAll('[data-en-html]').forEach(el => { el.innerHTML = el.dataset.enHtml; });
+    document.querySelectorAll('[data-en-title]').forEach(el => { el.title = el.dataset.enTitle; });
+    document.querySelectorAll('[data-en-ph]').forEach(el => { el.placeholder = el.dataset.enPh; });
+  }
   async function load() {
     const params = new URLSearchParams(window.location.search);
+    // a bare address opens the line you drove last time
+    if (!params.get('line')) {
+      let last = null; try { last = JSON.parse(localStorage.getItem('szobPrefs') || '{}').line; } catch (e) {}
+      if (last === 'line2' || last === 's21') { location.replace('?line=' + last); return; }
+    }
     const line = params.get('line') || 'line70';
     const suffix = line === 'line70' ? '' : `_${line}`;
-    
+
     // where the baked data lives: data/ next to dist/index.html, web/data/
     // for the copy at the repository root that GitHub Pages serves
     const DATA = window.DATA_BASE || 'data/';
+    // Everything is fetched at once, and the bar counts the bytes. Downloads
+    // are the first 70% of the bar; boot() reports the rest as it builds.
+    // (A gzipped response reports its compressed length, so each file's own
+    // share is capped at 1.)
+    const files = [];
+    const tick = () => {
+      let got = 0, want = 0;
+      for (const f of files) { want += f.w; got += f.w * Math.min(1, f.len ? f.got / f.len : 0); }
+      window.__loadStep && window.__loadStep(null, 0.7 * got / Math.max(1, want));
+    };
+    const get = async (url, weight, as, optional) => {
+      const f = { w: weight, got: 0, len: 0 }; files.push(f);
+      const r = await fetch(url);
+      if (!r.ok) { f.got = f.len = 1; tick(); if (optional) return null; throw new Error(`${url}: ${r.status}`); }
+      f.len = +r.headers.get('content-length') || 0;
+      if (r.headers.get('content-encoding')) f.len *= 3;
+      const parts = [], rd = r.body.getReader();
+      for (;;) { const { done, value } = await rd.read(); if (done) break;
+                 parts.push(value); f.got += value.length; tick(); }
+      f.got = f.len = 1; tick();
+      const blob = new Blob(parts);
+      return as === 'json' ? JSON.parse(await blob.text()) : URL.createObjectURL(blob);
+    };
+    const either = (a, b, w) => get(a, w, 'json', true).then(j => j || get(b, 1, 'json'));
     try {
-      const ts = Date.now();
-      const worldRes = await fetch(`${DATA}world${suffix}.json?t=${ts}`);
-      if (!worldRes.ok) throw new Error(`Failed to load world data for ${line}`);
-      const worldData = await worldRes.json();
-      
-      const routeRes = await fetch(`${DATA}route${suffix}.json?t=${ts}`);
-      if (!routeRes.ok) throw new Error(`Failed to load route data for ${line}`);
-      
-      const assets = {
-        world: worldData,
-        route: await routeRes.json(),
-        heightNear: `${DATA}height_near${suffix}.png`,
-        heightFar: `${DATA}height_far${suffix}.png`,
-        coverNear: `${DATA}cover_near${suffix}.png`,
-        context: await fetch(`${DATA}context${suffix}.json?t=${ts}`)
-            .then(r => r.ok ? r.json() : fetch(`${DATA}context.json?t=${ts}`).then(r2 => r2.json())),
-        // each line has its own inset map and timetable; fall back to line
-        // 70's only if a line has not been baked with one
-        map: `${DATA}map${suffix}.png?t=${ts}`,
-        mapMeta: await fetch(`${DATA}map${suffix}.json?t=${ts}`)
-            .then(r => r.ok ? r.json() : fetch(`${DATA}map.json?t=${ts}`).then(r2 => r2.json())),
-        timetable: await fetch(`${DATA}timetable${suffix}.json?t=${ts}`)
-            .then(r => r.ok ? r.json() : fetch(`${DATA}timetable.json?t=${ts}`).then(r2 => r2.json())),
-      };
-      
+      window.__loadStep && window.__loadStep(window.LANG === 'en' ? 'track, terrain, surroundings' : 'pálya, domborzat, környezet', 0);
+      const [world, route, context, mapMeta, timetable, heightNear, heightFar, coverNear, map] =
+        await Promise.all([
+          get(`${DATA}world${suffix}.json`, 1, 'json'),
+          get(`${DATA}route${suffix}.json`, 8, 'json'),
+          either(`${DATA}context${suffix}.json`, `${DATA}context.json`, 35),
+          either(`${DATA}map${suffix}.json`, `${DATA}map.json`, 1),
+          either(`${DATA}timetable${suffix}.json`, `${DATA}timetable.json`, 1),
+          get(`${DATA}height_near${suffix}.png`, 22, 'url'),
+          get(`${DATA}height_far${suffix}.png`, 9, 'url'),
+          get(`${DATA}cover_near${suffix}.png`, 5, 'url'),
+          get(`${DATA}map${suffix}.png`, 2, 'url'),
+        ]);
+      const assets = { world, route, context, mapMeta, timetable, heightNear, heightFar, coverNear, map };
       await boot(assets);
     } catch (e) {
       document.getElementById('err').textContent = 'Startup failed: ' + e.message;
+      window.__loadFail && window.__loadFail((window.LANG === 'en' ? 'Could not start: ' : 'Nem sikerült elindítani: ') + e.message);
       console.error(e);
     }
   }
-  
+
   if (!window.ASSETS) {
     load();
   }
