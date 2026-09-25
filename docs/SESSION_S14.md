@@ -55,4 +55,4 @@ platform."
 
 ## Where this session stopped
 
-Not committed (the owner reviews first).
+Pushed as `5cc5d82` (26 Sep, on the owner's word).
