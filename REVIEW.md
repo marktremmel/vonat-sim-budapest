@@ -398,7 +398,7 @@ in and the tests pass, but I have not looked at it on screen.
   - Its rail height is the smoothed ground, never below the ground itself.
 - **Not done:** trams 1 and 4/6, H5, the Keleti/Kelenföld–Háros link, and one world. The city's tram and rail tracks are drawn, but nothing runs on them.
 
-## After round 9 (25 Sep, evening; not yet committed)
+## After round 9 (25 Sep, evening; pushed as d99eb53)
 
 - **Kisvasút:** its world is extended to Királyrét. **Seen.**
 - **Cars:** lighter; the shader darkened the paint.

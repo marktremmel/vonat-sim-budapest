@@ -12,7 +12,7 @@ running the build. Where a claim was checked by running the code, it says so.
 
 **25 Sep 2026, evening.**
 - `e809141` on `main` is pushed: rounds 7–9, which the owner reviewed ("ship it").
-- Everything below is **not committed**; it waits for the owner's review (memory `git-after-review`).
+- Everything below is pushed as `d99eb53` (the owner said "push").
 
 **Done since the push, checked in the preview:**
 - **Kisvasút inside the world.** Line 70's near window is grown 102 rows north, to 47.905 N:
@@ -36,7 +36,6 @@ running the build. Where a claim was checked by running the code, it says so.
 - VEG_VS water-level sign fixed (`w.y` is world z).
 
 **Next, in order:**
-1. The owner reviews this; commit and push on their word.
 2. Round 9 leftovers (REVIEW.md, "Round 9: where it stands"):
    - look at the pylons, Újpest vaults, Dunakeszi tó, Népsziget and MÁV-telep;
    - PSX houses and street props;
