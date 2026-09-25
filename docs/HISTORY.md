@@ -34,6 +34,7 @@ stretch n), and says where its details are.
 | S-11 | 25 Sep late | KÖKI tower, Kilátás camera, S21 stock, **organise the docs** | Wrong KÖKI "TV tower" removed; follow camera raised; `docs/` written (this folder) | this file; docs/OWNER_BACKLOG.md |
 | S-12 | 25 Sep night | (Gemini / Antigravity, in the copy-4 folder) | Docs only: the engine, VFX and disaster specs, an audit, a plan for the prenight feedback (in `docs/`) | `map_and_what_gemini_did.md` |
 | S-13 | 26 Sep | "read through /docs … get through as much as possible"; then a mid-session message (Kispest, murmuration, Erzsébet híd, Megyeri, Szentendre…) | Fullscreen, FLIRT seat, corridor seasons, plane roll, tile-road leak, bridge fixes, MÁV 416 on S21, real cabs and cockpits, particles (crash, afterburner, vapour), pumpjacks, roads for line 2 and S21, Fót, Szentendre, AI cars off-road, trams, two announcements, murmuration, Erzsébet híd, Megyeri pylons, graphics sliders, `?mode=dark`. Pushed as `c69287b` | `docs/SESSION_S13.md` |
+| S-14 | 26 Sep | aerial photo of Zugló (the line on a bank); "continue" (Üllői út, Kispest photos) | `raise_profile.py`: S21 raised up to 5.5 m (km 2.9–8.9) and lowered 6 m under the airport road (km 11.5); roads under at street level; OSM platforms and footbridges at every station on all three lines (Kispest from the owner's photos) | `docs/SESSION_S14.md`; NOTES Trap 15 |
 
 ## Things that were tried and reverted (so nobody tries them again blindly)
 

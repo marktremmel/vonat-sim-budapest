@@ -391,6 +391,23 @@ mistake each one represents. Check these before believing anything.
     east edge would have stretched by about 7 m.
     `world.json near.frame_lat` pins it now. Every tool and the game read
     `frame_lat` first. Never grow a window without it.
+15. **The DEM cannot see an embankment.** SRTM averages 30 m cells, so S21's
+    7 m bank through Zugló came out 2 m high, and every road under it was dug
+    6.6 m down into a cutting (owner's aerial photo, 26 Sep: they pass at
+    street level). Don't lift the profile by rebaking the route (Trap in
+    CLAUDE.md: stops move). `tools/raise_profile.py <line>` patches the route
+    in place from a table of ramps and stores it as `route.raised`. The game
+    then widens the bank's top where active sidings run beside it, gives it a
+    1:1.5 slope, keeps roads in the street and caps underpass walls at the
+    ground. All of that applies only inside a `raised` range, so lines
+    without one build exactly as before. `railDistAt` also returns `s`
+    (> 0 left of the down line).
+16. **A stop's platforms come from OSM where the line's extras have them**
+    (`tools/bake_platforms.py`, S-14). A platform mapped as a line is not
+    reliably its middle or its edge: the width is worked out from the tracks
+    either side (only tracks within 5 m count; past that it is the next one
+    over, and an island once came out 11 m wide). If a station looks wrong,
+    look at its OSM platform first.
 
 ## Twelfth pass — the wire, the platforms, and Nyugati
 - **The overhead line.** A 25 kV railway with no catenary anywhere on it now

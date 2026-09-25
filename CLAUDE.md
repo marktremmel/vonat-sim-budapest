@@ -14,9 +14,9 @@ running the build. Where a claim was checked by running the code, it says so.
 
 ## Handoff: where the work is right now (update this first and last every session)
 
-**26 Sep 2026, S-13.**
-- The progress log with every item and what was seen is **`docs/SESSION_S13.md`**; the to-do list is `docs/OWNER_BACKLOG.md`.
-- S-13 is pushed as `c69287b` (26 Sep, on the owner's word). Git rule: commit or push only after the owner's review.
+**26 Sep 2026, S-14** (after S-13, which is pushed as `c69287b`).
+- S-14 raised S21 onto its real embankment through Zugló and Kőbánya (`tools/raise_profile.py`, NOTES Trap 15). The log is **`docs/SESSION_S14.md`**; S-13's is `docs/SESSION_S13.md`; the to-do list is `docs/OWNER_BACKLOG.md`.
+- S-14 is **not committed** yet. Git rule: commit or push only after the owner's review.
 - Tests 28/28.
 - `web/data` is 82 MB; line 70's context is 5.3 MB (Fót and Szentendre extracts added).
 

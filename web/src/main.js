@@ -23,7 +23,8 @@ import { buildTrack, buildCorridor, buildRoads, unpackBuildings, unpackRoads,
          unpackPolyBuildings, buildPolyBuildings, prepareUnderpasses, unpackRails, buildYardTracks,
          boxMesh, buildStations, boardAtlas, buildSignals, buildCrossings,
          buildPlatformPeople, buildPlatformLamps,
-         buildBufferStops, roadSurfaceAt, underpassDip } from "./geom.js";
+         buildBufferStops, roadSurfaceAt, underpassDip, setShoulders,
+         osmPlatformSections, buildFootbridges } from "./geom.js";
 import { buildTrains, CAR_LEN } from "./trains.js";
 import { buildCatenary, buildYardWires } from "./catenary.js";
 import { unpackStructures, buildStructures } from "./structures.js";
@@ -344,22 +345,55 @@ export async function boot(assets) {
     // both, because a road near the line has to sit on the corridor surface
     // and the corridor is defined off rail level
     return (x, y) => {
-      let best = Infinity, y0 = NaN, m = NaN;
+      let best = Infinity, y0 = NaN, m = NaN, bi = -1;
       const cx = Math.floor(x / CELL), cy = Math.floor(y / CELL);
       for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++) {
         for (const i of grid.get((cx+dx) + "," + (cy+dy)) || []) {
           const p = D2[i];
           const d = Math.hypot(p[0]-x, p[1]-y);
-          if (d < best) { best = d; y0 = p[2]; m = p[3]; }
+          if (d < best) { best = d; y0 = p[2]; m = p[3]; bi = i; }
         }
       }
-      return { d: best, railY: y0, m };
+      // which side: > 0 left of the down line (the corridor's +offset side)
+      let s = 0;
+      if (bi >= 0) {
+        const a = D2[Math.max(0, bi - 1)], b = D2[Math.min(D2.length - 1, bi + 1)];
+        s = (b[0] - a[0]) * (y - D2[bi][1]) - (b[1] - a[1]) * (x - D2[bi][0]);
+      }
+      return { d: best, railY: y0, m, s };
     };
   })();
+  // a raised stretch (tools/raise_profile.py: S21 through Zugló and Kőbánya)
+  // is one wide embankment where sidings or a second line run beside the
+  // running tracks: the top is widened on that side to carry them (they stand
+  // at rail height, buildYardTracks), up to 30 m, in 10 m bins spread ±20 m
+  const railWays = (ctx.rails && ctx.rails.data) ? unpackRails(ctx.rails.data, ctx.rails.count) : [];
+  // the line's extras (bake_linex.py, bake_platforms.py), fetched once here:
+  // the platforms are needed for the stations, the rest further down
+  const lineLine = new URLSearchParams(location.search).get("line") || "line70";
+  let lineEx = null;
+  try {
+    lineEx = await fetch(`${window.DATA_BASE || "data/"}extras${lineLine === "line70" ? "" : "_" + lineLine}.json`).then(r => r.ok ? r.json() : null);
+  } catch (e) { console.warn("line extras unavailable", e); }
+  if ((routeData.raised || []).length) {
+    const liftAt = (m) => routeData.raised.some(([a, , , d]) => m > a && m < d);
+    const E = { l: new Map(), r: new Map() };
+    for (const w of railWays) for (const q of w.pts) {
+      if (w.cls >= 2 || q[3] >= 60 || !liftAt(q[2])) continue;   // not the disused sidings
+      const r = railDistAt(q[0], q[1]);
+      if (!r || r.d < 3) continue;
+      const side = r.s > 0 ? E.l : E.r, k = Math.round(q[2] / 10);
+      side.set(k, Math.max(side.get(k) || 0, Math.min(30, r.d + 3.2 - 4.6)));
+    }
+    const at = (M, m) => { const k = Math.round(m / 10); let v = 0;
+      for (let j = -2; j <= 2; j++) v = Math.max(v, M.get(k + j) || 0); return v; };
+    setShoulders((m, side) => liftAt(m) ? at(side > 0 ? E.l : E.r, m) : 0, liftAt);
+  }
   // roads that pass under the line: their floor (geom.js prepareUnderpasses),
   // which the corridor digs its cutting to and the road and the cars use
   const underpasses = prepareUnderpasses(roadWays, (ctx.roads && ctx.roads.widths) ? ctx.roads.widths : [], demAt, railDistAt);
-  const corridor = colouredVao(buildCorridor(routeData.track_down, demAt, coverAt, 1, routeData.bridges || [], underpasses));
+  const corridor = colouredVao(buildCorridor(routeData.track_down, demAt, coverAt, 1, routeData.bridges || [], underpasses,
+                                                     (routeData.raised || []).length > 0));
 
   // two platforms only where the formation actually widens: Vác 9 roads,
   // Szob 10, Nagymaros 6, Verőce 4, Vác-Alsóváros 4. Kismaros,
@@ -546,8 +580,36 @@ export async function boot(assets) {
     dyn.count = mesh.count;
   }
 
+  // the real platforms and footbridges from OSM (bake_platforms.py), in the
+  // line's extras; a stop with none keeps the generic platform
+  let osmFor = null, footMesh = null;   // (osmFor is also where the waiting people stand)
+  if (lineEx && (lineEx.platforms || []).length) {
+    const xyOf = (T) => T.map(q => [q[0], q[1]]);
+    const tracks = [xyOf(routeData.track_down), xyOf(routeData.track_up)]
+      .concat(railWays.filter(w => w.cls < 2).map(w => xyOf(w.pts)));
+    const railYXY = (x, y) => { const r = railDistAt(x, y); return r && isFinite(r.railY) ? r.railY : demAt(x, y); };
+    const byStop = new Map();
+    for (const pl of lineEx.platforms) {
+      const c = pl.pts[Math.floor(pl.pts.length / 2)], r = railDistAt(c[0], c[1]);
+      if (!r || !isFinite(r.m) || r.d > 40) continue;
+      let best = null, bd = 400;
+      for (const st of routeData.stops) { const d = Math.abs(st.km * 1000 - r.m); if (d < bd) { bd = d; best = st; } }
+      if (!best) continue;
+      const sec = osmPlatformSections(pl, tracks, railYXY);
+      if (sec.rail.length < 3) continue;
+      if (!byStop.has(best.name)) byStop.set(best.name, []);
+      byStop.get(best.name).push(sec);
+    }
+    osmFor = (st) => byStop.get(st.name) || null;
+    if ((lineEx.footbridges || []).length) footMesh = buildFootbridges(lineEx.footbridges, demAt, railYXY);
+  }
   const stn = buildStations(routeData.stops, routeData.track_down,
-                            routeData.track_up, demAt, MAJOR);
+                            routeData.track_up, demAt, MAJOR, osmFor);
+  if (footMesh && footMesh.count) {
+    const cat = (a, b) => { const o = new Float32Array(a.length + b.length); o.set(a); o.set(b, a.length); return o; };
+    stn.mesh = { verts: cat(stn.mesh.verts, footMesh.verts), cols: cat(stn.mesh.cols, footMesh.cols),
+                 count: stn.mesh.count + footMesh.count };
+  }
   const platMesh = colouredVao(stn.mesh);
 
   // name boards: one atlas row per board, drawn as instanced quads
@@ -669,7 +731,6 @@ export async function boot(assets) {
   const railYAt = (m) => ptAt(routeData.track_down,
     Math.max(routeData.track_down[0][3],
              Math.min(routeData.track_down[routeData.track_down.length-1][3], m)))[2];
-  const railWays = (ctx.rails && ctx.rails.data) ? unpackRails(ctx.rails.data, ctx.rails.count) : [];
   await step(tt("vonatforgalom", "train traffic"), 0.84);
   // ---- single track. A line whose up and down tracks are the same path
   // (line 2) is single track except where the data shows a second track
@@ -736,8 +797,15 @@ export async function boot(assets) {
     }
     return 0;
   } : null;
+  // a siding's rail height: the line's, except on a raised stretch, where one
+  // off the widened top stands on the slope or the ground, not in the air
+  const yardYAt = (m, p) => {
+    const y = railYAt(m);
+    if (!p || !(routeData.raised || []).some(([a, , , d]) => m > a && m < d)) return y;
+    return Math.min(y, roadSurfaceAt(demAt, railDistAt, p[0], p[1]) - 0.1);
+  };
   const yardMesh = colouredVao(railWays.length
-    ? buildYardTracks(railWays, demAt, railYAt)
+    ? buildYardTracks(railWays, demAt, yardYAt)
     : { verts: new Float32Array(0), cols: new Float32Array(0), count: 0 });
 
   await step(tt("felsővezeték", "overhead line"), 0.87);
@@ -832,7 +900,7 @@ export async function boot(assets) {
     const yard = buildYardWires(wiredTo === Infinity ? railWays : railWays.filter(w => {
       const q = w.pts[(w.pts.length / 2) | 0], r = q && railDistAt(q[0], q[1]);
       return !r || r.m <= wiredTo;
-    }), railYAt);
+    }), yardYAt);
     const V = new Float32Array(run.verts.length + yard.verts.length);
     const C = new Float32Array(run.cols.length + yard.cols.length);
     V.set(run.verts); V.set(yard.verts, run.verts.length);
@@ -1152,8 +1220,7 @@ export async function boot(assets) {
   // quarries, solar farms and pipelines outside the city
   let lineExtras = null, lineStructs = null;
   try {
-    const line = new URLSearchParams(location.search).get("line") || "line70";
-    const ex = await fetch(`${window.DATA_BASE || "data/"}extras${line === "line70" ? "" : "_" + line}.json`).then(r => r.ok ? r.json() : null);
+    const ex = lineEx;
     if (ex) {
       const waterAtL = (north) => wA + wB * north;
       const m = buildCityExtras(ex, (x, y) => [x, y], demAt, waterAtL, railDistAt, onModelBridge);
@@ -3015,7 +3082,7 @@ export async function boot(assets) {
         state.pplHour = state.hour;
         upload(peopleDyn, buildPlatformPeople(routeData.stops, routeData.track_down,
                routeData.track_up, demAt, state.hour, MAJOR,
-               !!(state.wx && state.wx.precip.kind && state.wx.precip.rate > 0.1)));
+               !!(state.wx && state.wx.precip.kind && state.wx.precip.rate > 0.1), osmFor));
       }
       // and the street & platform lamps: rebuilt when darkness changes or camera moves
       const nightNow = state.night || 0;

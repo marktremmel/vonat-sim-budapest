@@ -21,7 +21,7 @@ Around the trains there is a whole region:
 
 ## Current session
 
-**`SESSION_S13.md`** is the live progress log of the session running now: what's done, what's in progress, what's next. Read it first when you resume.
+**`SESSION_S14.md`** is the live progress log of the session running now (the S21 embankment through Zugló and Kőbánya). `SESSION_S13.md` holds the previous one. Read the latest first when you resume.
 
 ## Read in this order
 

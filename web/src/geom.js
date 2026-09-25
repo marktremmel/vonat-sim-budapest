@@ -84,15 +84,49 @@ const CORRIDOR = [
   4.6, 5.0, 6.4, 8.0, 10.5, 16, 24, 34, 46, 60, 76, 100, 124,
 ];
 export const CORRIDOR_HALF = 124.0;
+// denser across the slopes, for a line with a tall embankment: a road cut
+// through 7 m of bank sampled every 8-12 m came out as a fan of spikes
+const CORRIDOR_DENSE = [
+  -124, -100, -76, -60, -46, -40, -34, -30, -27, -24, -21, -18.5, -16, -14.5, -12.5, -10.5, -8.0, -6.4, -5.0, -4.6,
+  0,
+  4.6, 5.0, 6.4, 8.0, 10.5, 12.5, 14.5, 16, 18.5, 21, 24, 27, 30, 34, 40, 46, 60, 76, 100, 124,
+];
 const SKIRT_IN = 10.5, SKIRT_OUT = 46.0;
 
-function corridorHeight(off, top, dem) {
-  const a = Math.abs(off);
+// Where a raised stretch (raise_profile.py) carries sidings or a second line
+// beside the running tracks, the embankment's top is widened on that side to
+// take them: fn(m, side) -> extra metres of flat top (side > 0 left of the
+// down line). Set by main.js; null leaves every line as it was.
+// raisedAt(m) says whether chainage m is on such a stretch: the steep slope,
+// roads kept in the street and capped underpass walls apply only there.
+let shoulderAt = null, raisedAt = null;
+export function setShoulders(fn, raised) { shoulderAt = fn; raisedAt = raised; }
+const shoulderOf = (r) => (shoulderAt && r && isFinite(r.m) ? shoulderAt(r.m, r.s || 0) : 0);
+const isRaised = (m) => !!(raisedAt && isFinite(m) && raisedAt(m));
+
+function corridorHeight(off, top, dem, ext = 0, steep = false) {
+  let a = Math.abs(off);
+  if (ext > 0 && a > 4.6) {
+    if (a <= 4.6 + ext) return top - 0.25;               // the formation the sidings stand on
+    a -= ext;
+  }
   if (a <= 4.6) return top + (a < 1 ? 0.06 : 0.0);
   if (a <= 5.0) return top - 0.20;
   if (a <= 6.4) return top - 1.70;
   if (a <= SKIRT_IN) return top - 2.05;
   if (a >= SKIRT_OUT) return dem;
+  // a tall embankment (S21 through Zugló, raise_profile.py) has a real slope,
+  // about 1:1.5, not the 36 m ease that hides DEM noise on low ones; that
+  // would bury the streets at its foot. Below 3 m nothing changes; from 3 to
+  // 4.5 m it blends over.
+  const H = Math.abs(top - 2.05 - dem);                // a bank, or a cutting's depth
+  if (steep && H > 3) {
+    const k = Math.min(1, (H - 3) / 1.5);
+    const w = 35.5 * (1 - k) + (H * 1.5 + 2) * k;
+    if (a >= SKIRT_IN + w) return dem;
+    const s = (a - SKIRT_IN) / w;
+    return (top - 2.05) * (1 - s) + dem * s;
+  }
   let t = (a - SKIRT_IN) / (SKIRT_OUT - SKIRT_IN);
   t = t * t * (3 - 2 * t);
   const h = (top - 2.05) * (1 - t) + dem * t;
@@ -129,8 +163,9 @@ function corridorColour(off, coverAt, cx, cy) {
  *                  corridor digs a cutting to their floor, rows are densified
  *                  to 2 m around each crossing so the cutting has edges, and a
  *                  deck carries the track over it */
-export function buildCorridor(pts, demAt, coverAt, stride = 1, bridges = [], unders = []) {
-  const nLat = CORRIDOR.length;
+export function buildCorridor(pts, demAt, coverAt, stride = 1, bridges = [], unders = [], dense = false) {
+  const LAT = dense ? CORRIDOR_DENSE : CORRIDOR;
+  const nLat = LAT.length;
   // where each underpass crosses the line: the chainage of the track point
   // nearest to the road, and the road's direction there
   const cross = [];
@@ -184,9 +219,9 @@ export function buildCorridor(pts, demAt, coverAt, stride = 1, bridges = [], und
     const row = new Float64Array(nLat * 4);
     const cs = cross.filter(c => Math.abs(p[3] - c.m) < c.half + 60);
     for (let j = 0; j < nLat; j++) {
-      const off = CORRIDOR[j];
+      const off = LAT[j];
       const wx = p[0] + rx * off, wy = p[1] + ry * off;
-      let h = corridorHeight(off, top, demAt(wx, wy));
+      let h = corridorHeight(off, top, demAt(wx, wy), shoulderAt ? shoulderAt(p[3], off) : 0, isRaised(p[3]));
       // the cutting: inside the road's width the ground goes down to its floor
       for (const c of cs) {
         const d = distSeg(wx, wy, c.u.pts);
@@ -284,8 +319,13 @@ export function roadSurfaceAt(demAt, railDistAt, x, y) {
   const r = railDistAt(x, y);
   if (!r || !isFinite(r.d)) return dem + 0.345;
   const lift = r.d < 6.0 ? 0.14 : r.d < 12.0 ? 0.24 : 0.345;
-  if (r.d > SKIRT_OUT || !isFinite(r.railY)) return dem + lift;
-  return corridorHeight(r.d, r.railY - 0.05, dem) + lift;
+  const ext = shoulderOf(r);
+  if (r.d > SKIRT_OUT + ext || !isFinite(r.railY)) return dem + lift;
+  const st = isRaised(r.m), h = corridorHeight(r.d, r.railY - 0.05, dem, ext, st);
+  // a road never climbs a raised stretch's embankment (there are no level
+  // crossings on one): it stays in the street, and passes under where the
+  // line is opened
+  return (st && Math.abs(h - dem) > 3 ? dem : h) + lift;
 }
 
 /** How far an underpass (`bridge === 3`) is dug below the ground at a point:
@@ -360,8 +400,10 @@ export function buildRoads(ways, widths, demAt, waterAt, railDistAt) {
     const dem = demRidge(demAt, x, y);
     if (!railDistAt) return dem;
     const r = railDistAt(x, y);
-    if (!r || !isFinite(r.d) || r.d > SKIRT_OUT || !isFinite(r.railY)) return dem;
-    return corridorHeight(r.d, r.railY - 0.05, dem);
+    const ext = shoulderOf(r);
+    if (!r || !isFinite(r.d) || r.d > SKIRT_OUT + ext || !isFinite(r.railY)) return dem;
+    const st = isRaised(r.m), h = corridorHeight(r.d, r.railY - 0.05, dem, ext, st);
+    return st && Math.abs(h - dem) > 3 ? dem : h;        // (as roadSurfaceAt)
   };
   // and the road is laid thinner over the ballast than it is out in a field,
   // because at a crossing the asphalt is flush with the railhead
@@ -472,7 +514,7 @@ export function buildRoads(ways, widths, demAt, waterAt, railDistAt) {
       const gw = idx.map(i => br[i]);
       // free ends: not within 12 m of another way's end in the same structure
       const free = endsOf.get(g) || [];
-      let lowest = 1e9, wet = -1e9, rail = false, len = 0, railTop = -1e9;
+      let lowest = 1e9, wet = -1e9, rail = false, len = 0, railTop = -1e9, railRaised = false;
       const railPts = [];
       for (const w of gw) {
         for (let i = 0; i < w.pts.length; i++) {
@@ -492,6 +534,7 @@ export function buildRoads(ways, widths, demAt, waterAt, railDistAt) {
               const r = railDistAt(ax + (bx - ax) * k / n, ay + (by - ay) * k / n);
               if (r && r.d < 14 && isFinite(r.railY)) {
                 railTop = Math.max(railTop, r.railY);
+                if (isRaised(r.m)) railRaised = true;
                 railPts.push([ax + (bx - ax) * k / n, ay + (by - ay) * k / n]);
               }
             }
@@ -516,7 +559,9 @@ export function buildRoads(ways, widths, demAt, waterAt, railDistAt) {
         return isWet ? Math.max(wet - 9, Math.min(wet + 1.5, h)) : h;
       });
       const H = isWet ? wet
-              : Math.max(rail ? Math.max(lowest + 7.4, railTop + 8.2) : lowest + 5.2,
+              // (where raise_profile.py has put the line in a cutting, the
+              // ground says nothing about the rails: clear them by 7.4 m)
+              : Math.max(rail ? (railRaised ? railTop + 7.4 : Math.max(lowest + 7.4, railTop + 8.2)) : lowest + 5.2,
                          gE.length ? Math.max(...gE) + 0.2 : lowest + 5.2);
       const pts = gw.flatMap(w => w.pts);
       const K = free.map((e, i) => {
@@ -633,7 +678,12 @@ export function buildRoads(ways, widths, demAt, waterAt, railDistAt) {
           // surface near the line, not the raw terrain — so it reads as a cutting
           for (const sg of [-1, 1]) {
             const o = sg * (hw + 0.2);
-            const s0 = surfAt(x0 + ux*o, y0 + uy*o), s1 = surfAt(x1 + ux*o, y1 + uy*o);
+            // (on a tall embankment the road passes at street level and the
+            // corridor is opened above it, so a wall up to the embankment's
+            // surface stood in the air as a sliver: cap it at the ground)
+            const wallTop = (x, y) => { const s = surfAt(x, y), d = demRidge(demAt, x, y);
+                                        return s - d > 3 && isRaised(railDistAt(x, y).m) ? d + 0.5 : s; };
+            const s0 = wallTop(x0 + ux*o, y0 + uy*o), s1 = wallTop(x1 + ux*o, y1 + uy*o);
             if (s0 - g0 < 0.6 && s1 - g1 < 0.6) continue;
             quad(P(x0,y0,g0 - 0.3,o), P(x1,y1,g1 - 0.3,o),
                  P(x1,y1,s1,o), P(x0,y0,s0,o), [0.50,0.49,0.47]);
@@ -1059,7 +1109,7 @@ export function buildYardTracks(ways, demAt, railYAt) {
     const c = COL[w.cls] || COL[0];
     const gauge = w.cls === 1 ? 0.76 : 1.435;
     const bw = w.cls === 1 ? 1.5 : 2.4;                  // ballast half width
-    const yOf = (p) => (p[3] < 110 ? railYAt(p[2]) : demAt(p[0], p[1]));
+    const yOf = (p) => (p[3] < 110 ? railYAt(p[2], p) : demAt(p[0], p[1]));
     for (let i = 0; i < w.pts.length - 1; i++) {
       const a = w.pts[i], b = w.pts[i + 1];
       const dx = b[0] - a[0], dy = b[1] - a[1];
@@ -1239,12 +1289,263 @@ export function boxMesh() {
 // inferred: the platform goes on the far side of the running line from its
 // neighbour, which is where a side platform actually sits. Lengths are set by
 // what calls there — a KISS is 156 m, so nothing shorter than that is honest.
-export function buildStations(stops, downPts, upPts, demAt, majors) {
+/**
+ * An OSM platform (bake_platforms.py) as cross-sections for buildStations:
+ * [track-edge x, y, back-edge x, y, top] every ~6 m, plus whether it is an
+ * island. OSM draws a platform either as a line (usually its middle, sometimes
+ * its edge) or as an area. For a line, the width comes from the tracks either
+ * side: an island fills the gap between them less 1.65 m a side (a track's
+ * centre to the platform edge), a side platform gets 3.2 m. For an area, the
+ * sections are cut across its long axis.
+ * @param tracks  polylines [[x, y], ...] of every track near the line
+ * @param railYAt (x, y) -> rail top height nearby
+ */
+export function osmPlatformSections(pl, tracks, railYAt) {
+  const P = pl.pts;
+  // the nearest track on each side of a point, looking along its normal
+  const sideDist = (x, y, nx, ny) => {
+    let l = 1e9, r = 1e9;
+    for (const T of tracks) for (let i = 0; i + 1 < T.length; i++) {
+      const [ax, ay] = T[i], [bx, by] = T[i + 1];
+      if (Math.abs(ax - x) > 40 && Math.abs(bx - x) > 40) continue;
+      if (Math.abs(ay - y) > 40 && Math.abs(by - y) > 40) continue;
+      const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / L2));
+      const qx = ax + dx * t - x, qy = ay + dy * t - y;
+      const d = Math.hypot(qx, qy);
+      if (d > 12) continue;
+      const s = qx * nx + qy * ny;                       // + left, - right
+      if (Math.abs(s) < 0.6 * d) continue;               // not across from us
+      if (s > 0) l = Math.min(l, d); else r = Math.min(r, d);
+    }
+    return [l, r];
+  };
+  const h = Math.max(0.25, Math.min(0.8, pl.h != null ? pl.h : 0.55));
+  const secs = [];
+  let islandVotes = 0;
+  if (!pl.closed) {
+    // resample the line every 6 m
+    const S = [];
+    for (let i = 1; i < P.length; i++) {
+      const [ax, ay] = P[i - 1], [bx, by] = P[i];
+      const n = Math.max(1, Math.round(Math.hypot(bx - ax, by - ay) / 6));
+      for (let k = 0; k < n; k++) S.push([ax + (bx - ax) * k / n, ay + (by - ay) * k / n]);
+    }
+    S.push(P[P.length - 1]);
+    for (let i = 0; i < S.length; i++) {
+      const a = S[Math.max(0, i - 1)], b = S[Math.min(S.length - 1, i + 1)];
+      const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, nx = -(b[1] - a[1]) / L, ny = (b[0] - a[0]) / L;
+      const [x, y] = S[i];
+      const [l, r] = sideDist(x, y, nx, ny);
+      // a track bounds the platform only if it is close: past 5 m it is the
+      // next one over (the neighbour has ended), and the island ran out to it
+      const hasL = l < 5, hasR = r < 5;
+      let wl, wr;
+      if (hasL && hasR) { wl = Math.max(0.4, l - 1.65); wr = Math.max(0.4, r - 1.65); islandVotes++; }
+      else if (hasL) { wl = Math.max(0.3, l - 1.65); wr = Math.max(wl, 3.2 - wl); }
+      else if (hasR) { wr = Math.max(0.3, r - 1.65); wl = Math.max(wr, 3.2 - wr); }
+      else { wl = wr = 1.6; }
+      // the track edge first: the nearer track's side
+      const left = l <= r;
+      const e1 = left ? [x + nx * wl, y + ny * wl] : [x - nx * wr, y - ny * wr];
+      const e2 = left ? [x - nx * wr, y - ny * wr] : [x + nx * wl, y + ny * wl];
+      secs.push([e1[0], e1[1], e2[0], e2[1], railYAt(x, y) + h]);
+    }
+  } else {
+    // an area: cut across its long axis every 6 m
+    let cx = 0, cy = 0;
+    for (const q of P) { cx += q[0]; cy += q[1]; }
+    cx /= P.length; cy /= P.length;
+    let sxx = 0, sxy = 0, syy = 0;
+    for (const q of P) { const dx = q[0] - cx, dy = q[1] - cy; sxx += dx * dx; sxy += dx * dy; syy += dy * dy; }
+    const ang = 0.5 * Math.atan2(2 * sxy, sxx - syy), ux = Math.cos(ang), uy = Math.sin(ang), nx = -uy, ny = ux;
+    let s0 = 1e9, s1 = -1e9;
+    for (const q of P) { const s = (q[0] - cx) * ux + (q[1] - cy) * uy; s0 = Math.min(s0, s); s1 = Math.max(s1, s); }
+    for (let s = s0 + 0.5; s <= s1 - 0.5; s += 6) {
+      const ox = cx + ux * s, oy = cy + uy * s;
+      let t0 = 1e9, t1 = -1e9;
+      for (let i = 0; i + 1 < P.length; i++) {
+        const [ax, ay] = P[i], [bx, by] = P[i + 1];
+        const da = (ax - ox) * ux + (ay - oy) * uy, db = (bx - ox) * ux + (by - oy) * uy;
+        if ((da > 0) === (db > 0)) continue;
+        const f = da / (da - db), px = ax + (bx - ax) * f, py = ay + (by - ay) * f;
+        const t = (px - ox) * nx + (py - oy) * ny;
+        t0 = Math.min(t0, t); t1 = Math.max(t1, t);
+      }
+      if (t1 - t0 < 0.8 || t1 - t0 > 30) continue;
+      const mx = ox + nx * (t0 + t1) / 2, my = oy + ny * (t0 + t1) / 2;
+      const [l, r] = sideDist(mx, my, nx, ny);
+      if (l < 5 && r < 5) islandVotes++;
+      const left = l <= r;
+      const eL = [ox + nx * t1, oy + ny * t1], eR = [ox + nx * t0, oy + ny * t0];
+      const e1 = left ? eL : eR, e2 = left ? eR : eL;
+      secs.push([e1[0], e1[1], e2[0], e2[1], railYAt(mx, my) + h]);
+    }
+  }
+  return { rail: secs, island: islandVotes > secs.length * 0.5, h };
+}
+
+/** A steel footbridge over the line (OSM highway=footway, bridge=yes; the
+ *  one at Kispest in the owner's photos): a deck 6.9 m over the rails, two
+ *  lattice sides, and a stair tower at each end. */
+export function buildFootbridges(list, demAt, railYAt) {
+  const V = [], C = [];
+  const push = (p, c) => { V.push(p[0], p[1], -p[2]); C.push(c[0], c[1], c[2]); };
+  const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
+  const STEEL = [0.34, 0.40, 0.38], DECK = [0.42, 0.42, 0.41], STAIR = [0.46, 0.46, 0.45];
+  for (const fb of list) {
+    const P = fb.pts;
+    let top = -1e9;
+    for (const [x, y] of P) top = Math.max(top, railYAt(x, y));
+    if (!(top > -1e8)) continue;
+    const Y = top + 6.9, W = 1.4;
+    for (let i = 0; i + 1 < P.length; i++) {
+      const [ax, ay] = P[i], [bx, by] = P[i + 1];
+      const L = Math.hypot(bx - ax, by - ay); if (L < 0.5) continue;
+      const fx = (bx - ax) / L, fy = (by - ay) / L, nx = -fy, ny = fx;
+      const Q = (x, y, o, up) => [x + nx * o, Y + up, y + ny * o];
+      quad(Q(ax, ay, -W, 0), Q(bx, by, -W, 0), Q(bx, by, W, 0), Q(ax, ay, W, 0), DECK);
+      quad(Q(ax, ay, -W, -0.5), Q(bx, by, -W, -0.5), Q(bx, by, W, -0.5), Q(ax, ay, W, -0.5), STEEL);
+      for (const sg of [-1, 1]) {
+        const o = sg * W;
+        // chords, and posts and diagonals every 2.5 m: the lattice
+        quad(Q(ax, ay, o, -0.5), Q(bx, by, o, -0.5), Q(bx, by, o, 0), Q(ax, ay, o, 0), STEEL);
+        quad(Q(ax, ay, o, 1.15), Q(bx, by, o, 1.15), Q(bx, by, o, 1.3), Q(ax, ay, o, 1.3), STEEL);
+        const n = Math.max(1, Math.round(L / 2.5));
+        for (let k = 0; k <= n; k++) {
+          const x = ax + (bx - ax) * k / n, y = ay + (by - ay) * k / n;
+          quad(Q(x - fx * 0.06, y - fy * 0.06, o, 0), Q(x + fx * 0.06, y + fy * 0.06, o, 0),
+               Q(x + fx * 0.06, y + fy * 0.06, o, 1.2), Q(x - fx * 0.06, y - fy * 0.06, o, 1.2), STEEL);
+          if (k < n) {
+            const x2 = ax + (bx - ax) * (k + 1) / n, y2 = ay + (by - ay) * (k + 1) / n;
+            const up = k % 2 ? 0 : 1.2;
+            quad(Q(x, y, o, up), Q(x, y, o, up + 0.1), Q(x2, y2, o, 1.3 - up), Q(x2, y2, o, 1.2 - up), STEEL);
+          }
+        }
+      }
+    }
+    // a stair tower at each end, down to the ground
+    for (const [e, f] of [[P[0], P[1]], [P[P.length - 1], P[P.length - 2]]]) {
+      const L = Math.hypot(e[0] - f[0], e[1] - f[1]) || 1;
+      const ux = (e[0] - f[0]) / L, uy = (e[1] - f[1]) / L, nx = -uy, ny = ux;
+      const g = demAt(e[0], e[1]);
+      const c = (a, b, y) => [e[0] + ux * a + nx * b, y, e[1] + uy * a + ny * b];
+      for (const [a0, b0, a1, b1] of [[0, -1.8, 4, -1.8], [4, -1.8, 4, 1.8], [4, 1.8, 0, 1.8], [0, 1.8, 0, -1.8]])
+        quad(c(a0, b0, g), c(a1, b1, g), c(a1, b1, Y + 1.3), c(a0, b0, Y + 1.3), STAIR);
+      quad(c(0, -1.8, Y + 1.3), c(4, -1.8, Y + 1.3), c(4, 1.8, Y + 1.3), c(0, 1.8, Y + 1.3), STEEL);
+    }
+  }
+  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+}
+
+export function buildStations(stops, downPts, upPts, demAt, majors, osmFor = null) {
   const V = [], C = [], boards = [], lamps = [];
   const PLAT_H = 0.55, INNER = 1.75, OUTER = 5.6;
   const topCol = [0.60, 0.59, 0.57], faceCol = [0.44, 0.43, 0.42];
   const idxAt = m => Math.max(1, Math.min(downPts.length - 2,
     Math.round((m - downPts[0][3]) / 10)));
+
+  // one platform from its cross-sections: [track-edge x, y, back-edge x, y,
+  // top height] along it. The deck, its faces, the canopy over the middle,
+  // lamp posts, and the name board. An island (tracks both sides) has its
+  // columns and lamps down the middle and a flat roof.
+  const emit = (rail, major, name, island, ph) => {
+    if (rail.length < 2) return;
+    const r0 = rail[0], r1 = rail[rail.length - 1];
+    const fx0 = (r1[0] + r1[2]) / 2 - (r0[0] + r0[2]) / 2, fy0 = (r1[1] + r1[3]) / 2 - (r0[1] + r0[3]) / 2;
+    const fl = Math.hypot(fx0, fy0) || 1, fx = fx0 / fl, fy = fy0 / fl;
+    const push = (x, h, z, col) => { V.push(x, h, -z); C.push(col[0], col[1], col[2]); };
+    for (let k = 0; k < rail.length - 1; k++) {
+      const a = rail[k], b = rail[k + 1];
+      push(a[0], a[4], a[1], topCol); push(b[0], b[4], b[1], topCol);
+      push(a[2], a[4], a[3], topCol);
+      push(a[2], a[4], a[3], topCol); push(b[0], b[4], b[1], topCol);
+      push(b[2], b[4], b[3], topCol);
+      for (const [ux, uy, vx, vy] of [[a[0],a[1],b[0],b[1]], [b[2],b[3],a[2],a[3]]]) {
+        const lo = Math.min(a[4], b[4]) - ph - 0.45;
+        push(ux, a[4], uy, faceCol); push(vx, b[4], vy, faceCol);
+        push(vx, lo, vy, faceCol);
+        push(ux, a[4], uy, faceCol); push(vx, lo, vy, faceCol);
+        push(ux, lo, uy, faceCol);
+      }
+    }
+    // ---- furniture
+    //
+    // A platform with nothing on it is a slab of concrete, and ours were
+    // exactly that. What you actually see going through a Hungarian station
+    // is the canopy first — a flat deck on a single row of columns down the
+    // back of the platform — and then the lamp posts marching away from it.
+    //
+    // The canopy sits over the middle of the platform, where the doors of a
+    // stopping train come to rest, not over the whole length: a 210 m
+    // platform with 210 m of roof looks like a shed.
+    const quad4 = (a, b, c, d, col) => {
+      push(a[0], a[1], a[2], col); push(b[0], b[1], b[2], col);
+      push(c[0], c[1], c[2], col);
+      push(a[0], a[1], a[2], col); push(c[0], c[1], c[2], col);
+      push(d[0], d[1], d[2], col);
+    };
+    // a point across the platform: t = 0 at the track edge, 1 at the back
+    const across = (r, t, up) => [r[0] + (r[2] - r[0]) * t, r[4] + up,
+                                  r[1] + (r[3] - r[1]) * t];
+    const ROOF = [0.52, 0.53, 0.54], ROOF_U = [0.40, 0.40, 0.39];
+    const POST = [0.36, 0.36, 0.35], LAMP_OFF = [0.44, 0.44, 0.43];
+    const cMid = (rail.length - 1) / 2;
+    // A village halt has a shelter, not a train shed: 30 m of roof there
+    // against 90 m at a station where a six-car set stands.
+    const cHalf = major ? 4.5 : 1.5;
+    for (let k = 0; k < rail.length - 1; k++) {
+      const inCanopy = Math.abs(k + 0.5 - cMid) <= cHalf;
+      if (inCanopy) {
+        const a = rail[k], b = rail[k + 1];
+        // The roof falls toward the track, where the gutter would be, and
+        // is highest at the back — the way round that keeps it clear of a
+        // double-decker's roof line at the platform edge.
+        const HI = 4.15, LO = island ? 4.15 : 3.80;
+        quad4(across(a, 0.02, LO), across(b, 0.02, LO),
+              across(b, 0.98, HI), across(a, 0.98, HI), ROOF);
+        quad4(across(a, 0.02, LO - 0.16), across(b, 0.02, LO - 0.16),
+              across(b, 0.98, HI - 0.16), across(a, 0.98, HI - 0.16), ROOF_U);
+        // the fascia, which is what gives it an edge seen from the side
+        quad4(across(a, 0.02, LO), across(b, 0.02, LO),
+              across(b, 0.02, LO - 0.16), across(a, 0.02, LO - 0.16), ROOF_U);
+        // one column per bay, at the back of the platform
+        const cT = island ? 0.5 : 0.88;
+        const c0 = across(a, cT, 0), c1 = across(a, cT, HI - 0.20);
+        const w = 0.11;
+        quad4([c0[0]-w, c0[1], c0[2]], [c0[0]+w, c0[1], c0[2]],
+              [c1[0]+w, c1[1], c1[2]], [c1[0]-w, c1[1], c1[2]], POST);
+        quad4([c0[0], c0[1], c0[2]-w], [c0[0], c0[1], c0[2]+w],
+              [c1[0], c1[1], c1[2]+w], [c1[0], c1[1], c1[2]-w], POST);
+      }
+      // lamp posts the length of the platform, and closer together than
+      // the canopy columns because they have to light the far end too
+      if (k % 3 === 1 && !inCanopy) {
+        const r = rail[k];
+        const lT = island ? 0.5 : 0.80;
+        const b0 = across(r, lT, 0), b1 = across(r, lT, 4.40);
+        const w = 0.07;
+        quad4([b0[0]-w, b0[1], b0[2]], [b0[0]+w, b0[1], b0[2]],
+              [b1[0]+w, b1[1], b1[2]], [b1[0]-w, b1[1], b1[2]], POST);
+        quad4([b0[0], b0[1], b0[2]-w], [b0[0], b0[1], b0[2]+w],
+              [b1[0], b1[1], b1[2]+w], [b1[0], b1[1], b1[2]-w], POST);
+        // the head, which the dark version of is what a lamp looks like by
+        // day; it is lit from the platform's dynamic pass after dark
+        const h0 = across(r, lT - 0.18, 4.30), h1 = across(r, lT + 0.06, 4.44);
+        quad4([h0[0], h0[1], h0[2]-0.22], [h1[0], h1[1], h1[2]-0.22],
+              [h1[0], h1[1], h1[2]+0.22], [h0[0], h0[1], h0[2]+0.22], LAMP_OFF);
+        lamps.push([(h0[0] + h1[0]) / 2, (h0[1] + h1[1]) / 2 - 0.03,
+                    (h0[2] + h1[2]) / 2]);
+      }
+    }
+
+    if (name) {
+      const mid = rail[Math.max(0, Math.floor(rail.length * 0.32))];
+      boards.push({ name, x: (mid[0] + mid[2]) / 2,
+                    y: (mid[1] + mid[3]) / 2, h: mid[4] + 1.15,
+                    ang: Math.atan2(fx, fy) });
+    }
+  };
 
   for (const st of stops) {
     const m = st.km * 1000;
@@ -1275,6 +1576,12 @@ export function buildStations(stops, downPts, upPts, demAt, majors) {
     // mirroring the first one puts it straight through the tracks
     const sides = major ? [[sign, INNER, OUTER], [-sign, 8.6, 12.4]]
                         : [[sign, INNER, OUTER]];
+    // the real platforms from OSM (bake_platforms.py), where the line has them
+    const own = osmFor ? osmFor(st, m) : null;
+    if (own && own.length) {
+      own.forEach((o, j) => emit(o.rail, major, j === 0 ? st.name : null, o.island, o.h));
+      continue;
+    }
     for (const [sg, inner, outer] of sides) {
       const a0 = inner * sg, a1 = outer * sg;
       const rail = [];
@@ -1286,93 +1593,7 @@ export function buildStations(stops, downPts, upPts, demAt, majors) {
         rail.push([c[0] + nx * a0, c[1] + ny * a0,
                    c[0] + nx * a1, c[1] + ny * a1, c[2] + PLAT_H]);
       }
-      const push = (x, h, z, col) => { V.push(x, h, -z); C.push(col[0], col[1], col[2]); };
-      for (let k = 0; k < rail.length - 1; k++) {
-        const a = rail[k], b = rail[k + 1];
-        push(a[0], a[4], a[1], topCol); push(b[0], b[4], b[1], topCol);
-        push(a[2], a[4], a[3], topCol);
-        push(a[2], a[4], a[3], topCol); push(b[0], b[4], b[1], topCol);
-        push(b[2], b[4], b[3], topCol);
-        for (const [ux, uy, vx, vy] of [[a[0],a[1],b[0],b[1]], [b[2],b[3],a[2],a[3]]]) {
-          const lo = Math.min(a[4], b[4]) - PLAT_H - 0.45;
-          push(ux, a[4], uy, faceCol); push(vx, b[4], vy, faceCol);
-          push(vx, lo, vy, faceCol);
-          push(ux, a[4], uy, faceCol); push(vx, lo, vy, faceCol);
-          push(ux, lo, uy, faceCol);
-        }
-      }
-      // ---- furniture
-      //
-      // A platform with nothing on it is a slab of concrete, and ours were
-      // exactly that. What you actually see going through a Hungarian station
-      // is the canopy first — a flat deck on a single row of columns down the
-      // back of the platform — and then the lamp posts marching away from it.
-      //
-      // The canopy sits over the middle of the platform, where the doors of a
-      // stopping train come to rest, not over the whole length: a 210 m
-      // platform with 210 m of roof looks like a shed.
-      const quad4 = (a, b, c, d, col) => {
-        push(a[0], a[1], a[2], col); push(b[0], b[1], b[2], col);
-        push(c[0], c[1], c[2], col);
-        push(a[0], a[1], a[2], col); push(c[0], c[1], c[2], col);
-        push(d[0], d[1], d[2], col);
-      };
-      // a point across the platform: t = 0 at the track edge, 1 at the back
-      const across = (r, t, up) => [r[0] + (r[2] - r[0]) * t, r[4] + up,
-                                    r[1] + (r[3] - r[1]) * t];
-      const ROOF = [0.52, 0.53, 0.54], ROOF_U = [0.40, 0.40, 0.39];
-      const POST = [0.36, 0.36, 0.35], LAMP_OFF = [0.44, 0.44, 0.43];
-      const cMid = (rail.length - 1) / 2;
-      // A village halt has a shelter, not a train shed: 30 m of roof there
-      // against 90 m at a station where a six-car set stands.
-      const cHalf = major ? 4.5 : 1.5;
-      for (let k = 0; k < rail.length - 1; k++) {
-        const inCanopy = Math.abs(k + 0.5 - cMid) <= cHalf;
-        if (inCanopy) {
-          const a = rail[k], b = rail[k + 1];
-          // The roof falls toward the track, where the gutter would be, and
-          // is highest at the back — the way round that keeps it clear of a
-          // double-decker's roof line at the platform edge.
-          const HI = 4.15, LO = 3.80;
-          quad4(across(a, 0.02, LO), across(b, 0.02, LO),
-                across(b, 0.98, HI), across(a, 0.98, HI), ROOF);
-          quad4(across(a, 0.02, LO - 0.16), across(b, 0.02, LO - 0.16),
-                across(b, 0.98, HI - 0.16), across(a, 0.98, HI - 0.16), ROOF_U);
-          // the fascia, which is what gives it an edge seen from the side
-          quad4(across(a, 0.02, LO), across(b, 0.02, LO),
-                across(b, 0.02, LO - 0.16), across(a, 0.02, LO - 0.16), ROOF_U);
-          // one column per bay, at the back of the platform
-          const c0 = across(a, 0.88, 0), c1 = across(a, 0.88, HI - 0.20);
-          const w = 0.11;
-          quad4([c0[0]-w, c0[1], c0[2]], [c0[0]+w, c0[1], c0[2]],
-                [c1[0]+w, c1[1], c1[2]], [c1[0]-w, c1[1], c1[2]], POST);
-          quad4([c0[0], c0[1], c0[2]-w], [c0[0], c0[1], c0[2]+w],
-                [c1[0], c1[1], c1[2]+w], [c1[0], c1[1], c1[2]-w], POST);
-        }
-        // lamp posts the length of the platform, and closer together than
-        // the canopy columns because they have to light the far end too
-        if (k % 3 === 1 && !inCanopy) {
-          const r = rail[k];
-          const b0 = across(r, 0.80, 0), b1 = across(r, 0.80, 4.40);
-          const w = 0.07;
-          quad4([b0[0]-w, b0[1], b0[2]], [b0[0]+w, b0[1], b0[2]],
-                [b1[0]+w, b1[1], b1[2]], [b1[0]-w, b1[1], b1[2]], POST);
-          quad4([b0[0], b0[1], b0[2]-w], [b0[0], b0[1], b0[2]+w],
-                [b1[0], b1[1], b1[2]+w], [b1[0], b1[1], b1[2]-w], POST);
-          // the head, which the dark version of is what a lamp looks like by
-          // day; it is lit from the platform's dynamic pass after dark
-          const h0 = across(r, 0.62, 4.30), h1 = across(r, 0.86, 4.44);
-          quad4([h0[0], h0[1], h0[2]-0.22], [h1[0], h1[1], h1[2]-0.22],
-                [h1[0], h1[1], h1[2]+0.22], [h0[0], h0[1], h0[2]+0.22], LAMP_OFF);
-          lamps.push([(h0[0] + h1[0]) / 2, (h0[1] + h1[1]) / 2 - 0.03,
-                      (h0[2] + h1[2]) / 2]);
-        }
-      }
-
-      const mid = rail[Math.max(0, Math.floor(rail.length * 0.32))];
-      boards.push({ name: st.name, x: (mid[0] + mid[2]) / 2,
-                    y: (mid[1] + mid[3]) / 2, h: mid[4] + 1.15,
-                    ang: Math.atan2(fx, fy) });
+      emit(rail, major, st.name, false, PLAT_H);
     }
   }
   // the world has to stop somewhere; say so rather than just ending
@@ -1468,7 +1689,7 @@ export function boardAtlas(names, W = 512, H = 64) {
  * platform position so they do not swim about between frames, and they face
  * the track, because everybody does.
  */
-export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, rainy = false) {
+export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, rainy = false, osmFor = null) {
   const V = [], C = [];
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
   const quad = (a, b, c, d, col) => { push(a,col); push(b,col); push(c,col);
@@ -1565,6 +1786,23 @@ export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, 
     const L = Math.hypot(dx, dy) || 1;
     const ux = dx/L, uy = dy/L, nx = -uy, ny = ux;
     const c = at(downPts, m);
+    // on the real platforms (OSM) where the stop has them: a random section,
+    // somewhere across it, at its own height, facing its track edge
+    const own = osmFor ? osmFor(st, m) : null;
+    if (own && own.length) {
+      for (let i = 0; i < n; i++) {
+        const r = (k) => hash(si * 71.3 + i * 13.7 + k * 3.917);
+        const pl = own[Math.floor(r(25) * own.length)], R = pl.rail;
+        const sec = R[Math.floor(R.length * (0.1 + 0.8 * r(20)))];
+        const t = 0.25 + 0.5 * r(22);
+        const x = sec[0] + (sec[2] - sec[0]) * t, y = sec[1] + (sec[3] - sec[1]) * t;
+        const wx = sec[2] - sec[0], wy = sec[3] - sec[1], wl = Math.hypot(wx, wy) || 1;
+        let fx = -wx / wl, fy = -wy / wl;                       // towards the track edge
+        if (pl.island && r(21) < 0.5) { fx = -fx; fy = -fy; }
+        person(x, y, sec[4], fx, fy, r, i);
+      }
+      continue;
+    }
     for (let i = 0; i < n; i++) {
       const r = (k) => hash(si * 71.3 + i * 13.7 + k * 3.917);
       const along = (r(20) - 0.5) * 2 * half;

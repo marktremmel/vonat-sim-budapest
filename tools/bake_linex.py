@@ -65,5 +65,12 @@ for e in json.load(open(f"data/raw/linex_{LINE}.json", encoding="utf-8"))["eleme
     seen.add(name)
     kind = "landmark" if (t.get("tourism") or t.get("historic") or t.get("man_made") or t.get("landuse") == "quarry") else "public"
     out["labels"].append([name, kind] + xy(la, lo) + [label_rank(t)])
-json.dump(out, open(f"web/data/extras{SUF}.json", "w"), separators=(",", ":"))
+# keep what bake_platforms.py put in the same file
+import os as _os
+_p = f"web/data/extras{SUF}.json"
+if _os.path.exists(_p):
+    _old = json.load(open(_p, encoding="utf-8"))
+    for k in ("platforms", "footbridges"):
+        if k in _old: out[k] = _old[k]
+json.dump(out, open(_p, "w"), separators=(",", ":"))
 print(LINE, {k: len(v) for k, v in out.items()})

@@ -195,7 +195,7 @@ export function buildYardWires(ways, railYAt) {
     for (let i = 0; i + 1 < w.pts.length; i++) {
       const a = w.pts[i], b = w.pts[i + 1];
       if (a[3] < 6 || b[3] < 6 || a[3] > 60 || b[3] > 60) continue;
-      const ya = railYAt(a[2]), yb = railYAt(b[2]);
+      const ya = railYAt(a[2], a), yb = railYAt(b[2], b);
       wire([a[0], ya + CONTACT_H, a[1]], [b[0], yb + CONTACT_H, b[1]], R_CONTACT);
       wire([a[0], ya + MESSENGER_H, a[1]], [b[0], yb + MESSENGER_H, b[1]], R_MESS);
     }
