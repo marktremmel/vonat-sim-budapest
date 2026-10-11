@@ -64,7 +64,7 @@ delete lines.
 | Line 71 ("will be easy") | 23 Sep | open (alignment broken, no context) |
 | City expansion: districts 8–9, Kispest, Kelenföld, Budafok, Háros, Keleti | 23 Sep | done (city tiles, 47.39–47.58 N) |
 | Keleti – Kelenföld – Háros line | 25 Sep | partly (its rails are drawn; no line, no trains) |
-| Trams 1 and 4/6; HÉV H5 | 25 Sep | partly (26 Sep: trams 1, 2, 3, 4, 6, 56, 61 run on their OSM routes (seen a 4/6); cannot be boarded; H5 open) |
+| Trams 1 and 4/6; HÉV H5 | 25 Sep | partly (trams 1, 2, 3, 4, 6, 56, 61 run; S-16: you can ride one (⇧T), driver's eye or outside; not drivable; H5 open) |
 | One world: the lines joined | 25 Sep | open |
 | Királyréti kisvasút, its vehicle, dense forest | 25 Sep | done (runs to Királyrét since 25 Sep) |
 | Would it run on a uConsole? | 25 Sep | answered (README "How big it is": lowest quality at best) |
@@ -140,9 +140,9 @@ delete lines.
 | --- | --- | --- |
 | Façade variety: windowless, small-house windows, glass offices | 23 Sep | done |
 | Use the purchased packs (PSX houses, street props, farm, garages, textures) | 25 Sep | partly (panel façades and cars done; houses, props, farm buildings open) |
-| Traffic lamps / traffic lights | 25 Sep | open |
+| Traffic lamps / traffic lights | 25 Sep | done (S-16: 1,464 signalled junctions from OSM, cars stop at red, poles with lit lamps; seen at Astoria. No turn phases or pedestrian lights) |
 | People: varied silhouettes that read as people | 23 Sep | partly (platform people 24 Sep) |
-| People "going about", walking | 25 Sep | open |
+| People "going about", walking | 25 Sep | built (S-16: up to 110 walkers along the kerbs near the camera; seen at Astoria. A few stray into the road; they don't wait at lights) |
 | More OSM 3D building parts (like the Parliament) | 25 Sep | partly (all city-box parts in; outside the box not) |
 | A wide search for detailed 3D models of landmarks | 23 Sep | open (idea; OSM parts used instead) |
 | Cross-reference reality (Apple Maps 3D), keeping our style | 23 Sep | open (idea; licensing unclear) |
@@ -248,7 +248,9 @@ delete lines.
 | --- | --- | --- |
 | "Roads and trams and houses are still kinda buggy or messy in execution … I just really wanna polish it" | 26 Sep | partly (S-15 bug census: roofs folding on concave outlines, black flat roofs, junction z-fighting and kerbs across roads, stub hexagons, paper-X trees, star flower beds, the toy tram. All fixed and seen; see `SESSION_S15.md` for what is left) |
 | Start Stage 0; add the dark timeline | 26 Sep | Stage 0 in progress; dark timeline is ROADMAP Stage D |
-| The game would not load on the phone: it kept reloading, then stopped at 70–74% with "can't find variable boot" | 8–11 Oct | built (memory at load cut from about 700 MB to about 350 MB; far footprints skipped on touch devices; the loader now shows the real error). **Not tested on a real phone** |
+| The game would not load on the phone: it kept reloading, then stopped at 70–74% with "can't find variable boot" | 8–11 Oct | done (the owner: "it works!", 11 Oct; memory at load cut from about 700 MB to about 350 MB; far footprints skipped on touch devices; the loader now shows the real error). |
+| Phone: "no way of controlling the speed", missing controls; an fps count | 11 Oct | built (S-16: a ⋯ sheet with time speed, sound, wipers, lights, zoom and the rest; fps switch in settings and the sheet; worded drive buttons. Seen in a phone-sized window, not on the phone) |
+| The five picks from the review: phone parity; finish the half-built; a reason to keep playing; life; sharing | 11 Oct | partly (S-16: phone parity, 3 more missions, dark timeline panel, share links. Second half: tram riding, traffic lights, walking people. Open: dispatcher game, a tutorial drive) |
 
 ## Feedback 26 Sep, during S-13 (the owner's words, short)
 

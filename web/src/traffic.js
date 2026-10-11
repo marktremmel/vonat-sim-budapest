@@ -504,7 +504,64 @@ export class RoadTraffic {
     }
     for (let wi = first; wi < this.ways.length; wi++) this.link(wi);
     for (const wj of touched) this.link(wj);
+    if (this.lightGrid) for (let wi = first; wi < this.ways.length; wi++) this.lightWay(this.ways[wi]);
     if (owner) this.owned.set(owner, Array.from({ length: this.ways.length - first }, (_, i) => first + i));
+  }
+  /** Traffic signals (tools/bake_traffic_lights.py): junctions as {x, n, r}.
+   *  Each runs one 64 s cycle, offset by its index: the roads running more
+   *  north-south get green, then amber, all red, then the east-west ones.
+   *  A way through a junction's circle gets a stop line where it enters. */
+  setLights(list) {
+    this.lights = list; this.clock = this.clock || 0;
+    this.lightGrid = new Map();
+    list.forEach((L, li) => {
+      const c = 96, x0 = Math.floor((L.x - L.r) / c), x1 = Math.floor((L.x + L.r) / c),
+            y0 = Math.floor((L.n - L.r) / c), y1 = Math.floor((L.n + L.r) / c);
+      for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) {
+        const k = x * 100003 + y; let a = this.lightGrid.get(k); if (!a) this.lightGrid.set(k, a = []); a.push(li);
+      }
+    });
+    for (const w of this.ways) this.lightWay(w);
+  }
+  lightWay(w) {
+    w.tl = null;
+    if (!this.lightGrid || w.dead) return;
+    const found = new Map();                 // junction -> [sIn, sOut, heading x, y at entry]
+    for (let i = 0; i + 1 < w.pts.length; i++) {
+      const a = w.pts[i], b = w.pts[i + 1], L = w.cum[i + 1] - w.cum[i];
+      const n = Math.max(1, Math.ceil(L / 6));
+      for (let k = 0; k <= n; k++) {
+        const x = a[0] + (b[0] - a[0]) * k / n, y = a[1] + (b[1] - a[1]) * k / n, sAt = w.cum[i] + L * k / n;
+        for (const li of this.lightGrid.get(Math.floor(x / 96) * 100003 + Math.floor(y / 96)) || []) {
+          const J = this.lights[li];
+          if (Math.hypot(x - J.x, y - J.n) > J.r) continue;
+          const f = found.get(li);
+          if (!f) found.set(li, [sAt, sAt, b[0] - a[0], b[1] - a[1], x, y, x, y, b[0] - a[0], b[1] - a[1]]);
+          else { f[1] = sAt; f[6] = x; f[7] = y; f[8] = b[0] - a[0]; f[9] = b[1] - a[1]; }
+        }
+      }
+    }
+    if (!found.size) return;
+    w.tl = [];
+    for (const [li, [sIn, sOut, hx, hy, ex, ey, lx, ly, kx, ky]] of found) {
+      // a way that only starts or ends inside the junction still has its line
+      const axis = Math.abs(hx) > Math.abs(hy) ? 1 : 0;
+      w.tl.push({ li, sIn, sOut, axis });
+      // a pole at the kerb by each stop line, on the right of the traffic
+      // it faces (up to eight a junction, none within 5 m of another)
+      const J = this.lights[li], poles = J.poles || (J.poles = []);
+      const add = (x, y, dx, dy, side) => {
+        const L = Math.hypot(dx, dy) || 1, px = x + dy / L * side * (w.hw + 1.1), py = y - dx / L * side * (w.hw + 1.1);
+        if (poles.length < 8 && !poles.some(q => Math.hypot(q.x - px, q.n - py) < 5)) poles.push({ x: px, n: py });
+      };
+      if (sIn > 3) add(ex, ey, hx, hy, 1);
+      if (!w.oneway && sOut < w.len - 3) add(lx, ly, kx, ky, -1);
+    }
+  }
+  /** 0 red, 1 amber, 2 green for the roads of one axis at a junction. */
+  lightState(li, axis) {
+    const t = (((this.clock || 0) + li * 17.3) % 64 + 64) % 64, u = axis ? (t + 32) % 64 : t;
+    return u < 26 ? 2 : u < 29 ? 1 : 0;
   }
   /** A tile unloaded: its ways leave the grid (so nothing links or spawns
    *  onto them) and the vehicles on them go; the entries wait, dead, in case
@@ -736,6 +793,7 @@ export class RoadTraffic {
     }
   }
   step(dt, closed) {
+    this.clock = (this.clock || 0) + dt;
     const turning = [];
     const byWay = new Map();
     for (const v of this.vehicles) if (v.free) this.stepFree(v, dt);
@@ -792,6 +850,17 @@ export class RoadTraffic {
             if (d < -3 || d > 140) continue;
             cap = Math.min(cap, Math.sqrt(Math.max(0, d) * 2 * 1.9));
             gateAhead = true;
+          }
+
+          // a red light ahead: brake to its stop line; amber only if there
+          // is room to stop; never for one already past the line
+          if (w.tl) for (const g of w.tl) {
+            const d = ((v.dir > 0 ? g.sIn - 2 : g.sOut + 2) - v.s) * v.dir - 3.0;
+            if (d < -4 || d > 120) continue;
+            gateNear = true;
+            const st = this.lightState(g.li, g.axis);
+            if (st === 2 || (st === 1 && d < 18)) continue;
+            cap = Math.min(cap, Math.sqrt(Math.max(0, d) * 2 * 1.9));
           }
 
           // decide to pull out
@@ -890,6 +959,49 @@ export class RoadTraffic {
  *               dead in a circle around you, which is what Mark saw. The
  *               caller passes a reach that grows with how high the camera is.
  */
+/** The signals near the camera: a pole at the kerb by each stop line of a
+ *  junction, a head with three lamps on each of its four faces. The faces
+ *  looking north and south show the north-south roads' light, the others the
+ *  east-west one. The lit lamp is authored above 1.0 so it blooms. */
+export function buildTrafficLights(rt, camX, camZ, groundAt, reach = 420) {
+  const V = new FBuf(1024), C = new FBuf(1024);
+  if (!rt.lights) return { verts: V.arr(), cols: C.arr(), count: 0 };
+  const push = (p, c) => { V.push(p[0], p[1], -p[2]); C.push(c[0], c[1], c[2]); };
+  const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
+  const POLE = [0.22, 0.24, 0.26], HEAD = [0.07, 0.08, 0.08];
+  const LIT = [[2.6, 0.25, 0.2], [2.6, 1.7, 0.2], [0.3, 2.4, 0.6]], DIM = [[0.22, 0.05, 0.05], [0.22, 0.16, 0.04], [0.05, 0.18, 0.08]];
+  const c0 = Math.floor((camX - reach) / 96), c1 = Math.floor((camX + reach) / 96),
+        r0 = Math.floor((camZ - reach) / 96), r1 = Math.floor((camZ + reach) / 96), done = new Set();
+  for (let cx = c0; cx <= c1; cx++) for (let cy = r0; cy <= r1; cy++) {
+    for (const li of rt.lightGrid.get(cx * 100003 + cy) || []) {
+      if (done.has(li)) continue; done.add(li);
+      const J = rt.lights[li];
+      if (Math.hypot(J.x - camX, J.n - camZ) > reach) continue;
+      for (const pl of J.poles || []) {
+        const x = pl.x, n = pl.n, g = groundAt(x, n);
+        if (!isFinite(g)) continue;
+        const w = 0.09, H = 3.3;   // (pole half-width, height)
+        quad([x - w, g, n], [x + w, g, n], [x + w, g + H, n], [x - w, g + H, n], POLE);
+        quad([x, g, n - w], [x, g, n + w], [x, g + H, n + w], [x, g + H, n - w], POLE);
+        const hw = 0.19, y0 = g + H, y1 = g + H + 0.95;
+        // four faces: [normal x, normal n, axis]
+        for (const [nx, nn, axis] of [[0, 1, 0], [0, -1, 0], [1, 0, 1], [-1, 0, 1]]) {
+          const tx = -nn, tn = nx, fx = x + nx * hw, fn = n + nn * hw;
+          quad([fx - tx * hw, y0, fn - tn * hw], [fx + tx * hw, y0, fn + tn * hw],
+               [fx + tx * hw, y1, fn + tn * hw], [fx - tx * hw, y1, fn - tn * hw], HEAD);
+          const st = rt.lightState(li, axis), ex = fx + nx * 0.015, en = fn + nn * 0.015;
+          for (let k = 0; k < 3; k++) {                  // red on top, amber, green
+            const cy0 = y1 - 0.08 - k * 0.29 - 0.2, on = (k === 0 && st === 0) || (k === 1 && st === 1) || (k === 2 && st === 2);
+            quad([ex - tx * 0.11, cy0, en - tn * 0.11], [ex + tx * 0.11, cy0, en + tn * 0.11],
+                 [ex + tx * 0.11, cy0 + 0.22, en + tn * 0.11], [ex - tx * 0.11, cy0 + 0.22, en - tn * 0.11], on ? LIT[k] : DIM[k]);
+          }
+        }
+      }
+    }
+  }
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
+}
+
 // The car mesh is rebuilt every frame. Building it into fresh JS arrays and
 // copying them into new typed arrays made garbage by the megabyte (code
 // audit 4.1): it now writes into two typed buffers kept between frames, which

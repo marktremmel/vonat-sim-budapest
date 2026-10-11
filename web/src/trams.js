@@ -84,6 +84,25 @@ export class Trams {
     const [t0, s0] = E[lo], [t1, s1] = E[hi];
     return t1 > t0 ? s0 + (s1 - s0) * Math.min(1, (age - t0) / (t1 - t0)) : s0;
   }
+  /** The tram on the road nearest (x, n) at time t: { ri, dep, dist }, dep
+   *  being when it set out (so its place later is sAt(route, t - dep)).
+   *  With onlyRoute, the one of that route nearest its start. */
+  nearest(t, x, n, onlyRoute = -1) {
+    const day0 = 4.5 * 3600;
+    if (t < day0 || t > 24 * 3600) return null;
+    let best = null;
+    this.routes.forEach((r, ri) => {
+      if (onlyRoute >= 0 && ri !== onlyRoute) return;
+      for (let k = 0; ; k++) {
+        const age = ((t - day0 - r.phase) % r.head + r.head) % r.head + k * r.head;
+        if (age > r.run) break;
+        const q = this.at(r, this.sAt(r, age));
+        const d = Math.hypot(q.x - x, q.n - n);
+        if (!best || d < best.dist) best = { ri, dep: t - age, dist: d };
+      }
+    });
+    return best;
+  }
   /** Every tram near (cx, cn) at time t (seconds of the day), as a mesh. */
   build(t, cx, cn, reach = 3000, night = 0) {
     const V = new FBuf(), C = new FBuf();

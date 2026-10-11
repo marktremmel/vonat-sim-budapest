@@ -27,17 +27,20 @@ places.
     - depth of field (click to focus) and a tilt-shift "miniature" mode;
     - stickers (drag, wheel to scale, ⇧wheel to turn, double-click to flip) and a caption;
     - a light leak, a flare, a print or film border and a date stamp. These are drawn into the saved PNG.
-- **Budapest's trams:** lines 1, 2, 3, 4, 6, 56 and 61 run on their OSM routes, stopping at their stops (you cannot board them yet).
+- **Budapest's trams:** lines 1, 2, 3, 4, 6, 56 and 61 run on their OSM routes, stopping at their stops. ⇧T (or "Villamos") puts you on the nearest one: a ride, from the driver's place or outside (C).
+- **Streets:** traffic lights at OSM's signalled junctions (cars stop at red), and people walking along the kerbs.
 - **S21 runs the MÁV 416 "Uzsgyi"** diesel railcar, with a diesel engine note; the overhead line ends at Kőbánya-Kispest.
   Through Zugló and Kőbánya alsó it runs on its real embankment with the streets passing under, and it drops into a cutting under the airport road (`tools/raise_profile.py`).
 - **Stations use their real platforms from OSM** (islands, low or high), with the footbridges over the line (`tools/bake_platforms.py`). Stations OSM has no platform for keep a generic one.
 - **Particles:** a crashed aircraft burns and smokes, the Gripen's afterburner, wingtip vapour; and, at dusk in autumn and winter, a starling murmuration over Kispest.
 - **Announcements:** "Következő állomás: …" after departure and "… következik" before arrival.
-- `?mode=dark`: the "dark timeline" sandbox. K strikes the middle of the view and J picks the weapon (shell, heavy bomb, very heavy bomb); each leaves a crater, scorched ground, and buildings and trees in the blast turned to rubble.
+- `?mode=dark`: the "dark timeline" sandbox. K (or the panel's button) strikes the middle of the view and J picks the weapon (shell, heavy bomb, very heavy bomb); each leaves a crater, scorched ground, and buildings and trees in the blast turned to rubble.
 - **The Királyréti kisvasút** (line 70's world): the 760 mm forest railway from Kismaros up to Királyrét. It is taken from OSM (9.7 km, 8 stops). An Mk48 with three coaches runs it by itself all day. You cannot drive it.
   - Ride as a passenger, watch in sightseeing mode (Kilátás), give orders on the dispatcher board;
     fly (Cessna, Gripen, helicopter), fly a drone, or drive a car. Buildings are solid, trains brake for a car on the line, and the car stops at a closed boom.
   - On a phone: touch buttons for the lever, the car and the plane.
+- **Share:** "Megosztás" on the mode bar makes a link to this line, place, time and weather (and the free camera's view).
+- **On a phone:** touch buttons for driving, and a ⋯ sheet for time speed, sound, wipers, zoom and an fps counter.
 - **Hungarian or English:** the HU/EN button on the menu (the first visit follows the browser's language).
 - **Station announcements:** a local Hungarian voice (macOS Tünde, `tools/make_announcements.py`), with the sound on (G).
 - **Graphics switches** (Beállítás): quality, depth of field in the outside views, motion blur, corner shading (AO).

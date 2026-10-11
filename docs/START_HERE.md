@@ -22,7 +22,8 @@ Around the trains there is a whole region:
 ## Current session
 
 - **What to do next:** [ROADMAP.md](ROADMAP.md) has the stages, and the backlog is the list of record.
-- **The current session:** `SESSION_S15.md` (bug census and Stage 0, the dark timeline's craters).
+- **The current session:** `SESSION_S16.md` (phone controls, fps, missions, dark panel, share links).
+- **Before it:** `SESSION_S15.md` (bug census and Stage 0, the dark timeline's craters).
 - **The one before:** `SESSION_S14.md` (26 Sep: the S21 bank and cutting, OSM platforms and footbridges; pushed as `5cc5d82`). `SESSION_S13.md` has the one before.
 
 ## Read in this order

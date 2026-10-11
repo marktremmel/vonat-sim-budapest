@@ -89,7 +89,7 @@ export function bindSettings(state, {
   }]);
   // graphics switches (Beállítás): remembered like the sliders
   state.gfx = state.gfx || {};
-  for (const [id, key] of [["gfxDof", "dof"], ["gfxMotion", "motion"], ["gfxAO", "ao"]]) {
+  for (const [id, key] of [["gfxDof", "dof"], ["gfxMotion", "motion"], ["gfxAO", "ao"], ["gfxFps", "fps"]]) {
     const el = document.getElementById(id); if (!el) continue;
     const p0 = loadPrefs();
     if (p0.gfx && p0.gfx[key] != null) el.checked = !!p0.gfx[key];

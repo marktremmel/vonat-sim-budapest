@@ -266,6 +266,32 @@
   #touch button.red{background:rgba(140,30,24,.7);border-color:#ff7264}
   #touch button.gold{background:rgba(160,110,20,.7);border-color:#f0b429}
   #touch button:active,#touch button.down{background:rgba(63,203,210,.45)}
+  #touch button{white-space:pre-line;line-height:1.15}
+  #moreBtn{position:absolute;right:12px;bottom:150px;z-index:9;display:none;width:44px;height:44px;border-radius:50%;
+    border:1px solid rgba(160,200,215,.35);background:rgba(8,16,22,.6);color:#dff3f5;font:700 20px "IBM Plex Sans",sans-serif;
+    touch-action:manipulation}
+  body.touch #moreBtn{display:block}
+  body.photo #moreBtn, body.menu-open #moreBtn{display:none}
+  #moreSheet{position:absolute;left:8px;right:8px;bottom:78px;z-index:46;display:none;grid-template-columns:repeat(4,1fr);gap:6px;
+    padding:10px;background:rgba(8,16,22,.92);border:1px solid rgba(160,200,215,.3);border-radius:8px;max-width:520px;margin:0 auto}
+  #moreSheet.on{display:grid}
+  #moreSheet h4{grid-column:1/-1;margin:4px 0 0;font:600 10px "IBM Plex Sans",sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#8ea9b8}
+  #moreSheet button{min-height:44px;border-radius:6px;border:1px solid rgba(160,200,215,.3);background:rgba(20,34,44,.9);color:#dff3f5;
+    font:600 12px "IBM Plex Sans",sans-serif;touch-action:manipulation}
+  #moreSheet button.on{background:rgba(63,203,210,.35);border-color:#3fcbd2}
+  #darkPanel{position:absolute;right:10px;top:50%;transform:translateY(-50%);z-index:9;display:none;flex-direction:column;gap:5px;
+    padding:8px;background:rgba(18,8,8,.82);border:1px solid rgba(255,114,100,.45);border-radius:8px;width:128px}
+  #darkPanel.on{display:flex}
+  body.photo #darkPanel{display:none}
+  #darkPanel b{font:600 10px "IBM Plex Sans",sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#ff9a8c}
+  #darkPanel small{font:10px "IBM Plex Sans",sans-serif;color:#b99} #darkPanel .cnt{font:11px ui-monospace,monospace;color:#dcc}
+  #darkPanel button{min-height:34px;border-radius:5px;border:1px solid rgba(255,114,100,.35);background:rgba(40,16,14,.9);color:#fde;
+    font:600 11.5px "IBM Plex Sans",sans-serif;touch-action:manipulation}
+  #darkPanel button.on{background:rgba(255,114,100,.35);border-color:#ff7264}
+  #darkPanel button.go{background:rgba(160,30,24,.85);min-height:44px}
+  #fpsBox{position:absolute;left:8px;bottom:54px;z-index:47;display:none;padding:2px 7px;border-radius:4px;background:rgba(8,16,22,.7);
+    color:#9ff0c0;font:600 12px ui-monospace,Menlo,monospace;pointer-events:none}
+  #fpsBox.on{display:block}
   body.touch #modebar{top:60px;bottom:auto;left:50%;transform:translateX(-50%);max-width:96vw;overflow-x:auto}
   body.touch #keys{display:none}
   @media (max-width:700px){#panel{max-width:200px;font-size:11px} #menu .mbody{padding:12px 14px}}
@@ -431,6 +457,7 @@
     <label class="chk"><input id="gfxDof" type="checkbox" checked> <span data-en="Depth of field (outside views)">Mélységélesség (külső nézetek)</span></label>
     <label class="chk"><input id="gfxMotion" type="checkbox"> <span data-en="Motion blur">Mozgási elmosás</span></label>
     <label class="chk"><input id="gfxAO" type="checkbox" checked> <span data-en="Shading in corners (AO)">Árnyék a zugokban (AO)</span></label>
+    <label class="chk"><input id="gfxFps" type="checkbox"> <span data-en="Show frames per second">Képkocka/mp kijelzése (fps)</span></label>
     <label><span data-en="Depth of field amount">Mélységélesség mértéke</span> <input id="gfxDofAmt" type="range" min="0.1" max="1.2" step="0.02" value="0.35"></label>
     <label><span data-en="Motion blur amount">Elmosás mértéke</span> <input id="gfxMotionAmt" type="range" min="0.2" max="2.5" step="0.05" value="1"></label>
     <label><span data-en="Corner shading amount">Zugárnyék mértéke</span> <input id="gfxAOAmt" type="range" min="0.2" max="2" step="0.05" value="1"></label>
@@ -459,6 +486,7 @@
     <button data-mode="free" title="Szabad kamera: WASD, R/F fel-le (⇧C)" data-en-title="Free camera: WASD, R/F up and down (⇧C)" data-en="Free">Szabad</button>
     <button data-mode="plane" title="Repülés (⇧P) · Esc vissza" data-en-title="Fly (⇧P) · Esc back" data-en="Fly">Repülő</button>
     <button data-mode="drone" title="FPV drón (⇧D)" data-en-title="FPV drone (⇧D)" data-en="Drone">Drón</button>
+    <button data-mode="tram" title="Szállj fel a legközelebbi villamosra (⇧T) · C kívülről · Esc vissza" data-en-title="Board the nearest tram (⇧T) · C from outside · Esc back" data-en="Tram">Villamos</button>
     <button data-mode="car" title="Vezess autót (⇧A) · Esc vissza" data-en-title="Drive a car (⇧A) · Esc back" data-en="Car">Autó</button>
     <span class="sep"></span>
     <button data-act="manual" title="Kézi vezetés (M): W/S kontroller, Backspace vészfék" data-en-title="Drive by hand (M): W/S controller, Backspace emergency brake" data-en="Manual">Kézi</button>
@@ -467,6 +495,7 @@
     <button data-act="photo" title="Fénykép (Z): a nevezetességek az albumba kerülnek" data-en-title="Photo (Z): landmarks go into the album" data-en="Photo">Fotó</button>
     <button data-act="bare" title="Felület elrejtése (U)" data-en-title="Hide the interface (U)" data-en="U">U</button>
     <button data-act="help" title="Minden billentyű (?)" data-en-title="Every key (?)" data-en="?">?</button>
+    <button data-act="share" title="Link erre a helyre és időpontra" data-en-title="A link to this place and time" data-en="Share">Megosztás</button>
     <button data-act="fs" id="fsBtn" title="Teljes képernyő (F11)" data-en-title="Full screen (F11)" data-en="⛶">⛶</button>
   </div>
   <div id="help"><div class="card" data-lang="hu">
@@ -599,6 +628,10 @@
   </div>
 
   <div id="touch"><div class="tg" id="tL"></div><div class="tg" id="tR"></div></div>
+  <div id="darkPanel"></div>
+  <button id="moreBtn" title="További vezérlők" data-en-title="More controls">⋯</button>
+  <div id="moreSheet"></div>
+  <div id="fpsBox"></div>
   <div id="photoUI">
     <h3><span data-en="Photo mode">Fotó mód</span><button id="phExit" title="Esc">✕</button></h3>
     <p class="ph-hint" data-en="WASD, R/F: move · drag: look · shift: faster · click: focus there">WASD, R/F: mozgás · húzás: nézés · shift: gyorsabban · kattintás: oda fókuszál</p>
@@ -670,7 +703,7 @@
     if (st.plane) st.plane.active = false;
     if (st.drone) st.drone.active = false;
     if (st.car) st.car.active = false;
-    st.fly = null; st.follow = false; st.passenger = null; st.followIdx = -1;
+    st.fly = null; st.follow = false; st.passenger = null; st.followIdx = -1; st.tram = null;
     st.followCarIdx = -1; st.followShipIdx = -1; st.yaw = 0; st.pitch = -0.02; st.zoom = 1;
   };
   const act = {
@@ -684,9 +717,11 @@
     plane: () => { const st = S(); if (st && st.plane && st.plane.active) return; toCab(); key("KeyP", true); },
     drone: () => { const st = S(); if (st && st.drone && st.drone.active) return; toCab(); key("KeyD", true); },
     car: () => { const st = S(); if (st && st.car && st.car.active) return; toCab(); key("KeyA", true); },
+    tram: () => { const st = S(); if (st && st.tram) return; toCab(); if (window.__tram) window.__tram(); },
     bare: () => key("KeyU"), manual: () => key("KeyM"), map: () => key("Tab"), disp: () => key("KeyQ"),
     help: () => document.getElementById("help").classList.toggle("on"),
     photo: () => window.__photoMode && window.__photoMode(true),
+    share: () => window.__share && window.__share(),
     // full screen, for recording and for phones: the page itself, so the
     // panels and buttons come along (F11 alone would do the browser's own)
     fs: () => {
@@ -742,16 +777,34 @@
   // ---- touch: each button holds its key down while pressed
   const touch = matchMedia("(pointer: coarse)").matches || "ontouchstart" in window;
   if (touch) document.body.classList.add("touch");
+  const tl = (hu, en) => window.LANG === "en" ? en : hu;
   const TOUCH = {
-    auto:   [[], [["M", "KeyM", 0, "gold big", "Kézi"]]],
-    train:  [[["▼\uFE0E", "KeyS", 0, "big", "Fék"], ["▲\uFE0E", "KeyW", 0, "big", "Vontat"]],
-             [["0", "Digit0", 1, "", "Nulla"], ["ÉBER", "KeyE", 0, "gold", ""], ["VÉSZ", "Backspace", 0, "red", ""]]],
-    car:    [[["◀\uFE0E", "KeyA"], ["▶\uFE0E", "KeyD"]], [["fék", "KeyS", 0, "big"], ["gáz", "KeyW", 0, "big"], ["kézi", "Space", 0, "red"]]],
+    auto:   [[], [[tl("kézi\nvezetés", "drive\nby hand"), "KeyM", 0, "gold big"]]],
+    train:  [[["▼\uFE0E\n" + tl("fék", "brake"), "KeyS", 0, "big"], ["▲\uFE0E\n" + tl("menet", "power"), "KeyW", 0, "big"]],
+             [["auto", "KeyM"], ["0", "Digit0", 1, "", "Nulla"], [tl("ÉBER", "ALERT"), "KeyE", 0, "gold", ""], [tl("VÉSZ", "EMERG"), "Backspace", 0, "red", ""]]],
+    car:    [[["◀\uFE0E", "KeyA"], ["▶\uFE0E", "KeyD"]], [[tl("fék", "brake"), "KeyS", 0, "big"], [tl("gáz", "gas"), "KeyW", 0, "big"], [tl("kézi", "hand"), "Space", 0, "red"]]],
     plane:  [[["◀\uFE0E", "KeyA"], ["▶\uFE0E", "KeyD"], ["▲\uFE0E", "KeyS", 0, "", "Húz"], ["▼\uFE0E", "KeyW", 0, "", "Nyom"]],
-             [["gáz+", "KeyR"], ["gáz−", "KeyF"], ["kabin", "KeyC"], ["gép", "PlaneCycle", 0, "", "Cessna · Gripen · helikopter"]]],
-    drone:  [[["◀\uFE0E", "KeyA"], ["▶\uFE0E", "KeyD"], ["▲\uFE0E", "KeyW"], ["▼\uFE0E", "KeyS"]], [["fel", "Space", 0, "big"], ["le", "KeyC"]]],
-    free:   [[["◀\uFE0E", "KeyA"], ["▶\uFE0E", "KeyD"], ["▲\uFE0E", "KeyW"], ["▼\uFE0E", "KeyS"]], [["fel", "KeyR"], ["le", "KeyF"]]],
+             [[tl("gáz+", "thr+"), "KeyR"], [tl("gáz−", "thr−"), "KeyF"], [tl("kabin", "cabin"), "KeyC"], [tl("gép", "craft"), "PlaneCycle", 0, "", "Cessna · Gripen · helikopter"]]],
+    drone:  [[["◀\uFE0E", "KeyA"], ["▶\uFE0E", "KeyD"], ["▲\uFE0E", "KeyW"], ["▼\uFE0E", "KeyS"]], [[tl("fel", "up"), "Space", 0, "big"], [tl("le", "down"), "KeyC"]]],
+    free:   [[["◀\uFE0E", "KeyA"], ["▶\uFE0E", "KeyD"], ["▲\uFE0E", "KeyW"], ["▼\uFE0E", "KeyS"]], [[tl("fel", "up"), "KeyR"], [tl("le", "down"), "KeyF"]]],
   };
+  // "⋯": everything else the keyboard has and a phone had no way to reach
+  // (the owner, Oct 2026: "no way of controlling the speed"). Each button
+  // sends its key; the ones with a state light up from it.
+  const MORE = [
+    [tl("Idő", "Time")],
+    [tl("szünet", "pause"), "Space", 0, st => st.paused], ["1×", "Digit1", 0, st => st.speedMul === 1 && !st.paused],
+    ["4×", "Digit2", 0, st => st.speedMul === 4], ["16×", "Digit3", 0, st => st.speedMul === 16],
+    [tl("Vonat", "Train")],
+    [tl("hang", "sound"), "KeyG", 0, st => st.sound], [tl("ablaktörlő", "wipers"), "KeyX", 0, st => st.wiper > 0],
+    [tl("fényszóró", "lights"), "KeyF", 1, st => st.lights > 0], [tl("homokoló", "sand"), "KeyJ"],
+    [tl("műszerfal", "desk"), "KeyI", 0, st => st.cab], [tl("újrakezd", "restart"), "KeyR", 1],
+    [tl("Nézet", "View")],
+    [tl("közelít", "zoom +"), "BracketRight"], [tl("távolít", "zoom −"), "BracketLeft"],
+    [tl("címkék", "labels"), "KeyL", 0, st => st.labels], [tl("másik vonat", "next train"), "KeyF"],
+    [tl("vezeték", "wires"), "KeyO", 0, st => st.show && st.show.catenary], [tl("épületek", "buildings"), "KeyB", 0, st => st.show && st.show.buildings],
+    ["fps", "__fps", 0, st => st.gfx && st.gfx.fps], [tl("kilép (Esc)", "exit (Esc)"), "Escape"],
+  ];
   let touchMode = null;
   let planeI = 0;
   const press = (code, shift, down) => {
@@ -776,6 +829,30 @@
       }
     }
   };
+  const sheet = document.getElementById("moreSheet"), moreBtn = document.getElementById("moreBtn");
+  const moreBtns = [];
+  for (const [label, code, shift, on] of MORE) {
+    if (!code) { const h = document.createElement("h4"); h.textContent = label; sheet.appendChild(h); continue; }
+    const b = document.createElement("button"); b.textContent = label;
+    b.addEventListener("click", () => {
+      if (code === "__fps") { const c = document.getElementById("gfxFps"); c.checked = !c.checked; c.dispatchEvent(new Event("change")); return; }
+      press(code, shift, true); press(code, shift, false);
+      if (code === "Escape") sheet.classList.remove("on");
+    });
+    sheet.appendChild(b); moreBtns.push([b, on]);
+  }
+  moreBtn.addEventListener("click", () => sheet.classList.toggle("on"));
+  document.getElementById("gl").addEventListener("pointerdown", () => sheet.classList.remove("on"));
+  const fpsBox = document.getElementById("fpsBox");
+  setInterval(() => {
+    const st = S(); if (!st) return;
+    const showFps = !!(st.gfx && st.gfx.fps) && !st.menu;
+    fpsBox.classList.toggle("on", showFps);
+    if (showFps) fpsBox.textContent = Math.round(st.fps || 0) + " fps" + (st.dynRes && st.dynRes < 0.99 ? " · " + Math.round(st.dynRes * 100) + "%" : "");
+    moreBtn.style.display = touch && !st.menu ? "" : "none";
+    if (st.menu) sheet.classList.remove("on");
+    if (sheet.classList.contains("on")) for (const [b, on] of moreBtns) if (on) b.classList.toggle("on", !!on(st));
+  }, 400);
   setInterval(() => {
     const st = S(); if (!st) return;
     if (touch) {
@@ -783,7 +860,7 @@
              : st.drone && st.drone.active ? "drone" : st.fly ? "free" : st.tour || st.passenger ? null
              : st.manual ? "train" : "auto");
     }
-    const mode = st.tour ? "tour" : st.car && st.car.active ? "car" : st.plane && st.plane.active ? "plane" : st.drone && st.drone.active ? "drone"
+    const mode = st.tram ? "tram" : st.tour ? "tour" : st.car && st.car.active ? "car" : st.plane && st.plane.active ? "plane" : st.drone && st.drone.active ? "drone"
                : st.fly ? "free" : st.passenger ? "passenger" : st.follow ? "chase" : "cab";
     document.querySelectorAll("#modebar button[data-mode]").forEach(b =>
       b.classList.toggle("on", b.dataset.mode === mode));

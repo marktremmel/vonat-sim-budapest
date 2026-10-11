@@ -3,7 +3,7 @@ import { Sound } from "./audio.js";
 import { drawPanel } from "./panel.js";
 import { buildLandmarks, buildTrainsheds, setLandmarkWater } from "./landmarks.js";
 import { buildParts } from "./parts.js";
-import { CityTiles } from "./city.js";
+import { CityTiles, metresPerDegree } from "./city.js";
 import { Solids } from "./collide.js";
 import { makeCar, stepCar, carGeometry } from "./car.js";
 import { drawInstruments, buildCab } from "./cab.js";
@@ -24,11 +24,11 @@ import { buildTrack, buildCorridor, buildRoads, unpackBuildings, unpackRoads,
          boxMesh, buildStations, boardAtlas, buildSignals, buildCrossings,
          buildPlatformPeople, buildPlatformLamps,
          buildBufferStops, roadSurfaceAt, underpassDip, setShoulders,
-         osmPlatformSections, buildFootbridges } from "./geom.js";
+         osmPlatformSections, buildFootbridges, buildWalkers } from "./geom.js";
 import { buildTrains, CAR_LEN } from "./trains.js";
 import { buildCatenary, buildYardWires } from "./catenary.js";
 import { unpackStructures, buildStructures } from "./structures.js";
-import { Traffic, ASPECT, ASPECT_NAME, RoadTraffic, buildRoadTraffic,
+import { Traffic, ASPECT, ASPECT_NAME, RoadTraffic, buildRoadTraffic, buildTrafficLights,
          danubeLane, RiverTraffic, buildRiverTraffic } from "./traffic.js";
 import { bindSettings, loadPrefs, savePrefs } from "./settings.js";
 import { RunScore, CATS, starsFor } from "./score.js";
@@ -1258,6 +1258,8 @@ export async function boot(assets) {
   // Budapest's trams (trams.js): 1, 2, 3, 4, 6, 56, 61 on their OSM routes
   let trams = null;
   const tramDyn = dynamicVao();
+  const tlDyn = dynamicVao();                 // traffic signals near the camera
+  const walkDyn = dynamicVao();               // people walking near the camera
   try {
     const td = await fetch(`${window.DATA_BASE || "data/"}trams.json`).then(r => r.ok ? r.json() : null);
     if (td) trams = new Trams(td, assets.world.near, demAt, (n) => wA + wB * n, (x, n) => coverAt(x, n) === 9);
@@ -1342,6 +1344,14 @@ export async function boot(assets) {
   const roadTraffic = new RoadTraffic(
     roadWays, routeData.crossings,
     m => ptAt(routeData.track_down, m), demAt);
+  try {
+    // traffic signals (tools/bake_traffic_lights.py), in this line's frame
+    const tlD = await fetch(`${window.DATA_BASE || "data/"}traffic_lights.json`).then(r => r.ok ? r.json() : null);
+    if (tlD) {
+      const nr = assets.world.near, [mlat, mlon] = metresPerDegree(nr.frame_lat ?? (nr.south + nr.north) / 2);
+      roadTraffic.setLights(tlD.lights.map(([la, lo, r]) => ({ x: (lo - nr.west) * mlon, n: (la - nr.south) * mlat, r })));
+    }
+  } catch (e) { console.warn("traffic lights unavailable", e); }
   roadTraffic.dipAt = (x, y) => underpassDip(railDistAt, x, y);
   let roadRepop = 0;
   // the Danube's fairway, worked out from the land cover, and what is on it
@@ -1887,15 +1897,8 @@ export async function boot(assets) {
       n.innerHTML = `<div><b>${t}</b><span>${tt("K: csapás a kép közepére · J: másik fegyver", "K: strike the middle of the view · J: another weapon")}</span></div>`;
       n.classList.remove("on"); void n.offsetWidth; n.classList.add("on");
       clearTimeout(say.tm); say.tm = setTimeout(() => n.classList.remove("on"), 2500); };
-    addEventListener("keydown", e => {
-      if (state.menu) return;
-      if (e.code === "KeyJ") {
-        state.darkW = (state.darkW + 1) % DARK_W.length;
-        const w = DARK_W[state.darkW];
-        say(tt("Fegyver: ", "Weapon: ") + tt(w.hu, w.en) + " (K)");
-        return;
-      }
-      if (e.code !== "KeyK") return;
+    const pickW = (i) => { state.darkW = i; const w = DARK_W[i]; say(tt("Fegyver: ", "Weapon: ") + tt(w.hu, w.en)); syncDark(); };
+    const strike = () => {
       const t = distanceAt(0, 0), L = state.lastCam;
       if (t == null || !L) return;
       const d = norm(sub(M4.apply(L.invVP, [0, 0, 1, 1]).slice(0, 3).map((v, i, a) => v / M4.apply(L.invVP, [0, 0, 1, 1])[3]), L.eye));
@@ -1906,8 +1909,57 @@ export async function boot(assets) {
       addCrater(p[0], p[2], w.r, w.depth);
       state.shake = 0.6 + w.fx * 0.15;
       if (sound.boom) sound.boom(t);
+      syncDark();
+    };
+    const clearAll = () => { state.craters.length = 0; craterArr.fill(0); vfx.emitters.length = 0; syncDark(); };
+    // the panel: the weapon, the strike (a phone has no K) and "clear"
+    const dp = document.getElementById("darkPanel");
+    const syncDark = () => {
+      if (!dp) return;
+      dp.querySelectorAll("button[data-w]").forEach(b => b.classList.toggle("on", +b.dataset.w === state.darkW));
+      const c = dp.querySelector(".cnt"); if (c) c.textContent = `${state.craters.length} / 16`;
+    };
+    if (dp) {
+      dp.innerHTML = `<b>${tt("Sötét idővonal", "Dark timeline")}</b>` +
+        DARK_W.map((w, i) => `<button data-w="${i}">${tt(w.hu, w.en)}</button>`).join("") +
+        `<button class="go">${tt("CSAPÁS (K)", "STRIKE (K)")}</button><button class="clr">${tt("eltakarít", "clear")}</button><span class="cnt"></span>` +
+        `<small>${tt("a kép közepére", "at the middle of the view")}</small>`;
+      dp.classList.add("on");
+      dp.querySelectorAll("button[data-w]").forEach(b => b.addEventListener("click", () => pickW(+b.dataset.w)));
+      dp.querySelector(".go").addEventListener("click", strike);
+      dp.querySelector(".clr").addEventListener("click", clearAll);
+      syncDark();
+    }
+    addEventListener("keydown", e => {
+      if (state.menu) return;
+      if (e.code === "KeyJ") { pickW((state.darkW + 1) % DARK_W.length); return; }
+      if (e.code === "KeyK") strike();
     });
   }
+  // board the tram nearest the camera (or leave it)
+  window.__tram = () => {
+    if (state.tram) { state.tram = null; state.yaw = 0; state.pitch = -0.02; return; }
+    if (!trams) return;
+    const L = state.lastCam; if (!L) return;
+    const nx = trams.nearest(state.hour * 3600, L.eye[0], -L.eye[2]);
+    const say = (a, b) => (state.messages = state.messages || []).push({ text: a, t: 7, tone: b || "" });
+    if (!nx) { say(tt("Most nem jár villamos (4:30 és éjfél között közlekednek).", "No trams are running now (they run from 4:30 to midnight)."), "warn"); return; }
+    if (nx.dist > 6000) { say(tt(`A legközelebbi villamos ${(nx.dist / 1000).toFixed(0)} km-re van: Budapesten járnak.`, `The nearest tram is ${(nx.dist / 1000).toFixed(0)} km away: they run in Budapest.`), "warn"); return; }
+    if (state.plane) state.plane.active = false;
+    if (state.car) state.car.active = false;
+    if (state.drone) state.drone.active = false;
+    state.fly = null; state.tour = null; state.passenger = null; state.follow = false;
+    state.followIdx = -1; state.followCarIdx = -1; state.followShipIdx = -1;
+    state.yaw = 0; state.pitch = -0.05; state.zoom = 1;
+    state.tram = { ri: nx.ri, dep: nx.dep, out: false };
+    const r = trams.routes[nx.ri];
+    say(tt(`${r.ref}-es villamos${r.to ? " → " + r.to : ""}. C: kívülről · Esc: vissza a vonathoz`, `Tram ${r.ref}${r.to ? " → " + r.to : ""}. C: from outside · Esc: back to the train`));
+  };
+  addEventListener("keydown", e => {
+    if (!state.tram || state.menu) return;
+    if (e.code === "KeyC") { state.tram.out = !state.tram.out; state.yaw = state.tram.out ? 0.35 : 0; state.pitch = state.tram.out ? -0.1 : -0.05; e.stopImmediatePropagation(); }
+    if (e.code === "Escape") { state.tram = null; state.yaw = 0; state.pitch = -0.02; e.stopImmediatePropagation(); e.preventDefault(); }
+  }, true);
   window.__addCrater = addCrater;
   function distanceAt(sx, sy) {
     const L = state.lastCam; if (!L) return null;
@@ -2270,6 +2322,51 @@ export async function boot(assets) {
     if (m) setTimeout(() => startMission(m), 0);
   }
 
+  // A link to this place and moment: the line, where the train is, the time,
+  // the day, the weather, and the free camera if one is out. Opening it
+  // starts a run there (see below). navigator.share on a phone, else the
+  // clipboard.
+  window.__share = () => {
+    const q = new URLSearchParams();
+    const line = new URLSearchParams(location.search).get("line");
+    if (line) q.set("line", line);
+    q.set("at", (driver.m / 1000).toFixed(2));
+    q.set("h", state.hour.toFixed(2)); q.set("d", Math.round(state.day));
+    if (state.wxId) q.set("wx", state.wxId);
+    if (state.runDir < 0) q.set("dir", "-1");
+    if (state.fly) q.set("cam", [...state.fly.p.map(v => v.toFixed(1)), state.yaw.toFixed(3), state.pitch.toFixed(3)].join(","));
+    const url = location.origin + location.pathname + "?" + q.toString();
+    const done = (t) => { const n = document.getElementById("photoToast"); if (!n) return;
+      n.innerHTML = `<div><b>${t}</b><span>${url.replace(/^https?:\/\//, "")}</span></div>`;
+      n.classList.remove("on"); void n.offsetWidth; n.classList.add("on");
+      setTimeout(() => n.classList.remove("on"), 4000); };
+    if (navigator.share && document.body.classList.contains("touch")) {
+      navigator.share({ title: document.title, url }).catch(() => {});
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(() => done(tt("A link a vágólapon", "Link copied")), () => done(tt("A link:", "The link:")));
+    } else done(tt("A link:", "The link:"));
+    return url;
+  };
+  {
+    const q = new URLSearchParams(location.search);
+    if (q.has("at") && !q.has("mission")) setTimeout(() => {
+      const km = Math.max(route.m0 / 1000 + 0.06, Math.min(route.m1 / 1000 - 0.06, +q.get("at") || 0));
+      const setIn = (id, v) => { const el = document.getElementById(id);
+        if (el && isFinite(+v)) { el.value = v; el.dispatchEvent(new Event("input")); } };
+      if (q.has("d")) setIn("daySlider", q.get("d"));
+      if (q.has("h")) setIn("timeSlider", q.get("h"));
+      const lineQ = q.get("line") || "line70";
+      startRun(q.get("dir") === "-1" ? -1 : 1, km, lineQ === "s21" ? "S21" : lineQ === "line2" ? "S72" : "S70", "custom");
+      if (q.has("wx") && window.__setWeather) {
+        const wc = document.getElementById("wxChange"); if (wc && wc.checked) { wc.checked = false; state.wxChanging = false; }
+        window.__setWeather(q.get("wx")); const ws = document.getElementById("wxSit"); if (ws) ws.value = q.get("wx");
+      }
+      toggleMenu(false);
+      const c = (q.get("cam") || "").split(",").map(Number);
+      if (c.length === 5 && c.every(isFinite)) { state.follow = false; state.fly = { p: [c[0], c[1], c[2]], speed: 30 }; state.yaw = c[3]; state.pitch = c[4]; }
+    }, 0);
+  }
+
   function startRun(dir, startKm, scenario, env, opts = {}) {
     state.runDir = dir; state.runStart = startKm;
     state.scenario = scenario || "S70";
@@ -2412,6 +2509,7 @@ export async function boot(assets) {
     // weather and all.
     const dtReal = Math.max(0, Math.min(0.05, (now - last) / 1000)); last = now;
     fps += ((1 / Math.max(dtReal, 1e-4)) - fps) * 0.05;
+    state.fps = fps;                               // (for the fps box, index.html)
     // automatic resolution: checked every two seconds, only while visible
     state.resT = (state.resT || 0) + dtReal;
     if (state.resT > 2 && !document.hidden) {
@@ -2676,7 +2774,7 @@ export async function boot(assets) {
     const seated = state.passenger && state.followIdx < 0 && !state.follow && !state.fly
                    && !(state.plane && state.plane.active)
                    && !(state.drone && state.drone.active) && state.followCarIdx < 0
-                   && state.followShipIdx < 0;
+                   && state.followShipIdx < 0 && !state.tram;
     if (seated) {
       const ps = state.passenger;
       // per stock: the KISS seats you upstairs; a FLIRT or an EC coach is
@@ -2708,7 +2806,7 @@ export async function boot(assets) {
     // telescope rather than as getting closer, which is what Mark noticed.
     // So outside, the lens stays put and the stand-off shrinks instead.
     const flying = !!(state.plane && state.plane.active) || !!(state.car && state.car.active);
-    const isSpecialView = state.fly || state.follow || flying || (state.drone && state.drone.active) || state.followCarIdx >= 0 || state.followShipIdx >= 0;
+    const isSpecialView = state.fly || state.follow || flying || (state.drone && state.drone.active) || state.followCarIdx >= 0 || state.followShipIdx >= 0 || !!state.tram;
     const lensZoom = isSpecialView ? 1 : state.zoom;
     const dolly = isSpecialView ? state.zoom : 1;
 
@@ -2892,6 +2990,44 @@ export async function boot(assets) {
       camEye = [dr.p[0], dr.p[1], dr.p[2]];
       fwd = norm([syD * cpD, -spD, -cyD * cpD]);
     }
+    // ---- Riding a tram (⇧T, or "Villamos"): the nearest one is boarded. It
+    // keeps its timetable (trams.js runs them off the clock), so this is a
+    // ride, not driving: from the driver's place looking ahead, or from
+    // outside (C). The mouse looks round; at the terminus you are on the
+    // next one out.
+    else if (state.tram && trams) {
+      const T = state.tram, r = trams.routes[T.ri], tNow = state.hour * 3600;
+      let age = tNow - T.dep;
+      if (age < 0) age += 86400;
+      if (!r || age > r.run + 1) {
+        const nx = r ? trams.nearest(tNow, r.P[0][0], r.P[0][1], T.ri) : null;
+        if (nx) { T.dep = nx.dep; age = tNow - T.dep; } else { state.tram = null; }
+      }
+      if (state.tram) {
+        const front = trams.sAt(r, Math.max(0, age));
+        const q = trams.at(r, Math.max(0.5, front - (T.out ? 22 : 0.6)));   // (outside: look at its middle)
+        const at = norm([q.fx, 0, -q.fn]);
+        const yaw0 = Math.atan2(at[0], -at[2]) + (state.yaw || 0);
+        const pitch = Math.max(-1.3, Math.min(1.3, state.pitch || 0));
+        if (T.out) {
+          const tgt = [q.x, q.y + 1.8, -q.n];
+          // come in closer until the camera is not inside a building (the
+          // Nagykörút is a canyon: 38 m to the side is somebody's flat)
+          for (let dist = 38 / dolly; dist > 7; dist *= 0.8) {
+            camEye = add(tgt, [-Math.sin(yaw0) * Math.cos(pitch) * dist, 9 / dolly + Math.sin(pitch) * dist, Math.cos(yaw0) * Math.cos(pitch) * dist]);
+            camEye[1] = Math.max(camEye[1], demAt(camEye[0], -camEye[2]) + 1.5);
+            if (!solids.at(camEye[0], camEye[1], -camEye[2])) break;
+          }
+          fwd = norm(sub(tgt, camEye));
+        } else {
+          camEye = [q.x + q.fx * 0.9, q.y + 2.25, -(q.n + q.fn * 0.9)];
+          fwd = norm([Math.sin(yaw0) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw0) * Math.cos(pitch)]);
+        }
+        // the next stop, said once as it comes up
+        const nextStop = (r.stopList || []).find(s => s > front + 5);
+        if (nextStop !== T.next) { T.next = nextStop; }
+      }
+    }
     // ---- Follow Road Vehicle / Bus Mode
     else if (state.followCarIdx >= 0) {
       const cars = roadTraffic ? roadTraffic.vehicles : [];
@@ -3000,7 +3136,7 @@ export async function boot(assets) {
     const invVP = M4.invert(vp);
     state.lastCam = { eye: camEye, invVP };
 
-    const insideTrain = !state.follow && state.followIdx < 0 && state.followCarIdx < 0 && state.followShipIdx < 0 && !(state.drone && state.drone.active) && !state.fly && !flying;
+    const insideTrain = !state.follow && state.followIdx < 0 && state.followCarIdx < 0 && state.followShipIdx < 0 && !(state.drone && state.drone.active) && !state.fly && !flying && !state.tram;
     const inCab = state.cab && insideTrain && !seated;
 
     const sp = sunPosition(state.day, state.hour);
@@ -3124,6 +3260,11 @@ export async function boot(assets) {
       else heartDyn.count = 0;
       if (trams && city) upload(tramDyn, trams.build(state.hour * 3600, camEye[0], -camEye[2], 3000, night));
       else tramDyn.count = 0;
+      if (roadTraffic && roadTraffic.lights && state.show.roads) upload(tlDyn, buildTrafficLights(roadTraffic, camEye[0], -camEye[2], roadSurface));
+      else tlDyn.count = 0;
+      if (roadTraffic && state.show.roads) upload(walkDyn, buildWalkers(roadTraffic, camEye[0], -camEye[2], state.hour, roadSurface,
+                                                                     !!(state.wx && state.wx.precip.kind && state.wx.precip.rate > 0.1)));
+      else walkDyn.count = 0;
       if (kisvasut && Math.hypot(kisvasut.pts[0][0] - camEye[0], kisvasut.pts[0][1] + camEye[2]) < 16000)
         upload(kisDyn, kisvasut.train(state.hour * 3600));
       else kisDyn.count = 0;
@@ -3368,9 +3509,9 @@ export async function boot(assets) {
       // snow lies on the ballast but not on a train that has been running,
       // and a signal head is heated
       gl.uniform1f(pTrk.u.uSnow, 0);
-      for (const d of [trainDyn, airDyn, sigDyn, xingDyn, carDyn, shipDyn, peopleDyn, lampDyn, heartDyn, bulbDyn, kisDyn, tramDyn]) {
+      for (const d of [trainDyn, airDyn, sigDyn, xingDyn, carDyn, shipDyn, peopleDyn, lampDyn, heartDyn, bulbDyn, kisDyn, tramDyn, tlDyn, walkDyn]) {
         if (!d.count) continue;
-        if (pTrk.u.uPull) gl.uniform1f(pTrk.u.uPull, d === carDyn || d === peopleDyn ? 0.005 : 0.0);
+        if (pTrk.u.uPull) gl.uniform1f(pTrk.u.uPull, d === carDyn || d === peopleDyn || d === walkDyn ? 0.005 : 0.0);
         // The roads are drawn with a strong polygon offset (to win over the
         // ground), which at a distance put them IN FRONT of the cars on them:
         // the cars sank into the road seen from above. The cars get more.
@@ -3882,7 +4023,7 @@ export async function boot(assets) {
     // middle of the picture
     const G = state.gfx || {};
     const outside = state.follow || state.fly || state.tour || state.followIdx >= 0 || flying
-                    || (state.drone && state.drone.active) || state.followCarIdx >= 0 || state.followShipIdx >= 0;
+                    || (state.drone && state.drone.active) || state.followCarIdx >= 0 || state.followShipIdx >= 0 || !!state.tram;
     const playDof = !ph && G.dof && outside;
     // focus on what the camera follows (the ray used to miss the train and
     // hunt between the ground behind it and the ballast in front); only the

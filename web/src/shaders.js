@@ -1855,7 +1855,7 @@ void main(){
   float dist2 = dot(d, d);
 
   // 1. Adjustable Chromatic Aberration
-  vec2 caOff = d * (0.012 * uChroma * (0.4 + dist2 * 2.5));   // (0.0055 was under a game pixel)
+  vec2 caOff = d * (0.0085 * uChroma * (0.4 + dist2 * 2.5));   // (0.0055 was under a game pixel)
   vec3 c;
   c.r = texture(uTex, vUv + caOff).r;
   c.g = texture(uTex, vUv).g;

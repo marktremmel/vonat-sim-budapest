@@ -1733,7 +1733,7 @@ export function boardAtlas(names, W = 512, H = 64) {
  * platform position so they do not swim about between frames, and they face
  * the track, because everybody does.
  */
-export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, rainy = false, osmFor = null) {
+export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, rainy = false, osmFor = null, walk = null) {
   const V = new FBuf(), C = new FBuf();
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
   const quad = (a, b, c, d, col) => { push(a,col); push(b,col); push(c,col);
@@ -1768,7 +1768,7 @@ export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, 
     for (let k = 0; k < 4; k++) quad(c[k], c[(k+1)%4], t[(k+1)%4], t[k], col);
     quad(t[0], t[1], t[2], t[3], col);
   };
-  const person = (x, y, g, fx, fy, r, i) => {
+  const person = (x, y, g, fx, fy, r, i, swing = 0) => {
     const kid = r(1) < 0.10, old = !kid && r(2) < 0.18;
     const H = kid ? 1.05 + r(3) * 0.25 : (1.58 + r(3) * 0.30) * (old ? 0.96 : 1);
     const W = (kid ? 0.16 : 0.20 + r(4) * 0.06) * (r(5) < 0.2 ? 1.2 : 1);
@@ -1781,7 +1781,8 @@ export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, 
     const lean = old ? 0.06 : 0;
     if (skirt) box(x, g, y, fx, fy, W * 0.95, W * 0.6, g + legH * 0.45, g + legH, coat);
     for (const sd of [-1, 1]) {                                   // legs
-      const lx = x + (-fy) * sd * W * 0.45, ly = y + fx * sd * W * 0.45;
+      // (walking: the legs swing against each other along the way they face)
+      const lx = x + (-fy) * sd * W * 0.45 + fx * swing * sd * 0.22, ly = y + fx * sd * W * 0.45 + fy * swing * sd * 0.22;
       box(lx, g, ly, fx, fy, W * 0.36, W * 0.4, g, g + legH, skirt ? skin : legs);
     }
     const bx = x + fx * lean, by = y + fy * lean;
@@ -1864,7 +1865,44 @@ export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, 
       if (r(24) < 0.18) person(x + ux * 0.8, y + uy * 0.8, g, fx, fy, (k) => r(k + 40), i);
     }
   }
+  // People walking (buildWalkers): along the kerbs of the streets near the
+  // camera. Nobody is simulated: each walker's place is its own start plus
+  // its pace times the clock, wrapped round the street's length, so the same
+  // people are there whenever you look, and it costs only what is drawn.
+  if (walk) {
+    const { rt, camX, camZ, t, groundAt, reach = 190, max = 110 } = walk;
+    let made = 0;
+    for (let wi = 0; wi < rt.ways.length && made < max; wi++) {
+      const w = rt.ways[wi];
+      if (w.dead || w.cls < 1 || w.cls > 5 || w.bridge || w.len < 30) continue;
+      const m = w.pts[w.pts.length >> 1];
+      if (Math.abs(m[0] - camX) > reach + w.len * 0.5 || Math.abs(m[1] - camZ) > reach + w.len * 0.5) continue;
+      const n = Math.round(w.len / (w.cls <= 3 ? 38 : 60) * day);
+      for (let k = 0; k < n && made < max; k++) {
+        const r = (q) => hash(wi * 71.3 + k * 13.7 + q * 3.917);
+        const dir = r(30) < 0.5 ? 1 : -1, pace = 1.05 + r(31) * 0.55;
+        const sAt = (((r(32) * w.len + dir * pace * t) % w.len) + w.len) % w.len;
+        let i = 1; while (i < w.cum.length - 1 && w.cum[i] < sAt) i++;
+        const a = w.pts[i - 1], b = w.pts[i], L = (w.cum[i] - w.cum[i - 1]) || 1, u = (sAt - w.cum[i - 1]) / L;
+        const ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L;
+        // (a one-way way is usually half of a divided road: its left side is
+        // the median, the tram tracks or the other carriageway, so only the right)
+        const side = w.oneway ? -1 : (r(33) < 0.5 ? 1 : -1), off = side * (w.hw + 1.3 + r(34) * 1.2);
+        const x = a[0] + (b[0] - a[0]) * u - uy * off, y = a[1] + (b[1] - a[1]) * u + ux * off;
+        if (Math.hypot(x - camX, y - camZ) > reach) continue;
+        const g = groundAt(x, y);
+        if (!isFinite(g)) continue;
+        person(x, y, g - 0.2, ux * dir, uy * dir, r, k, Math.sin(t * pace * 3.6 + r(35) * 6.28));
+        made++;
+      }
+    }
+  }
   return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
+}
+
+/** People walking on the pavements near the camera (see buildPlatformPeople). */
+export function buildWalkers(rt, camX, camZ, hour, groundAt, rainy = false) {
+  return buildPlatformPeople([], [], [], null, hour, null, rainy, null, { rt, camX, camZ, t: rt.clock || 0, groundAt });
 }
 
 // -------------------------------------------------------- signal geometry

@@ -1,3 +1,4 @@
+import sys
 #!/usr/bin/env python3
 """Bundle the simulator into one self-contained HTML with assets inlined."""
 import base64, io, json, os, re
@@ -76,5 +77,18 @@ def main():
     print(f"  js {len(js)/1024:.0f} KB, assets dynamic fetch")
     if mb > 15.5:
         print("  WARNING: over the 16 MB artifact limit")
+    # A syntax error in the bundle leaves the page with no game at all (the
+    # headless tests do not load the bundle, so they passed over one in S-16).
+    # Parse every inline script with node if it is there.
+    import subprocess, tempfile, shutil
+    if shutil.which("node"):
+        for i, sc in enumerate(re.findall(r"<script>(.*?)</script>", out, re.S)):
+            with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as f:
+                f.write(sc)
+            r = subprocess.run(["node", "--check", f.name], capture_output=True, text=True)
+            os.unlink(f.name)
+            if r.returncode:
+                print(f"  SYNTAX ERROR in inline script {i}:\n" + "\n".join(r.stderr.splitlines()[:6]))
+                sys.exit(1)
 
 main()
