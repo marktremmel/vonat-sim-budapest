@@ -271,3 +271,36 @@ delete lines.
 | Megyeri híd: the pylons are not on the bridge | 26 Sep | done (they stood over the Szentendre branch: the river test now uses the land cover; seen over the main channel) |
 | More detail on Szentendre island and Szentendre itself (flying opens up new paths) | 26 Sep | open |
 | **Environments on the list** (repeated): KÖKI, Határ út, Kőbánya and the other annotated S21 places must stay in the to-do list | 26 Sep | they are, under "S21 / Zugló, Kőbánya, Kispest" above; still open |
+
+
+## Feedback 11–12 Oct (phone test, then a ride on line 2; images 52–69 in `owner_feedback_images/`)
+
+| request | from | status |
+| --- | --- | --- |
+| Phone: about 20 fps, automatic resolution at 55%, graphics settings change nothing, choppy | 11 Oct | partly (S-17: the fps box now also shows the frame's own work in ms, to tell processor from graphics; on phones fewer walkers, nearer trams, lights rebuilt every 6th frame. **Not measured on the phone**; need the "js … ms" number) |
+| "Tram is only one tram?": the owner meant there was no way to switch between lines 4-6, 2, 1, 3, 56, 61 | 11, 12 Oct | built (S-17: a line picker bar, shown by the Villamos button and while riding: 1, 2, 3, 4, 6, 56, 61 and "leave". A line boards its nearest tram wherever it is; the same line again moves to another tram of it. Seen: from the nearest tram to a 56 in Buda) |
+| (earlier reading of the same remark) | 11 Oct | answered (S-17: 71 trams were running across the 15 route directions at 19:24; they are drawn only within 3 km of the camera, 1.4 km on a phone, so one in view is likely on a phone) |
+| Part of the Nagykörút is inaccessible for the cars (owner: cars seen from Nyugati only as far as Oktogon/Király) | 11, 12 Oct | done (S-17: traffic dropped every road piece under 90 m, or 40 m in city tiles, and OSM cuts the körút into dozens of short pieces there. Main roads now keep pieces from 6 m. Cars on main roads along Oktogon–Blaha by tenths: 15, 10, 12, 2, 6, 5, 10, 2, 1, 14; it was none in the middle six) |
+| Haven't seen many walking people | 11 Oct | built (S-17: about twice as many on desktop, up to 220 within 230 m) |
+| Look at `~/Downloads/Game Assets` and use what fits | 11 Oct | answered (S-17: PSX Characters and Quaternius base characters + animations for people and a persona; Quaternius/KayKit street props; Soviet block kits; FilmCow SFX; Panchout music. S-17 imported the first: outdoor ambience and a car-cabin loop from FilmCow, and Clement Panchout's "Contemplative" as menu music) |
+| A new start: a high view of the city and region, pan and tap anywhere to drop into a nearby vehicle of your choice | 11, 12 Oct | open (agreed as the next big piece) |
+| Personas: your own character and colours, super-abilities ("Hancock"), other ways of getting around | 11 Oct | open (after the new start; Quaternius characters as the base) |
+| Graffiti on walls (stickers has some; the owner will photograph more at the end of October); "on the side wall before Aquincum and the next stop, on small walls and on standing wagons, small details" | 12 Oct | built (S-17: OSM walls, retaining walls and noise barriers within 70 m of the line are now drawn, `tools/bake_walls.py`: 106 on line 2, 83 on line 70, 7 on S21. The 40 graffiti pieces of the sticker pack go on about a third of the wall stretches and on some standing wagons: 790 pieces on line 2. Seen on a wall by Aquincum and on a brown wagon. Not on phones. Open: the owner's own photos 62–66 are not in the sheet yet; no graffiti on underpass walls, bridge piers or buildings) |
+| Klotildliget: why does it exist? | 12 Oct | answered in chat, from memory and unverified: a garden suburb of Piliscsaba, named after Archduchess Klotild |
+| The Pázmány campus at Piliscsaba ("awkwardly bad project"), nice to pass | 12 Oct | partly (S-17: the **Pázmáneum** stop added at km 28.98 from OSM; seen. The campus buildings: OSM footprints only, not looked at) |
+| "It really was a big curve" | 12 Oct | noted (praise) |
+| No skip-to-next-stop button | 12 Oct | built (S-17: ⏭ on the mode bar, ⇧N, and in the phone sheet: 450 m before the next stop, clock moved on; checked from Nyugati) |
+| The Pilis villages' big houses are good, "kinda spooky" | 12 Oct | noted (praise) |
+| Contrails ("chemtrails") missing from the skies | 12 Oct | built (S-17: 7 airliners with trails, was 3; not looked at) |
+| Horses round Piliscsév; horses at Dorog | 12 Oct | done (S-17: `tools/bake_horses.py`, 289 OSM riding grounds and paddocks in the region, 5 within 4 km of Piliscsév and 3 of Dorog; three to six horses at each; seen near Piliscsév) |
+| Station buildings: each unique, mostly run down; MÁV-telep type buildings; the winged wheel emblem (photo 61) | 12 Oct | open |
+| A way to help AI draw complex objects from photos | 12 Oct | open (idea) |
+| Lots of empty railway buildings | 12 Oct | open |
+| Dorog: the wagon depot, the stadium, the works, solar farms (photos 59, 60, 67, 68) | 12 Oct | open (solar farms and industrial buildings come from OSM; not looked at there) |
+| A tunnel between Klotildliget and Szabadságliget: is it in? | 12 Oct | done (S-17: it was not. The Kopár-hágói vasúti alagút, 780 m, km 27.57–28.35: hillside over it, a tube, stone portals; seen from the approach and inside. No trees on the hill over it yet) |
+| Vibes photos: cranes at dusk, the Danube from the bridge, Richter at Dorog, the level crossing | 12 Oct | noted (reference for cranes, dusk light, the works) |
+| "We need much better visual definition … I wanna do good" | 12 Oct | open (see the reply of 12 Oct: where definition can come from) |
+| Some water features have no water in them, "just blue texture" | 12 Oct | open, reproduced (line 2 km 15.75 and Dorog: lakes are painted on sloping ground with no level surface or bank. Cause and fix in `docs/WHERE_NEXT.md`: level each lake in the bake) |
+| The owner will get assets: "write me a guide on what exactly we need" | 12 Oct | done (`docs/ASSET_GUIDE.md`; pack names from memory, not checked online) |
+| Where to go from here: easier to sustain and add to; Unreal or Godot if need be; what AI can do for style and fidelity; one friendly OSM request that rebuilds the world with far more detail | 12 Oct | answered (`docs/WHERE_NEXT.md`: stay in the browser; a model pipeline, one world, a rules-driven world compiler, picture tests, then new data sources) |
+| The start screen is doable; "might need the whole city brought together" | 12 Oct | open (agreed: it follows from "one world", step 2 in `WHERE_NEXT.md`) |

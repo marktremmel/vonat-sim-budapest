@@ -163,7 +163,8 @@ function corridorColour(off, coverAt, cx, cy) {
  *                  corridor digs a cutting to their floor, rows are densified
  *                  to 2 m around each crossing so the cutting has edges, and a
  *                  deck carries the track over it */
-export function buildCorridor(pts, demAt, coverAt, stride = 1, bridges = [], unders = [], dense = false) {
+export function buildCorridor(pts, demAt, coverAt, stride = 1, bridges = [], unders = [], dense = false, tunnels = []) {
+  const inTunnel = (m) => tunnels.some(([a, b]) => m > a && m < b);
   const LAT = dense ? CORRIDOR_DENSE : CORRIDOR;
   const nLat = LAT.length;
   // where each underpass crosses the line: the chainage of the track point
@@ -222,6 +223,16 @@ export function buildCorridor(pts, demAt, coverAt, stride = 1, bridges = [], und
       const off = LAT[j];
       const wx = p[0] + rx * off, wy = p[1] + ry * off;
       let h = corridorHeight(off, top, demAt(wx, wy), shoulderAt ? shoulderAt(p[3], off) : 0, isRaised(p[3]));
+      // A tunnel (route.tunnels; line 2's Kopár-hágói alagút): the corridor
+      // is the hillside OVER the line here, not a cutting. The heightmap has
+      // the line's cutting baked in for about 45 m either side, so the roof is
+      // carried across from the ground 62 m out on each side, and never less
+      // than 8.5 m over the rail. The tube itself is built further down.
+      if (inTunnel(p[3])) {
+        const gl = demAt(p[0] - rx * 62, p[1] - ry * 62), gr = demAt(p[0] + rx * 62, p[1] + ry * 62);
+        const a = Math.abs(off);
+        h = a >= 62 ? demAt(wx, wy) : Math.max(top + 8.5, gl + (gr - gl) * (off + 62) / 124);
+      }
       // the cutting: inside the road's width the ground goes down to its floor
       for (const c of cs) {
         const d = distSeg(wx, wy, c.u.pts);
@@ -240,7 +251,11 @@ export function buildCorridor(pts, demAt, coverAt, stride = 1, bridges = [], und
     if (onBridge(P[i][3])) continue;
     for (let j = 0; j < nLat - 1; j++) {
       const off = (A[j*4+3] + A[(j+1)*4+3]) * 0.5;
-      const col = corridorColour(off, coverAt, A[j*4], A[j*4+2]);
+      // (over a tunnel there is no ballast up on the hill: the land cover's colour)
+      // and the cover of the hillside 124 m out, not the railway land's grey
+      const tun = inTunnel(P[i][3]), je = off < 0 ? 0 : nLat - 1;
+      const col = tun ? corridorColour(Math.sign(off || 1) * 60, coverAt, A[je*4], A[je*4+2])
+                      : corridorColour(off, coverAt, A[j*4], A[j*4+2]);
       const pick = [[A,j],[B,j],[A,j+1],[A,j+1],[B,j],[B,j+1]];
       for (const [R, jj] of pick) {
         V.push(R[jj*4], R[jj*4+1], -R[jj*4+2]);
@@ -250,6 +265,39 @@ export function buildCorridor(pts, demAt, coverAt, stride = 1, bridges = [], und
   }
   // a deck under the track across each cutting: slab, girders, abutments
   const quad = (a, b, c, d, col) => { for (const k of [a, b, c, a, c, d]) { V.push(k[0], k[1], -k[2]); C.push(col[0], col[1], col[2]); } };
+  // ---- the tunnels: a ballast floor, two walls, an arch in three facets, and
+  // a stone portal face at each end up to the hillside above it
+  {
+    const BAL = FORM_COL[0], WALL = [0.30, 0.29, 0.28], ARCH = [0.20, 0.20, 0.20], STONE = [0.55, 0.53, 0.49], DARK = [0.03, 0.03, 0.035];
+    const HW = 4.9, WH = 4.6, CR = 7.3;
+    for (const [m0, m1] of tunnels) {
+      const idx = []; for (let i = 0; i < P.length; i++) if (P[i][3] >= m0 && P[i][3] <= m1) idx.push(i);
+      if (idx.length < 2) continue;
+      const sec = (i) => {
+        const p = P[i], q = P[Math.min(P.length - 1, i + 1)], o = P[Math.max(0, i - 1)];
+        const L = Math.hypot(q[0] - o[0], q[1] - o[1]) || 1, rx = -(q[1] - o[1]) / L, ry = (q[0] - o[0]) / L;
+        return (off, up) => [p[0] + rx * off, p[2] - 0.05 + up, p[1] + ry * off];
+      };
+      for (let k = 0; k + 1 < idx.length; k++) {
+        const a = sec(idx[k]), b = sec(idx[k + 1]);
+        quad(a(-HW, -0.3), b(-HW, -0.3), b(HW, -0.3), a(HW, -0.3), BAL);
+        quad(a(-HW, -0.3), a(-HW, WH), b(-HW, WH), b(-HW, -0.3), WALL);
+        quad(a(HW, -0.3), b(HW, -0.3), b(HW, WH), a(HW, WH), WALL);
+        quad(a(-HW, WH), a(-HW * 0.55, CR), b(-HW * 0.55, CR), b(-HW, WH), ARCH);
+        quad(a(-HW * 0.55, CR), a(HW * 0.55, CR), b(HW * 0.55, CR), b(-HW * 0.55, CR), ARCH);
+        quad(a(HW * 0.55, CR), a(HW, WH), b(HW, WH), b(HW * 0.55, CR), ARCH);
+      }
+      for (const i of [idx[0], idx[idx.length - 1]]) {
+        const a = sec(i), top = Math.max(CR + 1.6, rows[i][1 + 4 * ((nLat - 1) >> 1)] - (P[i][2] - 0.05) + 0.6);
+        const W2 = HW + 7;
+        quad(a(-W2, -0.3), a(-HW, -0.3), a(-HW, top), a(-W2, top), STONE);          // left pier
+        quad(a(HW, -0.3), a(W2, -0.3), a(W2, top), a(HW, top), STONE);              // right pier
+        quad(a(-HW, CR), a(HW, CR), a(HW, top), a(-HW, top), STONE);                // the head wall
+        quad(a(-HW, WH), a(-HW * 0.55, CR), a(-HW, CR), a(-HW, WH), STONE);         // the arch's corners
+        quad(a(HW, WH), a(HW, CR), a(HW * 0.55, CR), a(HW, WH), STONE);
+      }
+    }
+  }
   const DECK = [0.46, 0.45, 0.43], GIRD = [0.36, 0.36, 0.37], ABUT = [0.55, 0.54, 0.51];
   const at = (m) => {
     const f = (m - pts[0][3]) / ((pts[pts.length - 1][3] - pts[0][3]) / (pts.length - 1));
@@ -1233,6 +1281,14 @@ export function buildYardTracks(ways, demAt, railYAt) {
               quad(B1(-0.75, 0.35), B2(-0.75, 0.35), B2(0.75, 0.35), B1(0.75, 0.35), BOGIE_COL);
             }
 
+            // graffiti on some standing wagons (not the tank: it is round)
+            if (rakeType !== 1) for (const sd of [-1, 1]) {
+              const gr = Math.sin(pMid.x * 3.31 + pMid.y * 1.73 + sd * 5.1) * 43758.5453, g01 = gr - Math.floor(gr);
+              if (g01 > (rakeType === 2 ? 0.3 : 0.45)) continue;
+              const o = (rakeType === 3 ? 1.30 : hw) + 0.035;
+              graffitiSpots.push({ x: pMid.x + pMid.nx * sd * o, n: pMid.y + pMid.ny * sd * o, y: yBase + (rakeType === 3 ? 0.45 : 0.2),
+                ox: pMid.nx * sd, on: pMid.ny * sd, len: wagonLen - 3, h: rakeType === 2 ? 1.1 : 1.9, seed: g01 * 977 });
+            }
             if (rakeType === 0) {
               // Eaos Open Gondola
               const BODY = [0.46, 0.22, 0.16], INT = [0.22, 0.21, 0.20];
@@ -1877,7 +1933,7 @@ export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, 
       if (w.dead || w.cls < 1 || w.cls > 5 || w.bridge || w.len < 30) continue;
       const m = w.pts[w.pts.length >> 1];
       if (Math.abs(m[0] - camX) > reach + w.len * 0.5 || Math.abs(m[1] - camZ) > reach + w.len * 0.5) continue;
-      const n = Math.round(w.len / (w.cls <= 3 ? 38 : 60) * day);
+      const n = Math.round(w.len / (w.cls <= 3 ? 22 : 40) * day);
       for (let k = 0; k < n && made < max; k++) {
         const r = (q) => hash(wi * 71.3 + k * 13.7 + q * 3.917);
         const dir = r(30) < 0.5 ? 1 : -1, pace = 1.05 + r(31) * 0.55;
@@ -1900,9 +1956,94 @@ export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, 
   return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
 }
 
+/** Horses standing in their paddocks (tools/bake_horses.py): three to six
+ *  round each place, a body on four legs with a neck, a head, a mane and a
+ *  tail, in bay, chestnut, grey, black or dun; some with the head down,
+ *  grazing. places: [{x, n}] in the line's frame. */
+// Places a graffiti piece can go, filled by buildYardTracks (standing wagons)
+// and buildWalls: { x, n, y (bottom), ox, on (the way the face looks), len
+// (room along the face), h (room up it), seed }. main.js turns them into
+// textured quads from the graffiti sheet (tools/bake_stickers.py).
+export const graffitiSpots = [];
+
+/** OSM walls, retaining walls and noise barriers beside the line
+ *  (tools/bake_walls.py): a slab 24 cm thick on the ground, and graffiti
+ *  spots on some stretches of it. */
+export function buildWalls(walls, groundAt) {
+  const V = new FBuf(), C = new FBuf();
+  const push = (p, c) => { V.push(p[0], p[1], -p[2]); C.push(c[0], c[1], c[2]); };
+  const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
+  const hash = (n) => { const x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); };
+  const WALL_COL = [[0.64, 0.62, 0.58], [0.54, 0.52, 0.49], [0.58, 0.63, 0.60]];
+  const T = 0.12;
+  walls.forEach((w, wi) => {
+    const base = WALL_COL[w.k] || WALL_COL[0], tone = 0.9 + hash(wi + 0.3) * 0.2;
+    const c1 = base.map(v => v * tone), c2 = base.map(v => v * tone * 0.86), c3 = base.map(v => Math.min(1, v * tone * 1.12));
+    for (let i = 0; i + 1 < w.pts.length; i++) {
+      const a = w.pts[i], b = w.pts[i + 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (L < 0.3) continue;
+      const ga = groundAt(a[0], a[1]), gb = groundAt(b[0], b[1]);
+      if (!isFinite(ga) || !isFinite(gb)) continue;
+      const dx = (b[0] - a[0]) / L, dy = (b[1] - a[1]) / L, nx = -dy, ny = dx, h = w.h;
+      const P = (q, g, o, up) => [q[0] + nx * o, g + up, q[1] + ny * o];
+      quad(P(a, ga, T, -0.3), P(b, gb, T, -0.3), P(b, gb, T, h), P(a, ga, T, h), c1);
+      quad(P(b, gb, -T, -0.3), P(a, ga, -T, -0.3), P(a, ga, -T, h), P(b, gb, -T, h), c2);
+      quad(P(a, ga, T, h), P(b, gb, T, h), P(b, gb, -T, h), P(a, ga, -T, h), c3);
+      if (h < 1.3 || w.ng) continue;
+      for (let s0 = 1.5; s0 + 3 < L; s0 += 8) for (const sd of [1, -1]) {
+        const r = hash(wi * 13.1 + i * 3.7 + s0 * 0.91 + sd * 0.37);
+        if (r > 0.34) continue;
+        const len = Math.min(7.5, L - s0 - 1), mid = s0 + len / 2, g = ga + (gb - ga) * (mid / L);
+        graffitiSpots.push({ x: a[0] + dx * mid + nx * sd * (T + 0.035), n: a[1] + dy * mid + ny * sd * (T + 0.035),
+          y: g + 0.2 + Math.abs(gb - ga) * (len / L) * 0.5, ox: nx * sd, on: ny * sd, len, h: Math.min(h - 0.35, 2.0), seed: r * 2911 });
+      }
+    }
+  });
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
+}
+
+export function buildHorses(places, groundAt) {
+  const V = new FBuf(), C = new FBuf();
+  const push = (p, c) => { V.push(p[0], p[1], -p[2]); C.push(c[0], c[1], c[2]); };
+  const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
+  const hash = (n) => { const x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); };
+  const COAT = [[0.36, 0.20, 0.11], [0.50, 0.28, 0.14], [0.66, 0.64, 0.60], [0.10, 0.09, 0.08], [0.68, 0.55, 0.36]];
+  places.forEach((pl, pi) => {
+    const n = 3 + Math.floor(hash(pi + 0.5) * 4);
+    for (let k = 0; k < n; k++) {
+      const r = (q) => hash(pi * 31.7 + k * 7.3 + q * 1.93);
+      const x = pl.x + (r(1) - 0.5) * 44, y = pl.n + (r(2) - 0.5) * 44, g = groundAt(x, y);
+      if (!isFinite(g)) continue;
+      const a = r(3) * 6.283, fx = Math.cos(a), fy = Math.sin(a), sx = -fy, sy = fx;
+      const coat = COAT[Math.floor(r(4) * COAT.length)], dark = [coat[0] * 0.45, coat[1] * 0.45, coat[2] * 0.45];
+      const P = (al, ac, up) => [x + fx * al + sx * ac, g + up, y + fy * al + sy * ac];
+      // a box from (al0..al1) x (±hw) x (y0..y1), in the horse's own frame
+      const box = (al0, al1, hw, y0, y1, col) => {
+        const c = [P(al0, -hw, y0), P(al1, -hw, y0), P(al1, hw, y0), P(al0, hw, y0)];
+        const t = [P(al0, -hw, y1), P(al1, -hw, y1), P(al1, hw, y1), P(al0, hw, y1)];
+        for (let i = 0; i < 4; i++) quad(c[i], c[(i + 1) % 4], t[(i + 1) % 4], t[i], col);
+        quad(t[0], t[1], t[2], t[3], col);
+      };
+      box(-0.95, 0.85, 0.30, 0.95, 1.55, coat);                               // the barrel
+      for (const [al, ac] of [[-0.8, -0.2], [-0.8, 0.2], [0.7, -0.2], [0.7, 0.2]]) {
+        // each leg: two crossed planes
+        quad(P(al - 0.08, ac, 0), P(al + 0.08, ac, 0), P(al + 0.08, ac, 1.0), P(al - 0.08, ac, 1.0), dark);
+        quad(P(al, ac - 0.07, 0), P(al, ac + 0.07, 0), P(al, ac + 0.07, 1.0), P(al, ac - 0.07, 1.0), dark);
+      }
+      const graze = r(5) < 0.45;
+      if (graze) { box(0.85, 1.25, 0.14, 0.75, 1.35, coat); box(1.15, 1.6, 0.12, 0.15, 0.85, coat); }       // neck down, head at the grass
+      else { box(0.75, 1.15, 0.14, 1.35, 2.05, coat); box(1.05, 1.6, 0.12, 1.85, 2.2, coat);                // neck up, head forward
+             quad(P(0.72, 0, 1.5), P(0.78, 0, 2.1), P(1.0, 0, 2.15), P(0.95, 0, 1.55), dark); }             // the mane
+      quad(P(-0.95, 0, 1.45), P(-1.05, 0, 1.45), P(-1.2, 0, 0.65), P(-1.02, 0, 0.7), dark);                // the tail
+    }
+  });
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
+}
+
 /** People walking on the pavements near the camera (see buildPlatformPeople). */
-export function buildWalkers(rt, camX, camZ, hour, groundAt, rainy = false) {
-  return buildPlatformPeople([], [], [], null, hour, null, rainy, null, { rt, camX, camZ, t: rt.clock || 0, groundAt });
+export function buildWalkers(rt, camX, camZ, hour, groundAt, rainy = false, lite = false) {
+  return buildPlatformPeople([], [], [], null, hour, null, rainy, null,
+    { rt, camX, camZ, t: rt.clock || 0, groundAt, reach: lite ? 130 : 230, max: lite ? 50 : 220 });
 }
 
 // -------------------------------------------------------- signal geometry

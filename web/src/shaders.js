@@ -2629,6 +2629,34 @@ void main(){
   fc = vec4(mix(col, uFogCol, clamp(fg, 0.0, 1.0)), 1.0);
 }`;
 
+// Graffiti (main.js): flat textured quads on walls and wagons, cut out by the
+// sheet's alpha. The paint is matt: sun and sky, no shine.
+export const DECAL_VS = `#version 300 es
+layout(location = 0) in vec3 aPos; layout(location = 2) in vec2 aUv;
+uniform mat4 uVP; uniform vec3 uEye;
+out vec2 vUv; out float vDist;
+void main(){
+  vUv = aUv; vDist = length(aPos - uEye);
+  vec3 w = aPos + (uEye - aPos) * 0.0015;
+  gl_Position = uVP * vec4(w, 1.0);
+}`;
+export const DECAL_FS = `#version 300 es
+precision highp float;
+in vec2 vUv; in float vDist;
+out vec4 fc;
+uniform sampler2D uTex;
+uniform vec3 uSunCol, uSkyCol, uFogCol;
+uniform float uFogDensity, uLift;
+void main(){
+  vec4 t = texture(uTex, vUv);
+  if (t.a < 0.45) discard;
+  // weathered: a little paler than fresh paint
+  vec3 base = mix(t.rgb, vec3(dot(t.rgb, vec3(0.33))), 0.18) * 0.9;
+  vec3 col = base * (uSunCol * 0.45 + uSkyCol * (0.55 + uLift * 0.38) + 0.06 + uLift * 0.085);
+  float fg = 1.0 - exp(-vDist * uFogDensity);
+  fc = vec4(mix(col, uFogCol, clamp(fg, 0.0, 1.0)), 1.0);
+}`;
+
 // Particles (vfx.js): camera-facing quads, sparks stretched along their
 // velocity; fire and fireballs coloured by temperature (a blackbody ramp,
 // cooling with age), smoke lit by the sun and the sky, vapour white. Drawn

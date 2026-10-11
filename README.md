@@ -203,6 +203,8 @@ Per-line patches and extras, after the line's route and context exist:
 - M41 model by roliflow, Bzmot by newvoxel, both Sketchfab **CC-BY-4.0** —
   attribution required if either ships in the game.
 
+Sound and music from the owner's asset library: ambience recordings by **FilmCow** (FilmCow Recorded SFX, free with credit); menu music **"Contemplative" by Clement Panchout** (free with credit).
+
 ## Generated pages
 
 - `atlas.html` — the survey: geometry, km posts, terrain, skylines.

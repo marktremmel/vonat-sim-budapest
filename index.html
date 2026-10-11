@@ -289,6 +289,14 @@
     font:600 11.5px "IBM Plex Sans",sans-serif;touch-action:manipulation}
   #darkPanel button.on{background:rgba(255,114,100,.35);border-color:#ff7264}
   #darkPanel button.go{background:rgba(160,30,24,.85);min-height:44px}
+  #tramBar{position:absolute;left:50%;top:44px;transform:translateX(-50%);z-index:9;display:none;gap:4px;align-items:center;
+    padding:5px 8px;background:rgba(8,16,22,.82);border:1px solid rgba(255,214,90,.45);border-radius:8px}
+  #tramBar.on{display:flex} body.photo #tramBar{display:none}
+  #tramBar b{font:600 10px "IBM Plex Sans",sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#ffd65a;margin-right:4px}
+  #tramBar button{min-width:36px;min-height:34px;border-radius:5px;border:1px solid rgba(255,214,90,.35);background:rgba(40,34,14,.9);color:#fff3c8;
+    font:600 12.5px "IBM Plex Sans",sans-serif;touch-action:manipulation}
+  #tramBar button.on{background:#ffd65a;color:#221a00}
+  #tramBar button.x{color:#cdd;border-color:rgba(160,200,215,.3);background:rgba(20,34,44,.9);padding:0 8px}
   #fpsBox{position:absolute;left:8px;bottom:54px;z-index:47;display:none;padding:2px 7px;border-radius:4px;background:rgba(8,16,22,.7);
     color:#9ff0c0;font:600 12px ui-monospace,Menlo,monospace;pointer-events:none}
   #fpsBox.on{display:block}
@@ -487,7 +495,7 @@
     <button data-mode="free" title="Szabad kamera: WASD, R/F fel-le (⇧C)" data-en-title="Free camera: WASD, R/F up and down (⇧C)" data-en="Free">Szabad</button>
     <button data-mode="plane" title="Repülés (⇧P) · Esc vissza" data-en-title="Fly (⇧P) · Esc back" data-en="Fly">Repülő</button>
     <button data-mode="drone" title="FPV drón (⇧D)" data-en-title="FPV drone (⇧D)" data-en="Drone">Drón</button>
-    <button data-mode="tram" title="Szállj fel a legközelebbi villamosra (⇧T) · C kívülről · Esc vissza" data-en-title="Board the nearest tram (⇧T) · C from outside · Esc back" data-en="Tram">Villamos</button>
+    <button data-mode="tram" title="Szállj fel a legközelebbi villamosra (⇧T), aztán válassz vonalat: 1, 2, 3, 4, 6, 56, 61 · C kívülről · Esc vissza" data-en-title="Board the nearest tram (⇧T), then pick a line: 1, 2, 3, 4, 6, 56, 61 · C from outside · Esc back" data-en="Tram">Villamos</button>
     <button data-mode="car" title="Vezess autót (⇧A) · Esc vissza" data-en-title="Drive a car (⇧A) · Esc back" data-en="Car">Autó</button>
     <span class="sep"></span>
     <button data-act="manual" title="Kézi vezetés (M): W/S kontroller, Backspace vészfék" data-en-title="Drive by hand (M): W/S controller, Backspace emergency brake" data-en="Manual">Kézi</button>
@@ -496,6 +504,7 @@
     <button data-act="photo" title="Fénykép (Z): a nevezetességek az albumba kerülnek" data-en-title="Photo (Z): landmarks go into the album" data-en="Photo">Fotó</button>
     <button data-act="bare" title="Felület elrejtése (U)" data-en-title="Hide the interface (U)" data-en="U">U</button>
     <button data-act="help" title="Minden billentyű (?)" data-en-title="Every key (?)" data-en="?">?</button>
+    <button data-act="skip" title="Ugrás a következő megálló elé (⇧N)" data-en-title="Skip to just before the next stop (⇧N)" data-en="⏭">⏭</button>
     <button data-act="share" title="Link erre a helyre és időpontra" data-en-title="A link to this place and time" data-en="Share">Megosztás</button>
     <button data-act="fs" id="fsBtn" title="Teljes képernyő (F11)" data-en-title="Full screen (F11)" data-en="⛶">⛶</button>
   </div>
@@ -630,6 +639,7 @@
 
   <div id="touch"><div class="tg" id="tL"></div><div class="tg" id="tR"></div></div>
   <div id="darkPanel"></div>
+  <div id="tramBar"></div>
   <button id="moreBtn" title="További vezérlők" data-en-title="More controls">⋯</button>
   <div id="moreSheet"></div>
   <div id="fpsBox"></div>
@@ -704,7 +714,7 @@
     if (st.plane) st.plane.active = false;
     if (st.drone) st.drone.active = false;
     if (st.car) st.car.active = false;
-    st.fly = null; st.follow = false; st.passenger = null; st.followIdx = -1; st.tram = null;
+    st.fly = null; st.follow = false; st.passenger = null; st.followIdx = -1; st.tram = null; st.tramBar = false;
     st.followCarIdx = -1; st.followShipIdx = -1; st.yaw = 0; st.pitch = -0.02; st.zoom = 1;
   };
   const act = {
@@ -718,11 +728,12 @@
     plane: () => { const st = S(); if (st && st.plane && st.plane.active) return; toCab(); key("KeyP", true); },
     drone: () => { const st = S(); if (st && st.drone && st.drone.active) return; toCab(); key("KeyD", true); },
     car: () => { const st = S(); if (st && st.car && st.car.active) return; toCab(); key("KeyA", true); },
-    tram: () => { const st = S(); if (st && st.tram) return; toCab(); if (window.__tram) window.__tram(); },
+    tram: () => { const st = S(); if (st && st.tram) return; toCab(); if (window.__tramBar) window.__tramBar(); },
     bare: () => key("KeyU"), manual: () => key("KeyM"), map: () => key("Tab"), disp: () => key("KeyQ"),
     help: () => document.getElementById("help").classList.toggle("on"),
     photo: () => window.__photoMode && window.__photoMode(true),
     share: () => window.__share && window.__share(),
+    skip: () => window.__skipStop && window.__skipStop(),
     // full screen, for recording and for phones: the page itself, so the
     // panels and buttons come along (F11 alone would do the browser's own)
     fs: () => {
@@ -800,6 +811,7 @@
     [tl("hang", "sound"), "KeyG", 0, st => st.sound], [tl("ablaktörlő", "wipers"), "KeyX", 0, st => st.wiper > 0],
     [tl("fényszóró", "lights"), "KeyF", 1, st => st.lights > 0], [tl("homokoló", "sand"), "KeyJ"],
     [tl("műszerfal", "desk"), "KeyI", 0, st => st.cab], [tl("újrakezd", "restart"), "KeyR", 1],
+    [tl("köv. megálló ⏭", "next stop ⏭"), "KeyN", 1],
     [tl("Nézet", "View")],
     [tl("közelít", "zoom +"), "BracketRight"], [tl("távolít", "zoom −"), "BracketLeft"],
     [tl("címkék", "labels"), "KeyL", 0, st => st.labels], [tl("másik vonat", "next train"), "KeyF"],
@@ -849,7 +861,7 @@
     const st = S(); if (!st) return;
     const showFps = !!(st.gfx && st.gfx.fps) && !st.menu;
     fpsBox.classList.toggle("on", showFps);
-    if (showFps) fpsBox.textContent = Math.round(st.fps || 0) + " fps" + (st.dynRes && st.dynRes < 0.99 ? " · " + Math.round(st.dynRes * 100) + "%" : "");
+    if (showFps) fpsBox.textContent = Math.round(st.fps || 0) + " fps · js " + Math.round(st.jsMs || 0) + " ms" + (st.dynRes && st.dynRes < 0.99 ? " · " + Math.round(st.dynRes * 100) + "%" : "");
     moreBtn.style.display = touch && !st.menu ? "" : "none";
     if (st.menu) sheet.classList.remove("on");
     if (sheet.classList.contains("on")) for (const [b, on] of moreBtns) if (on) b.classList.toggle("on", !!on(st));
@@ -3593,6 +3605,34 @@ void main(){
   fc = vec4(mix(col, uFogCol, clamp(fg, 0.0, 1.0)), 1.0);
 }`;
 
+// Graffiti (main.js): flat textured quads on walls and wagons, cut out by the
+// sheet's alpha. The paint is matt: sun and sky, no shine.
+const DECAL_VS = `#version 300 es
+layout(location = 0) in vec3 aPos; layout(location = 2) in vec2 aUv;
+uniform mat4 uVP; uniform vec3 uEye;
+out vec2 vUv; out float vDist;
+void main(){
+  vUv = aUv; vDist = length(aPos - uEye);
+  vec3 w = aPos + (uEye - aPos) * 0.0015;
+  gl_Position = uVP * vec4(w, 1.0);
+}`;
+const DECAL_FS = `#version 300 es
+precision highp float;
+in vec2 vUv; in float vDist;
+out vec4 fc;
+uniform sampler2D uTex;
+uniform vec3 uSunCol, uSkyCol, uFogCol;
+uniform float uFogDensity, uLift;
+void main(){
+  vec4 t = texture(uTex, vUv);
+  if (t.a < 0.45) discard;
+  // weathered: a little paler than fresh paint
+  vec3 base = mix(t.rgb, vec3(dot(t.rgb, vec3(0.33))), 0.18) * 0.9;
+  vec3 col = base * (uSunCol * 0.45 + uSkyCol * (0.55 + uLift * 0.38) + 0.06 + uLift * 0.085);
+  float fg = 1.0 - exp(-vDist * uFogDensity);
+  fc = vec4(mix(col, uFogCol, clamp(fg, 0.0, 1.0)), 1.0);
+}`;
+
 // Particles (vfx.js): camera-facing quads, sparks stretched along their
 // velocity; fire and fireballs coloured by temperature (a blackbody ramp,
 // cooling with age), smoke lit by the sun and the sky, vapour white. Drawn
@@ -4512,7 +4552,8 @@ function corridorColour(off, coverAt, cx, cy) {
  *                  corridor digs a cutting to their floor, rows are densified
  *                  to 2 m around each crossing so the cutting has edges, and a
  *                  deck carries the track over it */
-function buildCorridor(pts, demAt, coverAt, stride = 1, bridges = [], unders = [], dense = false) {
+function buildCorridor(pts, demAt, coverAt, stride = 1, bridges = [], unders = [], dense = false, tunnels = []) {
+  const inTunnel = (m) => tunnels.some(([a, b]) => m > a && m < b);
   const LAT = dense ? CORRIDOR_DENSE : CORRIDOR;
   const nLat = LAT.length;
   // where each underpass crosses the line: the chainage of the track point
@@ -4571,6 +4612,16 @@ function buildCorridor(pts, demAt, coverAt, stride = 1, bridges = [], unders = [
       const off = LAT[j];
       const wx = p[0] + rx * off, wy = p[1] + ry * off;
       let h = corridorHeight(off, top, demAt(wx, wy), shoulderAt ? shoulderAt(p[3], off) : 0, isRaised(p[3]));
+      // A tunnel (route.tunnels; line 2's Kopár-hágói alagút): the corridor
+      // is the hillside OVER the line here, not a cutting. The heightmap has
+      // the line's cutting baked in for about 45 m either side, so the roof is
+      // carried across from the ground 62 m out on each side, and never less
+      // than 8.5 m over the rail. The tube itself is built further down.
+      if (inTunnel(p[3])) {
+        const gl = demAt(p[0] - rx * 62, p[1] - ry * 62), gr = demAt(p[0] + rx * 62, p[1] + ry * 62);
+        const a = Math.abs(off);
+        h = a >= 62 ? demAt(wx, wy) : Math.max(top + 8.5, gl + (gr - gl) * (off + 62) / 124);
+      }
       // the cutting: inside the road's width the ground goes down to its floor
       for (const c of cs) {
         const d = distSeg(wx, wy, c.u.pts);
@@ -4589,7 +4640,11 @@ function buildCorridor(pts, demAt, coverAt, stride = 1, bridges = [], unders = [
     if (onBridge(P[i][3])) continue;
     for (let j = 0; j < nLat - 1; j++) {
       const off = (A[j*4+3] + A[(j+1)*4+3]) * 0.5;
-      const col = corridorColour(off, coverAt, A[j*4], A[j*4+2]);
+      // (over a tunnel there is no ballast up on the hill: the land cover's colour)
+      // and the cover of the hillside 124 m out, not the railway land's grey
+      const tun = inTunnel(P[i][3]), je = off < 0 ? 0 : nLat - 1;
+      const col = tun ? corridorColour(Math.sign(off || 1) * 60, coverAt, A[je*4], A[je*4+2])
+                      : corridorColour(off, coverAt, A[j*4], A[j*4+2]);
       const pick = [[A,j],[B,j],[A,j+1],[A,j+1],[B,j],[B,j+1]];
       for (const [R, jj] of pick) {
         V.push(R[jj*4], R[jj*4+1], -R[jj*4+2]);
@@ -4599,6 +4654,39 @@ function buildCorridor(pts, demAt, coverAt, stride = 1, bridges = [], unders = [
   }
   // a deck under the track across each cutting: slab, girders, abutments
   const quad = (a, b, c, d, col) => { for (const k of [a, b, c, a, c, d]) { V.push(k[0], k[1], -k[2]); C.push(col[0], col[1], col[2]); } };
+  // ---- the tunnels: a ballast floor, two walls, an arch in three facets, and
+  // a stone portal face at each end up to the hillside above it
+  {
+    const BAL = FORM_COL[0], WALL = [0.30, 0.29, 0.28], ARCH = [0.20, 0.20, 0.20], STONE = [0.55, 0.53, 0.49], DARK = [0.03, 0.03, 0.035];
+    const HW = 4.9, WH = 4.6, CR = 7.3;
+    for (const [m0, m1] of tunnels) {
+      const idx = []; for (let i = 0; i < P.length; i++) if (P[i][3] >= m0 && P[i][3] <= m1) idx.push(i);
+      if (idx.length < 2) continue;
+      const sec = (i) => {
+        const p = P[i], q = P[Math.min(P.length - 1, i + 1)], o = P[Math.max(0, i - 1)];
+        const L = Math.hypot(q[0] - o[0], q[1] - o[1]) || 1, rx = -(q[1] - o[1]) / L, ry = (q[0] - o[0]) / L;
+        return (off, up) => [p[0] + rx * off, p[2] - 0.05 + up, p[1] + ry * off];
+      };
+      for (let k = 0; k + 1 < idx.length; k++) {
+        const a = sec(idx[k]), b = sec(idx[k + 1]);
+        quad(a(-HW, -0.3), b(-HW, -0.3), b(HW, -0.3), a(HW, -0.3), BAL);
+        quad(a(-HW, -0.3), a(-HW, WH), b(-HW, WH), b(-HW, -0.3), WALL);
+        quad(a(HW, -0.3), b(HW, -0.3), b(HW, WH), a(HW, WH), WALL);
+        quad(a(-HW, WH), a(-HW * 0.55, CR), b(-HW * 0.55, CR), b(-HW, WH), ARCH);
+        quad(a(-HW * 0.55, CR), a(HW * 0.55, CR), b(HW * 0.55, CR), b(-HW * 0.55, CR), ARCH);
+        quad(a(HW * 0.55, CR), a(HW, WH), b(HW, WH), b(HW * 0.55, CR), ARCH);
+      }
+      for (const i of [idx[0], idx[idx.length - 1]]) {
+        const a = sec(i), top = Math.max(CR + 1.6, rows[i][1 + 4 * ((nLat - 1) >> 1)] - (P[i][2] - 0.05) + 0.6);
+        const W2 = HW + 7;
+        quad(a(-W2, -0.3), a(-HW, -0.3), a(-HW, top), a(-W2, top), STONE);          // left pier
+        quad(a(HW, -0.3), a(W2, -0.3), a(W2, top), a(HW, top), STONE);              // right pier
+        quad(a(-HW, CR), a(HW, CR), a(HW, top), a(-HW, top), STONE);                // the head wall
+        quad(a(-HW, WH), a(-HW * 0.55, CR), a(-HW, CR), a(-HW, WH), STONE);         // the arch's corners
+        quad(a(HW, WH), a(HW, CR), a(HW * 0.55, CR), a(HW, WH), STONE);
+      }
+    }
+  }
   const DECK = [0.46, 0.45, 0.43], GIRD = [0.36, 0.36, 0.37], ABUT = [0.55, 0.54, 0.51];
   const at = (m) => {
     const f = (m - pts[0][3]) / ((pts[pts.length - 1][3] - pts[0][3]) / (pts.length - 1));
@@ -5582,6 +5670,14 @@ function buildYardTracks(ways, demAt, railYAt) {
               quad(B1(-0.75, 0.35), B2(-0.75, 0.35), B2(0.75, 0.35), B1(0.75, 0.35), BOGIE_COL);
             }
 
+            // graffiti on some standing wagons (not the tank: it is round)
+            if (rakeType !== 1) for (const sd of [-1, 1]) {
+              const gr = Math.sin(pMid.x * 3.31 + pMid.y * 1.73 + sd * 5.1) * 43758.5453, g01 = gr - Math.floor(gr);
+              if (g01 > (rakeType === 2 ? 0.3 : 0.45)) continue;
+              const o = (rakeType === 3 ? 1.30 : hw) + 0.035;
+              graffitiSpots.push({ x: pMid.x + pMid.nx * sd * o, n: pMid.y + pMid.ny * sd * o, y: yBase + (rakeType === 3 ? 0.45 : 0.2),
+                ox: pMid.nx * sd, on: pMid.ny * sd, len: wagonLen - 3, h: rakeType === 2 ? 1.1 : 1.9, seed: g01 * 977 });
+            }
             if (rakeType === 0) {
               // Eaos Open Gondola
               const BODY = [0.46, 0.22, 0.16], INT = [0.22, 0.21, 0.20];
@@ -6226,7 +6322,7 @@ function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, rainy =
       if (w.dead || w.cls < 1 || w.cls > 5 || w.bridge || w.len < 30) continue;
       const m = w.pts[w.pts.length >> 1];
       if (Math.abs(m[0] - camX) > reach + w.len * 0.5 || Math.abs(m[1] - camZ) > reach + w.len * 0.5) continue;
-      const n = Math.round(w.len / (w.cls <= 3 ? 38 : 60) * day);
+      const n = Math.round(w.len / (w.cls <= 3 ? 22 : 40) * day);
       for (let k = 0; k < n && made < max; k++) {
         const r = (q) => hash(wi * 71.3 + k * 13.7 + q * 3.917);
         const dir = r(30) < 0.5 ? 1 : -1, pace = 1.05 + r(31) * 0.55;
@@ -6249,9 +6345,94 @@ function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, rainy =
   return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
 }
 
+/** Horses standing in their paddocks (tools/bake_horses.py): three to six
+ *  round each place, a body on four legs with a neck, a head, a mane and a
+ *  tail, in bay, chestnut, grey, black or dun; some with the head down,
+ *  grazing. places: [{x, n}] in the line's frame. */
+// Places a graffiti piece can go, filled by buildYardTracks (standing wagons)
+// and buildWalls: { x, n, y (bottom), ox, on (the way the face looks), len
+// (room along the face), h (room up it), seed }. main.js turns them into
+// textured quads from the graffiti sheet (tools/bake_stickers.py).
+const graffitiSpots = [];
+
+/** OSM walls, retaining walls and noise barriers beside the line
+ *  (tools/bake_walls.py): a slab 24 cm thick on the ground, and graffiti
+ *  spots on some stretches of it. */
+function buildWalls(walls, groundAt) {
+  const V = new FBuf(), C = new FBuf();
+  const push = (p, c) => { V.push(p[0], p[1], -p[2]); C.push(c[0], c[1], c[2]); };
+  const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
+  const hash = (n) => { const x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); };
+  const WALL_COL = [[0.64, 0.62, 0.58], [0.54, 0.52, 0.49], [0.58, 0.63, 0.60]];
+  const T = 0.12;
+  walls.forEach((w, wi) => {
+    const base = WALL_COL[w.k] || WALL_COL[0], tone = 0.9 + hash(wi + 0.3) * 0.2;
+    const c1 = base.map(v => v * tone), c2 = base.map(v => v * tone * 0.86), c3 = base.map(v => Math.min(1, v * tone * 1.12));
+    for (let i = 0; i + 1 < w.pts.length; i++) {
+      const a = w.pts[i], b = w.pts[i + 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (L < 0.3) continue;
+      const ga = groundAt(a[0], a[1]), gb = groundAt(b[0], b[1]);
+      if (!isFinite(ga) || !isFinite(gb)) continue;
+      const dx = (b[0] - a[0]) / L, dy = (b[1] - a[1]) / L, nx = -dy, ny = dx, h = w.h;
+      const P = (q, g, o, up) => [q[0] + nx * o, g + up, q[1] + ny * o];
+      quad(P(a, ga, T, -0.3), P(b, gb, T, -0.3), P(b, gb, T, h), P(a, ga, T, h), c1);
+      quad(P(b, gb, -T, -0.3), P(a, ga, -T, -0.3), P(a, ga, -T, h), P(b, gb, -T, h), c2);
+      quad(P(a, ga, T, h), P(b, gb, T, h), P(b, gb, -T, h), P(a, ga, -T, h), c3);
+      if (h < 1.3 || w.ng) continue;
+      for (let s0 = 1.5; s0 + 3 < L; s0 += 8) for (const sd of [1, -1]) {
+        const r = hash(wi * 13.1 + i * 3.7 + s0 * 0.91 + sd * 0.37);
+        if (r > 0.34) continue;
+        const len = Math.min(7.5, L - s0 - 1), mid = s0 + len / 2, g = ga + (gb - ga) * (mid / L);
+        graffitiSpots.push({ x: a[0] + dx * mid + nx * sd * (T + 0.035), n: a[1] + dy * mid + ny * sd * (T + 0.035),
+          y: g + 0.2 + Math.abs(gb - ga) * (len / L) * 0.5, ox: nx * sd, on: ny * sd, len, h: Math.min(h - 0.35, 2.0), seed: r * 2911 });
+      }
+    }
+  });
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
+}
+
+function buildHorses(places, groundAt) {
+  const V = new FBuf(), C = new FBuf();
+  const push = (p, c) => { V.push(p[0], p[1], -p[2]); C.push(c[0], c[1], c[2]); };
+  const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
+  const hash = (n) => { const x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); };
+  const COAT = [[0.36, 0.20, 0.11], [0.50, 0.28, 0.14], [0.66, 0.64, 0.60], [0.10, 0.09, 0.08], [0.68, 0.55, 0.36]];
+  places.forEach((pl, pi) => {
+    const n = 3 + Math.floor(hash(pi + 0.5) * 4);
+    for (let k = 0; k < n; k++) {
+      const r = (q) => hash(pi * 31.7 + k * 7.3 + q * 1.93);
+      const x = pl.x + (r(1) - 0.5) * 44, y = pl.n + (r(2) - 0.5) * 44, g = groundAt(x, y);
+      if (!isFinite(g)) continue;
+      const a = r(3) * 6.283, fx = Math.cos(a), fy = Math.sin(a), sx = -fy, sy = fx;
+      const coat = COAT[Math.floor(r(4) * COAT.length)], dark = [coat[0] * 0.45, coat[1] * 0.45, coat[2] * 0.45];
+      const P = (al, ac, up) => [x + fx * al + sx * ac, g + up, y + fy * al + sy * ac];
+      // a box from (al0..al1) x (±hw) x (y0..y1), in the horse's own frame
+      const box = (al0, al1, hw, y0, y1, col) => {
+        const c = [P(al0, -hw, y0), P(al1, -hw, y0), P(al1, hw, y0), P(al0, hw, y0)];
+        const t = [P(al0, -hw, y1), P(al1, -hw, y1), P(al1, hw, y1), P(al0, hw, y1)];
+        for (let i = 0; i < 4; i++) quad(c[i], c[(i + 1) % 4], t[(i + 1) % 4], t[i], col);
+        quad(t[0], t[1], t[2], t[3], col);
+      };
+      box(-0.95, 0.85, 0.30, 0.95, 1.55, coat);                               // the barrel
+      for (const [al, ac] of [[-0.8, -0.2], [-0.8, 0.2], [0.7, -0.2], [0.7, 0.2]]) {
+        // each leg: two crossed planes
+        quad(P(al - 0.08, ac, 0), P(al + 0.08, ac, 0), P(al + 0.08, ac, 1.0), P(al - 0.08, ac, 1.0), dark);
+        quad(P(al, ac - 0.07, 0), P(al, ac + 0.07, 0), P(al, ac + 0.07, 1.0), P(al, ac - 0.07, 1.0), dark);
+      }
+      const graze = r(5) < 0.45;
+      if (graze) { box(0.85, 1.25, 0.14, 0.75, 1.35, coat); box(1.15, 1.6, 0.12, 0.15, 0.85, coat); }       // neck down, head at the grass
+      else { box(0.75, 1.15, 0.14, 1.35, 2.05, coat); box(1.05, 1.6, 0.12, 1.85, 2.2, coat);                // neck up, head forward
+             quad(P(0.72, 0, 1.5), P(0.78, 0, 2.1), P(1.0, 0, 2.15), P(0.95, 0, 1.55), dark); }             // the mane
+      quad(P(-0.95, 0, 1.45), P(-1.05, 0, 1.45), P(-1.2, 0, 0.65), P(-1.02, 0, 0.7), dark);                // the tail
+    }
+  });
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
+}
+
 /** People walking on the pavements near the camera (see buildPlatformPeople). */
-function buildWalkers(rt, camX, camZ, hour, groundAt, rainy = false) {
-  return buildPlatformPeople([], [], [], null, hour, null, rainy, null, { rt, camX, camZ, t: rt.clock || 0, groundAt });
+function buildWalkers(rt, camX, camZ, hour, groundAt, rainy = false, lite = false) {
+  return buildPlatformPeople([], [], [], null, hour, null, rainy, null,
+    { rt, camX, camZ, t: rt.clock || 0, groundAt, reach: lite ? 130 : 230, max: lite ? 50 : 220 });
 }
 
 // -------------------------------------------------------- signal geometry
@@ -7585,12 +7766,13 @@ class RoadTraffic {
     this.vehicles = [];
     // only roads a vehicle could plausibly be on, and long enough to drive
     for (const w of ways) {
-      if (w.cls > 5 || w.pts.length < 3) continue;
+      // (main roads keep their short, two-point pieces: see addWays)
+      if (w.cls > 5 || w.pts.length < (w.cls <= 3 ? 2 : 3)) continue;
       const cum = [0];
       for (let i = 1; i < w.pts.length; i++)
         cum.push(cum[i-1] + Math.hypot(w.pts[i][0] - w.pts[i-1][0],
                                        w.pts[i][1] - w.pts[i-1][1]));
-      if (cum[cum.length-1] < 90) continue;
+      if (cum[cum.length-1] < (w.cls <= 3 ? 6 : 90)) continue;
       // lanes per direction: a one-way street's lanes all run one way
       const lanes = w.lanes || (w.cls <= 2 ? 2 : 1);
       const lpd = w.oneway ? lanes : Math.max(1, Math.floor(lanes / 2));
@@ -7690,7 +7872,10 @@ class RoadTraffic {
       const cum = [0];
       for (let i = 1; i < w.pts.length; i++)
         cum.push(cum[i-1] + Math.hypot(w.pts[i][0] - w.pts[i-1][0], w.pts[i][1] - w.pts[i-1][1]));
-      if (cum[cum.length-1] < 40) continue;
+      // (a main road keeps its short pieces: OSM cuts the Nagykörút into
+      // dozens between Oktogon and Blaha, and dropping those under 40 m left
+      // the boulevard with no through traffic: owner, Oct 2026)
+      if (cum[cum.length-1] < (w.cls <= 3 ? 6 : 40)) continue;
       const lanes = w.lanes || (w.cls <= 2 ? 2 : 1);
       const lpd = w.oneway ? lanes : Math.max(1, Math.floor(lanes / 2));
       const hw = Math.max(ROAD_W[w.cls] || 6, (w.lanes || 0) * 3.25) * 0.5;
@@ -9111,11 +9296,11 @@ class AirTraffic {
     // light aircraft and helicopters low enough to notice, and airliners at
     // cruise height on the airways over the Bend, with contrails
     const kinds = ["cessna", "cessna", "cessna", "cessna", "cessna", "cessna",
-                   "heli", "heli", "jet", "jet", "jet"];
+                   "heli", "heli", "jet", "jet", "jet", "jet", "jet", "jet", "jet"];   // (7 airliners: the sky over Budapest is lined with trails)
     kinds.forEach((kind, i) => this.craft.push({
       kind, p: [0, 0, 0], yaw: i * 1.3, pitch: 0, roll: 0,
       v: kind === "heli" ? 38 : kind === "jet" ? 235 : 52,
-      alt: kind === "heli" ? 160 + i * 20 : kind === "jet" ? 9000 + i * 400 : 250 + i * 70,
+      alt: kind === "heli" ? 160 + i * 20 : kind === "jet" ? 9000 + (i % 5) * 450 : 250 + i * 70,
       wp: null, placed: false, seed: i * 17 + 3, rotor: 0,
     }));
   }
@@ -10105,6 +10290,7 @@ class Sound {
   }
 
   async loadSample(name, url) {
+    this.loading = this.loading || {};
     if (!this.ctx) {
       const C = window.AudioContext || window.webkitAudioContext;
       if (!C) return;
@@ -10117,6 +10303,31 @@ class Sound {
     } catch (e) {
       console.warn("Failed to load sample:", url, e);
     }
+  }
+
+  /** A recorded loop (data/audio/amb/: outdoor ambience, the car's cabin, the
+   *  menu's music) held at a volume; 0 fades it out. Loaded on first use.
+   *  Called every frame or so with what the scene wants. */
+  setLoop(name, url, vol) {
+    this.loops = this.loops || {};
+    const L = this.loops[name]; this.loading = this.loading || {};
+    if (!this.on || !this.ctx || !this.nodes.master) return;
+    if (!this.samples[name]) {
+      if (vol > 0 && !this.loading[name]) { this.loading[name] = true; this.loadSample(name, url); }
+      return;
+    }
+    if (!L) {
+      if (vol <= 0) return;
+      const src = this.ctx.createBufferSource(); src.buffer = this.samples[name]; src.loop = true;
+      const gain = this.ctx.createGain(); gain.gain.value = 0;
+      src.connect(gain).connect(this.nodes.master); src.start();
+      this.loops[name] = { src, gain };
+    }
+    this.loops[name].gain.gain.setTargetAtTime(vol, this.ctx.currentTime, 0.9);
+  }
+  stopLoops() {
+    for (const k of Object.keys(this.loops || {})) { try { this.loops[k].src.stop(); } catch (e) {} }
+    this.loops = {};
   }
 
   playSample(name, vol = 1.0) {
@@ -10366,6 +10577,7 @@ class Sound {
   }
 
   stop() {
+    this.stopLoops();
     if (!this.ctx) return;
     this.on = false;
     this.clearPending();
@@ -14360,7 +14572,8 @@ function installInput(ctx) {
     if (e.code === "Digit1") state.speedMul = 1;
     if (e.code === "Digit2") state.speedMul = 4;
     if (e.code === "Digit3") state.speedMul = 16;
-    if (e.code === "KeyT" && e.shiftKey) { if (window.__tram) window.__tram(); }
+    if (e.code === "KeyT" && e.shiftKey) { if (state.tram) window.__tram(); else if (window.__tramBar) window.__tramBar(); }
+    if (e.code === "KeyN" && e.shiftKey) { if (window.__skipStop) window.__skipStop(); return; }
     else if (e.code === "KeyT") state.show.terrain = !state.show.terrain;
     if (e.code === "KeyR" && !e.shiftKey) state.show.track = !state.show.track;
     if (e.code === "KeyK") state.show.sky = !state.show.sky;
@@ -15482,16 +15695,21 @@ class Trams {
   }
   /** The tram on the road nearest (x, n) at time t: { ri, dep, dist }, dep
    *  being when it set out (so its place later is sAt(route, t - dep)).
-   *  With onlyRoute, the one of that route nearest its start. */
+   *  With onlyRoute (a route index, a list of them, or a test of
+   *  (ri, dep)), only those count. */
   nearest(t, x, n, onlyRoute = -1) {
+    const ok = typeof onlyRoute === "function" ? onlyRoute
+      : Array.isArray(onlyRoute) ? (ri) => onlyRoute.includes(ri)
+      : (ri) => onlyRoute < 0 || ri === onlyRoute;
     const day0 = 4.5 * 3600;
     if (t < day0 || t > 24 * 3600) return null;
     let best = null;
     this.routes.forEach((r, ri) => {
-      if (onlyRoute >= 0 && ri !== onlyRoute) return;
+      if (!ok(ri)) return;
       for (let k = 0; ; k++) {
         const age = ((t - day0 - r.phase) % r.head + r.head) % r.head + k * r.head;
         if (age > r.run) break;
+        if (!ok(ri, t - age)) continue;
         const q = this.at(r, this.sAt(r, age));
         const d = Math.hypot(q.x - x, q.n - n);
         if (!best || d < best.dist) best = { ri, dep: t - age, dist: d };
@@ -16307,7 +16525,8 @@ async function boot(assets) {
   // which the corridor digs its cutting to and the road and the cars use
   const underpasses = prepareUnderpasses(roadWays, (ctx.roads && ctx.roads.widths) ? ctx.roads.widths : [], demAt, railDistAt);
   const corridor = colouredVao(buildCorridor(routeData.track_down, demAt, coverAt, 1, routeData.bridges || [], underpasses,
-                                                     (routeData.raised || []).length > 0));
+                                                     (routeData.raised || []).length > 0 || (routeData.tunnels || []).length > 0,
+                                                     routeData.tunnels || []));
 
   // two platforms only where the formation actually widens: Vác 9 roads,
   // Szob 10, Nagymaros 6, Verőce 4, Vác-Alsóváros 4. Kismaros,
@@ -16404,6 +16623,68 @@ async function boot(assets) {
       carModels = meta;
     } catch (e) { console.warn("car models unavailable", e); }
   })();
+  // ---- graffiti (owner, Oct 2026): pieces from the sticker pack's graffiti
+  // sheet on the spots geom.js collected (walls beside the line, standing
+  // wagons). Built once, after the yard and the walls; not on phones.
+  const pDec = compile(gl, DECAL_VS, DECAL_FS);
+  let graffiti = null;
+  async function makeGraffiti() {
+    if (state.lite || !graffitiSpots.length) return;
+    try {
+      const base = window.DATA_BASE || "data/";
+      const meta = await fetch(base + "stickers.json").then(r => r.json());
+      const items = meta.items.filter(i => i.kind === "Grafitti"), sh = meta.sheets.b;
+      if (!items.length) return;
+      const img = await loadImage(base + sh.file);
+      const tex = gl.createTexture();
+      gl.activeTexture(gl.TEXTURE9); gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, img);
+      gl.generateMipmap(gl.TEXTURE_2D);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.activeTexture(gl.TEXTURE0);
+      const P = new FBuf(), U = new FBuf();
+      for (const g of graffitiSpots) {
+        const it = items[Math.floor(g.seed * 7.31) % items.length], asp = it.w / it.h;
+        const hh = Math.min(g.h, g.len / asp), ww = hh * asp;
+        if (hh < 0.5) continue;
+        // "along" is the viewer's right as they face the wall
+        const ax = -g.on, an = g.ox;
+        const u0 = (it.x + 1) / sh.w, u1 = (it.x + it.w - 1) / sh.w, v0 = (it.y + 1) / sh.h, v1 = (it.y + it.h - 1) / sh.h;
+        const c = (k, up, u, v) => { P.push(g.x + ax * k * ww / 2, g.y + up, -(g.n + an * k * ww / 2)); U.push(u, v); };
+        c(-1, 0, u0, v1); c(1, 0, u1, v1); c(1, hh, u1, v0);
+        c(-1, 0, u0, v1); c(1, hh, u1, v0); c(-1, hh, u0, v0);
+      }
+      const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+      const b0 = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b0); gl.bufferData(gl.ARRAY_BUFFER, P.arr(), gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+      const b2 = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b2); gl.bufferData(gl.ARRAY_BUFFER, U.arr(), gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 0, 0);
+      gl.bindVertexArray(null);
+      graffiti = { vao, tex, count: P.length / 3 };
+      state.graffitiN = graffiti.count / 6;
+    } catch (e) { console.warn("graffiti unavailable", e); }
+  }
+  function drawGraffiti(vp, eye, pal, lift) {
+    if (!graffiti || !graffiti.count) return;
+    gl.useProgram(pDec.p);
+    gl.uniformMatrix4fv(pDec.u.uVP, false, vp);
+    gl.uniform3fv(pDec.u.uEye, eye);
+    gl.uniform3fv(pDec.u.uSunCol, pal.sun);
+    gl.uniform3fv(pDec.u.uSkyCol, pal.zenith);
+    gl.uniform3fv(pDec.u.uFogCol, pal.horizon);
+    gl.uniform1f(pDec.u.uFogDensity, pal.fog);
+    gl.uniform1f(pDec.u.uLift, lift);
+    gl.activeTexture(gl.TEXTURE9); gl.bindTexture(gl.TEXTURE_2D, graffiti.tex);
+    gl.uniform1i(pDec.u.uTex, 9);
+    gl.disable(gl.CULL_FACE);
+    gl.bindVertexArray(graffiti.vao);
+    gl.drawArrays(gl.TRIANGLES, 0, graffiti.count);
+    gl.activeTexture(gl.TEXTURE0);
+  }
   function drawModels(vp, eye, sunDir, pal, lift) {
     if (!carModels || !state.show.roads) return;
     gl.useProgram(pMdl.p);
@@ -17178,6 +17459,31 @@ async function boot(assets) {
   } catch (e) { console.warn("trams unavailable", e); }
   // the line's own extras (bake_linex.py): names along the whole line, the
   // quarries, solar farms and pipelines outside the city
+  // horses in their paddocks (tools/bake_horses.py), within 5 km of the line
+  let horsesMesh = null;
+  try {
+    const hd = await fetch(`${window.DATA_BASE || "data/"}horses.json`).then(r => r.ok ? r.json() : null);
+    if (hd) {
+      const nr = assets.world.near, [mlat, mlon] = metresPerDegree(nr.frame_lat ?? (nr.south + nr.north) / 2);
+      const pl = hd.places.map(([la, lo]) => ({ x: (lo - nr.west) * mlon, n: (la - nr.south) * mlat }))
+        .filter(q => { const T = routeData.track_down;
+          for (let i = 0; i < T.length; i += 25) if (Math.abs(T[i][0] - q.x) < 5000 && Math.abs(T[i][1] - q.n) < 5000) return true;
+          return false; });
+      const hm = buildHorses(pl, demAt);
+      if (hm.count) horsesMesh = colouredVao(hm);
+      state.horsePlaces = pl;
+    }
+  } catch (e) { console.warn("horses unavailable", e); }
+  // the walls beside the line (tools/bake_walls.py), and then the graffiti
+  // on them and on the standing wagons
+  let wallsMesh = null;
+  try {
+    if (lineEx && (lineEx.walls || []).length) {
+      const wm = buildWalls(lineEx.walls, demAt);
+      if (wm.count) wallsMesh = colouredVao(wm);
+    }
+  } catch (e) { console.warn("walls unavailable", e); }
+  makeGraffiti();
   let lineExtras = null, lineStructs = null;
   try {
     const ex = lineEx;
@@ -17848,29 +18154,66 @@ async function boot(assets) {
       if (e.code === "KeyK") strike();
     });
   }
+  // Skip to the next stop (owner, Oct 2026: "there was no skip-stop button"):
+  // the train is put 450 m short of it at 50 km/h, and the clock moves on by
+  // the time the run would have taken, so the timetable still fits.
+  window.__skipStop = () => {
+    const st = driver.nextStop(driver.m);
+    if (!st || state.menu) return;
+    const to = st.km * 1000 - route.dir * 450, d = (to - driver.m) * route.dir;
+    if (d < 200) return;
+    driver.m = to; driver.v = Math.min(driver.s.vMax, 14);
+    state.hour = (state.hour + d / 22 / 3600) % 24;
+    (state.messages = state.messages || []).push({ text: tt(`Ugrás: ${st.name} előtt 450 m-rel.`, `Skipped ahead: 450 m before ${st.name}.`), t: 5, tone: "" });
+  };
   // board the tram nearest the camera (or leave it)
-  window.__tram = () => {
-    if (state.tram) { state.tram = null; state.yaw = 0; state.pitch = -0.02; return; }
+  // With a line number ("4", "56"…) it boards the nearest tram of that line
+  // wherever it is; the same line again moves on to another tram of it.
+  window.__tram = (ref) => {
+    if (ref === undefined && state.tram) { state.tram = null; state.yaw = 0; state.pitch = -0.02; return; }
     if (!trams) return;
     const L = state.lastCam; if (!L) return;
-    const nx = trams.nearest(state.hour * 3600, L.eye[0], -L.eye[2]);
+    const cur = state.tram;
+    const only = ref === undefined ? -1
+      : (ri, dep) => trams.routes[ri].ref === ref && (dep === undefined || !cur || ri !== cur.ri || Math.abs(dep - cur.dep) > 1);
+    const nx = trams.nearest(state.hour * 3600, L.eye[0], -L.eye[2], only);
     const say = (a, b) => (state.messages = state.messages || []).push({ text: a, t: 7, tone: b || "" });
-    if (!nx) { say(tt("Most nem jár villamos (4:30 és éjfél között közlekednek).", "No trams are running now (they run from 4:30 to midnight)."), "warn"); return; }
-    if (nx.dist > 6000) { say(tt(`A legközelebbi villamos ${(nx.dist / 1000).toFixed(0)} km-re van: Budapesten járnak.`, `The nearest tram is ${(nx.dist / 1000).toFixed(0)} km away: they run in Budapest.`), "warn"); return; }
+    if (!nx) { if (!cur) say(tt("Most nem jár villamos (4:30 és éjfél között közlekednek).", "No trams are running now (they run from 4:30 to midnight)."), "warn"); return; }
+    if (ref === undefined && nx.dist > 6000) { say(tt(`A legközelebbi villamos ${(nx.dist / 1000).toFixed(0)} km-re van: válassz vonalat.`, `The nearest tram is ${(nx.dist / 1000).toFixed(0)} km away: pick a line.`), "warn"); return; }
     if (state.plane) state.plane.active = false;
     if (state.car) state.car.active = false;
     if (state.drone) state.drone.active = false;
     state.fly = null; state.tour = null; state.passenger = null; state.follow = false;
     state.followIdx = -1; state.followCarIdx = -1; state.followShipIdx = -1;
-    state.yaw = 0; state.pitch = -0.05; state.zoom = 1;
-    state.tram = { ri: nx.ri, dep: nx.dep, out: false };
+    state.yaw = cur && cur.out ? 0.35 : 0; state.pitch = cur && cur.out ? -0.1 : -0.05; state.zoom = 1;
+    state.tram = { ri: nx.ri, dep: nx.dep, out: !!(cur && cur.out) };
     const r = trams.routes[nx.ri];
     say(tt(`${r.ref}-es villamos${r.to ? " → " + r.to : ""}. C: kívülről · Esc: vissza a vonathoz`, `Tram ${r.ref}${r.to ? " → " + r.to : ""}. C: from outside · Esc: back to the train`));
   };
+  // the line picker (owner, Oct 2026: "no way of switching between 4-6, 2,
+  // 1, 3, 56, 61"): shown by the Villamos button and while riding
+  {
+    const tb = document.getElementById("tramBar");
+    if (tb && trams) {
+      const refs = [...new Set(trams.routes.map(r => r.ref))].sort((a, b) => a - b);
+      tb.innerHTML = `<b>${tt("Villamos", "Tram")}</b>` + refs.map(r => `<button data-ref="${r}">${r}</button>`).join("") +
+        `<button class="x">${tt("leszáll", "leave")}</button>`;
+      tb.querySelectorAll("button[data-ref]").forEach(b => b.addEventListener("click", () => window.__tram(b.dataset.ref)));
+      tb.querySelector(".x").addEventListener("click", () => { state.tramBar = false; if (state.tram) window.__tram(); });
+      setInterval(() => {
+        const on = !state.menu && (!!state.tram || !!state.tramBar);
+        tb.classList.toggle("on", on);
+        if (!on) return;
+        const ref = state.tram ? trams.routes[state.tram.ri].ref : "";
+        tb.querySelectorAll("button[data-ref]").forEach(b => b.classList.toggle("on", b.dataset.ref === ref));
+      }, 250);
+    }
+    window.__tramBar = () => { state.tramBar = true; if (!state.tram) window.__tram(); };
+  }
   addEventListener("keydown", e => {
     if (!state.tram || state.menu) return;
     if (e.code === "KeyC") { state.tram.out = !state.tram.out; state.yaw = state.tram.out ? 0.35 : 0; state.pitch = state.tram.out ? -0.1 : -0.05; e.stopImmediatePropagation(); }
-    if (e.code === "Escape") { state.tram = null; state.yaw = 0; state.pitch = -0.02; e.stopImmediatePropagation(); e.preventDefault(); }
+    if (e.code === "Escape") { state.tram = null; state.tramBar = false; state.yaw = 0; state.pitch = -0.02; e.stopImmediatePropagation(); e.preventDefault(); }
   }, true);
   window.__addCrater = addCrater;
   function distanceAt(sx, sy) {
@@ -18415,6 +18758,7 @@ async function boot(assets) {
   // ---- loop
   let last = performance.now(), fps = 60, acc = 0;
   function frame(now, byHand) {
+    const jsT0 = performance.now();
     // Clamped at zero as well as at the top: a timestamp that goes backwards
     // — a clock adjustment, a tab resuming, a hand-driven tick — would give a
     // negative dt and run the entire simulation in reverse, train, clock,
@@ -19170,13 +19514,16 @@ async function boot(assets) {
       if (dobogo && Math.hypot(dobogo.xy[0] - camEye[0], dobogo.xy[1] + camEye[2]) < 9000)
         upload(heartDyn, buildHeart(dobogo.xy[0], dobogo.ele + 34, -dobogo.xy[1], performance.now() * 0.001));
       else heartDyn.count = 0;
-      if (trams && city) upload(tramDyn, trams.build(state.hour * 3600, camEye[0], -camEye[2], 3000, night));
+      if (trams && city) upload(tramDyn, trams.build(state.hour * 3600, camEye[0], -camEye[2], state.lite ? 1400 : 3000, night));
       else tramDyn.count = 0;
-      if (roadTraffic && roadTraffic.lights && state.show.roads) upload(tlDyn, buildTrafficLights(roadTraffic, camEye[0], -camEye[2], roadSurface));
-      else tlDyn.count = 0;
-      if (roadTraffic && state.show.roads) upload(walkDyn, buildWalkers(roadTraffic, camEye[0], -camEye[2], state.hour, roadSurface,
-                                                                     !!(state.wx && state.wx.precip.kind && state.wx.precip.rate > 0.1)));
-      else walkDyn.count = 0;
+      // (the lamps change every few seconds: rebuilt every 6th frame; on a
+      // phone the walkers every 2nd, and fewer of them, nearer)
+      const fN = state.frameN || 0;
+      if (!(roadTraffic && roadTraffic.lights && state.show.roads)) tlDyn.count = 0;
+      else if (fN % 6 === 0) upload(tlDyn, buildTrafficLights(roadTraffic, camEye[0], -camEye[2], roadSurface, state.lite ? 260 : 420));
+      if (!(roadTraffic && state.show.roads)) walkDyn.count = 0;
+      else if (!state.lite || fN % 2 === 0) upload(walkDyn, buildWalkers(roadTraffic, camEye[0], -camEye[2], state.hour, roadSurface,
+                                                     !!(state.wx && state.wx.precip.kind && state.wx.precip.rate > 0.1), state.lite));
       if (kisvasut && Math.hypot(kisvasut.pts[0][0] - camEye[0], kisvasut.pts[0][1] + camEye[2]) < 16000)
         upload(kisDyn, kisvasut.train(state.hour * 3600));
       else kisDyn.count = 0;
@@ -19434,6 +19781,7 @@ async function boot(assets) {
       }
       if (pTrk.u.uPull) gl.uniform1f(pTrk.u.uPull, 0.0);
       drawModels(vp, camEye, sunDir, pal, lift);
+      drawGraffiti(vp, camEye, pal, lift);
       gl.uniform1f(pTrk.u.uSnow, snowCover);
 
       // buildings: the real footprints first, by kilometre cell
@@ -19475,6 +19823,8 @@ async function boot(assets) {
         });
         if (lineExtras) { gl.bindVertexArray(lineExtras.vao); gl.drawArrays(gl.TRIANGLES, 0, lineExtras.count); }
         if (lineStructs) { gl.bindVertexArray(lineStructs.vao); gl.drawArrays(gl.TRIANGLES, 0, lineStructs.count); }
+        if (horsesMesh) { gl.bindVertexArray(horsesMesh.vao); gl.drawArrays(gl.TRIANGLES, 0, horsesMesh.count); }
+        if (wallsMesh) { gl.bindVertexArray(wallsMesh.vao); gl.drawArrays(gl.TRIANGLES, 0, wallsMesh.count); }
         if (kisTrack && kisTrack.count) { gl.bindVertexArray(kisTrack.vao); gl.drawArrays(gl.TRIANGLES, 0, kisTrack.count); }
         if (partsMesh.count) {
           gl.bindVertexArray(partsMesh.vao);
@@ -20022,6 +20372,20 @@ async function boot(assets) {
     // a photograph is taken here, straight after the picture is drawn: the
     // drawing buffer is cleared once the frame is handed to the page
     if (state.snapReq) { state.snapReq = false; takePhoto(camEye, fwd); }
+    // how long this frame's own work took (the fps box shows it: if it is most
+    // of the frame, the phone is short of processor, not of graphics)
+    // recorded loops (owner's asset library; credits in the README): birds
+    // and air outside the train, a car's cabin, music on the menu
+    if (state.sound && sound.setLoop) {
+      const A = `${window.DATA_BASE || "data/"}audio/amb/`;
+      const inCar = !!(state.car && state.car.active);
+      const out = !state.menu && !inCar && (state.follow || state.fly || state.tram || state.tour || (state.drone && state.drone.active));
+      sound.setLoop("amb_out", A + "outdoors.m4a", out ? 0.5 * (1 - Math.min(1, (state.night || 0) * 0.7)) : 0);
+      sound.setLoop("amb_car", A + "car.m4a", inCar && !state.menu ? 0.45 : 0);
+      sound.setLoop("amb_menu", A + "menu.m4a", state.menu ? 0.5 : 0);
+    }
+    state.jsMs = (state.jsMs || 0) * 0.9 + (performance.now() - jsT0) * 0.1;
+    state.frameN = (state.frameN || 0) + 1;
     if (!byHand) requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);

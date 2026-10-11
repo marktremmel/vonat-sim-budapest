@@ -118,6 +118,8 @@ unchanged, and rerun `ground_filter.py`.
 | --- | --- | --- |
 | `docs/START_HERE.md` | orientation | current |
 | `docs/ROADMAP.md` | the stages ahead, the feedback deep dive, the recommended order | current (26 Sep) |
+| `docs/WHERE_NEXT.md` | engine options, and a five-step plan to make the game easier to extend | current (Oct, S-17) |
+| `docs/ASSET_GUIDE.md` | what assets to get, in what form and licence | current (Oct, S-17) |
 | `docs/OWNER_BACKLOG.md` | every request and its status | current; keep it updated |
 | `docs/UNIFIED_ENGINE_SPEC.md` | Unified "One World" multi-modal engine architecture (all train lines, trams 4/6, 1, 2, H5, vehicle hopping) | current specification |
 | `docs/FEEDBACK_0925_IMPLEMENTATION_PLAN.md` | Actionable fixes and code diffs for 25 Sep prenight feedback items | current implementation guide |

@@ -383,12 +383,13 @@ export class RoadTraffic {
     this.vehicles = [];
     // only roads a vehicle could plausibly be on, and long enough to drive
     for (const w of ways) {
-      if (w.cls > 5 || w.pts.length < 3) continue;
+      // (main roads keep their short, two-point pieces: see addWays)
+      if (w.cls > 5 || w.pts.length < (w.cls <= 3 ? 2 : 3)) continue;
       const cum = [0];
       for (let i = 1; i < w.pts.length; i++)
         cum.push(cum[i-1] + Math.hypot(w.pts[i][0] - w.pts[i-1][0],
                                        w.pts[i][1] - w.pts[i-1][1]));
-      if (cum[cum.length-1] < 90) continue;
+      if (cum[cum.length-1] < (w.cls <= 3 ? 6 : 90)) continue;
       // lanes per direction: a one-way street's lanes all run one way
       const lanes = w.lanes || (w.cls <= 2 ? 2 : 1);
       const lpd = w.oneway ? lanes : Math.max(1, Math.floor(lanes / 2));
@@ -488,7 +489,10 @@ export class RoadTraffic {
       const cum = [0];
       for (let i = 1; i < w.pts.length; i++)
         cum.push(cum[i-1] + Math.hypot(w.pts[i][0] - w.pts[i-1][0], w.pts[i][1] - w.pts[i-1][1]));
-      if (cum[cum.length-1] < 40) continue;
+      // (a main road keeps its short pieces: OSM cuts the Nagykörút into
+      // dozens between Oktogon and Blaha, and dropping those under 40 m left
+      // the boulevard with no through traffic: owner, Oct 2026)
+      if (cum[cum.length-1] < (w.cls <= 3 ? 6 : 40)) continue;
       const lanes = w.lanes || (w.cls <= 2 ? 2 : 1);
       const lpd = w.oneway ? lanes : Math.max(1, Math.floor(lanes / 2));
       const hw = Math.max(ROAD_W[w.cls] || 6, (w.lanes || 0) * 3.25) * 0.5;

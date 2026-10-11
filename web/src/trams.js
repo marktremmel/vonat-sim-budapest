@@ -86,16 +86,21 @@ export class Trams {
   }
   /** The tram on the road nearest (x, n) at time t: { ri, dep, dist }, dep
    *  being when it set out (so its place later is sAt(route, t - dep)).
-   *  With onlyRoute, the one of that route nearest its start. */
+   *  With onlyRoute (a route index, a list of them, or a test of
+   *  (ri, dep)), only those count. */
   nearest(t, x, n, onlyRoute = -1) {
+    const ok = typeof onlyRoute === "function" ? onlyRoute
+      : Array.isArray(onlyRoute) ? (ri) => onlyRoute.includes(ri)
+      : (ri) => onlyRoute < 0 || ri === onlyRoute;
     const day0 = 4.5 * 3600;
     if (t < day0 || t > 24 * 3600) return null;
     let best = null;
     this.routes.forEach((r, ri) => {
-      if (onlyRoute >= 0 && ri !== onlyRoute) return;
+      if (!ok(ri)) return;
       for (let k = 0; ; k++) {
         const age = ((t - day0 - r.phase) % r.head + r.head) % r.head + k * r.head;
         if (age > r.run) break;
+        if (!ok(ri, t - age)) continue;
         const q = this.at(r, this.sAt(r, age));
         const d = Math.hypot(q.x - x, q.n - n);
         if (!best || d < best.dist) best = { ri, dep: t - age, dist: d };

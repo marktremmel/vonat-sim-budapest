@@ -217,7 +217,8 @@ export function installInput(ctx) {
     if (e.code === "Digit1") state.speedMul = 1;
     if (e.code === "Digit2") state.speedMul = 4;
     if (e.code === "Digit3") state.speedMul = 16;
-    if (e.code === "KeyT" && e.shiftKey) { if (window.__tram) window.__tram(); }
+    if (e.code === "KeyT" && e.shiftKey) { if (state.tram) window.__tram(); else if (window.__tramBar) window.__tramBar(); }
+    if (e.code === "KeyN" && e.shiftKey) { if (window.__skipStop) window.__skipStop(); return; }
     else if (e.code === "KeyT") state.show.terrain = !state.show.terrain;
     if (e.code === "KeyR" && !e.shiftKey) state.show.track = !state.show.track;
     if (e.code === "KeyK") state.show.sky = !state.show.sky;

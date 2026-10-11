@@ -15,11 +15,11 @@ export class AirTraffic {
     // light aircraft and helicopters low enough to notice, and airliners at
     // cruise height on the airways over the Bend, with contrails
     const kinds = ["cessna", "cessna", "cessna", "cessna", "cessna", "cessna",
-                   "heli", "heli", "jet", "jet", "jet"];
+                   "heli", "heli", "jet", "jet", "jet", "jet", "jet", "jet", "jet"];   // (7 airliners: the sky over Budapest is lined with trails)
     kinds.forEach((kind, i) => this.craft.push({
       kind, p: [0, 0, 0], yaw: i * 1.3, pitch: 0, roll: 0,
       v: kind === "heli" ? 38 : kind === "jet" ? 235 : 52,
-      alt: kind === "heli" ? 160 + i * 20 : kind === "jet" ? 9000 + i * 400 : 250 + i * 70,
+      alt: kind === "heli" ? 160 + i * 20 : kind === "jet" ? 9000 + (i % 5) * 450 : 250 + i * 70,
       wp: null, placed: false, seed: i * 17 + 3, rotor: 0,
     }));
   }

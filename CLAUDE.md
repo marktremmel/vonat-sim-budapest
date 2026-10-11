@@ -22,6 +22,8 @@ running the build. Where a claim was checked by running the code, it says so.
 - **S-15 (pushed as `4baab71`, 11 Oct):** a bug census with seven classes fixed (roofs, junctions, trees, tram, flower beds…), grain and chroma, frame-time work, dark timeline craters. Log: `docs/SESSION_S15.md`.
 - **Phone loading (8–11 Oct, in `4baab71`):** memory at load halved (`FBuf`, `state.lite`), NOTES Trap 17. Untested on a real phone.
 - **S-16 (11 Oct, pushed):** phone ⋯ sheet and fps, 3 missions, dark panel, share links, tram riding, traffic lights, walking people; the build now fails on a syntax error. Log: `docs/SESSION_S16.md`.
+- **S-17 (12 Oct, not committed):** line 2's tunnel and the Pázmáneum stop (`tools/patch_line2.py`), skip-to-next-stop, more contrails and walkers, `js ms` in the fps box, the Nagykörút traffic gap, recorded ambience and menu music, horses, a tram line picker, OSM walls with graffiti (`tools/bake_walls.py`). Log: `docs/SESSION_S17.md`.
+- **Read `docs/WHERE_NEXT.md`** (engine evaluation and a five-step plan: model pipeline, one world, rules-driven world compiler, picture tests, new data) and `docs/ASSET_GUIDE.md` (what assets the owner should get).
 - **What to do next is `docs/ROADMAP.md`** (stages 0–6 and the recommended order, written 26 Sep after S-14).
 - S-14 is pushed as `5cc5d82` (26 Sep, on the owner's word). Git rule: commit or push only after the owner's review.
 - Tests 28/28.

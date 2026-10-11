@@ -10,6 +10,7 @@ export class Sound {
   }
 
   async loadSample(name, url) {
+    this.loading = this.loading || {};
     if (!this.ctx) {
       const C = window.AudioContext || window.webkitAudioContext;
       if (!C) return;
@@ -22,6 +23,31 @@ export class Sound {
     } catch (e) {
       console.warn("Failed to load sample:", url, e);
     }
+  }
+
+  /** A recorded loop (data/audio/amb/: outdoor ambience, the car's cabin, the
+   *  menu's music) held at a volume; 0 fades it out. Loaded on first use.
+   *  Called every frame or so with what the scene wants. */
+  setLoop(name, url, vol) {
+    this.loops = this.loops || {};
+    const L = this.loops[name]; this.loading = this.loading || {};
+    if (!this.on || !this.ctx || !this.nodes.master) return;
+    if (!this.samples[name]) {
+      if (vol > 0 && !this.loading[name]) { this.loading[name] = true; this.loadSample(name, url); }
+      return;
+    }
+    if (!L) {
+      if (vol <= 0) return;
+      const src = this.ctx.createBufferSource(); src.buffer = this.samples[name]; src.loop = true;
+      const gain = this.ctx.createGain(); gain.gain.value = 0;
+      src.connect(gain).connect(this.nodes.master); src.start();
+      this.loops[name] = { src, gain };
+    }
+    this.loops[name].gain.gain.setTargetAtTime(vol, this.ctx.currentTime, 0.9);
+  }
+  stopLoops() {
+    for (const k of Object.keys(this.loops || {})) { try { this.loops[k].src.stop(); } catch (e) {} }
+    this.loops = {};
   }
 
   playSample(name, vol = 1.0) {
@@ -271,6 +297,7 @@ export class Sound {
   }
 
   stop() {
+    this.stopLoops();
     if (!this.ctx) return;
     this.on = false;
     this.clearPending();

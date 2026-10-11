@@ -20,11 +20,11 @@ import { buildPOIs, pickPOI, stepDirector } from "./tour.js";
 import { sunPosition, sunVector, skyPalette, dateOfYear, seasonOf } from "./env.js";
 import { buildCityExtras, buildParkThings, setNoPierAt } from "./geom.js";
 import { buildTrack, buildCorridor, buildRoads, unpackBuildings, unpackRoads,
-         unpackPolyBuildings, buildPolyBuildings, prepareUnderpasses, unpackRails, buildYardTracks,
+         unpackPolyBuildings, buildPolyBuildings, buildWalls, graffitiSpots, prepareUnderpasses, unpackRails, buildYardTracks,
          boxMesh, buildStations, boardAtlas, buildSignals, buildCrossings,
          buildPlatformPeople, buildPlatformLamps,
          buildBufferStops, roadSurfaceAt, underpassDip, setShoulders,
-         osmPlatformSections, buildFootbridges, buildWalkers } from "./geom.js";
+         osmPlatformSections, buildFootbridges, buildWalkers, buildHorses } from "./geom.js";
 import { buildTrains, CAR_LEN } from "./trains.js";
 import { buildCatenary, buildYardWires } from "./catenary.js";
 import { unpackStructures, buildStructures } from "./structures.js";
@@ -395,7 +395,8 @@ export async function boot(assets) {
   // which the corridor digs its cutting to and the road and the cars use
   const underpasses = prepareUnderpasses(roadWays, (ctx.roads && ctx.roads.widths) ? ctx.roads.widths : [], demAt, railDistAt);
   const corridor = colouredVao(buildCorridor(routeData.track_down, demAt, coverAt, 1, routeData.bridges || [], underpasses,
-                                                     (routeData.raised || []).length > 0));
+                                                     (routeData.raised || []).length > 0 || (routeData.tunnels || []).length > 0,
+                                                     routeData.tunnels || []));
 
   // two platforms only where the formation actually widens: Vác 9 roads,
   // Szob 10, Nagymaros 6, Verőce 4, Vác-Alsóváros 4. Kismaros,
@@ -492,6 +493,68 @@ export async function boot(assets) {
       carModels = meta;
     } catch (e) { console.warn("car models unavailable", e); }
   })();
+  // ---- graffiti (owner, Oct 2026): pieces from the sticker pack's graffiti
+  // sheet on the spots geom.js collected (walls beside the line, standing
+  // wagons). Built once, after the yard and the walls; not on phones.
+  const pDec = compile(gl, S.DECAL_VS, S.DECAL_FS);
+  let graffiti = null;
+  async function makeGraffiti() {
+    if (state.lite || !graffitiSpots.length) return;
+    try {
+      const base = window.DATA_BASE || "data/";
+      const meta = await fetch(base + "stickers.json").then(r => r.json());
+      const items = meta.items.filter(i => i.kind === "Grafitti"), sh = meta.sheets.b;
+      if (!items.length) return;
+      const img = await loadImage(base + sh.file);
+      const tex = gl.createTexture();
+      gl.activeTexture(gl.TEXTURE9); gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, img);
+      gl.generateMipmap(gl.TEXTURE_2D);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.activeTexture(gl.TEXTURE0);
+      const P = new FBuf(), U = new FBuf();
+      for (const g of graffitiSpots) {
+        const it = items[Math.floor(g.seed * 7.31) % items.length], asp = it.w / it.h;
+        const hh = Math.min(g.h, g.len / asp), ww = hh * asp;
+        if (hh < 0.5) continue;
+        // "along" is the viewer's right as they face the wall
+        const ax = -g.on, an = g.ox;
+        const u0 = (it.x + 1) / sh.w, u1 = (it.x + it.w - 1) / sh.w, v0 = (it.y + 1) / sh.h, v1 = (it.y + it.h - 1) / sh.h;
+        const c = (k, up, u, v) => { P.push(g.x + ax * k * ww / 2, g.y + up, -(g.n + an * k * ww / 2)); U.push(u, v); };
+        c(-1, 0, u0, v1); c(1, 0, u1, v1); c(1, hh, u1, v0);
+        c(-1, 0, u0, v1); c(1, hh, u1, v0); c(-1, hh, u0, v0);
+      }
+      const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+      const b0 = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b0); gl.bufferData(gl.ARRAY_BUFFER, P.arr(), gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+      const b2 = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b2); gl.bufferData(gl.ARRAY_BUFFER, U.arr(), gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 0, 0);
+      gl.bindVertexArray(null);
+      graffiti = { vao, tex, count: P.length / 3 };
+      state.graffitiN = graffiti.count / 6;
+    } catch (e) { console.warn("graffiti unavailable", e); }
+  }
+  function drawGraffiti(vp, eye, pal, lift) {
+    if (!graffiti || !graffiti.count) return;
+    gl.useProgram(pDec.p);
+    gl.uniformMatrix4fv(pDec.u.uVP, false, vp);
+    gl.uniform3fv(pDec.u.uEye, eye);
+    gl.uniform3fv(pDec.u.uSunCol, pal.sun);
+    gl.uniform3fv(pDec.u.uSkyCol, pal.zenith);
+    gl.uniform3fv(pDec.u.uFogCol, pal.horizon);
+    gl.uniform1f(pDec.u.uFogDensity, pal.fog);
+    gl.uniform1f(pDec.u.uLift, lift);
+    gl.activeTexture(gl.TEXTURE9); gl.bindTexture(gl.TEXTURE_2D, graffiti.tex);
+    gl.uniform1i(pDec.u.uTex, 9);
+    gl.disable(gl.CULL_FACE);
+    gl.bindVertexArray(graffiti.vao);
+    gl.drawArrays(gl.TRIANGLES, 0, graffiti.count);
+    gl.activeTexture(gl.TEXTURE0);
+  }
   function drawModels(vp, eye, sunDir, pal, lift) {
     if (!carModels || !state.show.roads) return;
     gl.useProgram(pMdl.p);
@@ -1266,6 +1329,31 @@ export async function boot(assets) {
   } catch (e) { console.warn("trams unavailable", e); }
   // the line's own extras (bake_linex.py): names along the whole line, the
   // quarries, solar farms and pipelines outside the city
+  // horses in their paddocks (tools/bake_horses.py), within 5 km of the line
+  let horsesMesh = null;
+  try {
+    const hd = await fetch(`${window.DATA_BASE || "data/"}horses.json`).then(r => r.ok ? r.json() : null);
+    if (hd) {
+      const nr = assets.world.near, [mlat, mlon] = metresPerDegree(nr.frame_lat ?? (nr.south + nr.north) / 2);
+      const pl = hd.places.map(([la, lo]) => ({ x: (lo - nr.west) * mlon, n: (la - nr.south) * mlat }))
+        .filter(q => { const T = routeData.track_down;
+          for (let i = 0; i < T.length; i += 25) if (Math.abs(T[i][0] - q.x) < 5000 && Math.abs(T[i][1] - q.n) < 5000) return true;
+          return false; });
+      const hm = buildHorses(pl, demAt);
+      if (hm.count) horsesMesh = colouredVao(hm);
+      state.horsePlaces = pl;
+    }
+  } catch (e) { console.warn("horses unavailable", e); }
+  // the walls beside the line (tools/bake_walls.py), and then the graffiti
+  // on them and on the standing wagons
+  let wallsMesh = null;
+  try {
+    if (lineEx && (lineEx.walls || []).length) {
+      const wm = buildWalls(lineEx.walls, demAt);
+      if (wm.count) wallsMesh = colouredVao(wm);
+    }
+  } catch (e) { console.warn("walls unavailable", e); }
+  makeGraffiti();
   let lineExtras = null, lineStructs = null;
   try {
     const ex = lineEx;
@@ -1936,29 +2024,66 @@ export async function boot(assets) {
       if (e.code === "KeyK") strike();
     });
   }
+  // Skip to the next stop (owner, Oct 2026: "there was no skip-stop button"):
+  // the train is put 450 m short of it at 50 km/h, and the clock moves on by
+  // the time the run would have taken, so the timetable still fits.
+  window.__skipStop = () => {
+    const st = driver.nextStop(driver.m);
+    if (!st || state.menu) return;
+    const to = st.km * 1000 - route.dir * 450, d = (to - driver.m) * route.dir;
+    if (d < 200) return;
+    driver.m = to; driver.v = Math.min(driver.s.vMax, 14);
+    state.hour = (state.hour + d / 22 / 3600) % 24;
+    (state.messages = state.messages || []).push({ text: tt(`Ugrás: ${st.name} előtt 450 m-rel.`, `Skipped ahead: 450 m before ${st.name}.`), t: 5, tone: "" });
+  };
   // board the tram nearest the camera (or leave it)
-  window.__tram = () => {
-    if (state.tram) { state.tram = null; state.yaw = 0; state.pitch = -0.02; return; }
+  // With a line number ("4", "56"…) it boards the nearest tram of that line
+  // wherever it is; the same line again moves on to another tram of it.
+  window.__tram = (ref) => {
+    if (ref === undefined && state.tram) { state.tram = null; state.yaw = 0; state.pitch = -0.02; return; }
     if (!trams) return;
     const L = state.lastCam; if (!L) return;
-    const nx = trams.nearest(state.hour * 3600, L.eye[0], -L.eye[2]);
+    const cur = state.tram;
+    const only = ref === undefined ? -1
+      : (ri, dep) => trams.routes[ri].ref === ref && (dep === undefined || !cur || ri !== cur.ri || Math.abs(dep - cur.dep) > 1);
+    const nx = trams.nearest(state.hour * 3600, L.eye[0], -L.eye[2], only);
     const say = (a, b) => (state.messages = state.messages || []).push({ text: a, t: 7, tone: b || "" });
-    if (!nx) { say(tt("Most nem jár villamos (4:30 és éjfél között közlekednek).", "No trams are running now (they run from 4:30 to midnight)."), "warn"); return; }
-    if (nx.dist > 6000) { say(tt(`A legközelebbi villamos ${(nx.dist / 1000).toFixed(0)} km-re van: Budapesten járnak.`, `The nearest tram is ${(nx.dist / 1000).toFixed(0)} km away: they run in Budapest.`), "warn"); return; }
+    if (!nx) { if (!cur) say(tt("Most nem jár villamos (4:30 és éjfél között közlekednek).", "No trams are running now (they run from 4:30 to midnight)."), "warn"); return; }
+    if (ref === undefined && nx.dist > 6000) { say(tt(`A legközelebbi villamos ${(nx.dist / 1000).toFixed(0)} km-re van: válassz vonalat.`, `The nearest tram is ${(nx.dist / 1000).toFixed(0)} km away: pick a line.`), "warn"); return; }
     if (state.plane) state.plane.active = false;
     if (state.car) state.car.active = false;
     if (state.drone) state.drone.active = false;
     state.fly = null; state.tour = null; state.passenger = null; state.follow = false;
     state.followIdx = -1; state.followCarIdx = -1; state.followShipIdx = -1;
-    state.yaw = 0; state.pitch = -0.05; state.zoom = 1;
-    state.tram = { ri: nx.ri, dep: nx.dep, out: false };
+    state.yaw = cur && cur.out ? 0.35 : 0; state.pitch = cur && cur.out ? -0.1 : -0.05; state.zoom = 1;
+    state.tram = { ri: nx.ri, dep: nx.dep, out: !!(cur && cur.out) };
     const r = trams.routes[nx.ri];
     say(tt(`${r.ref}-es villamos${r.to ? " → " + r.to : ""}. C: kívülről · Esc: vissza a vonathoz`, `Tram ${r.ref}${r.to ? " → " + r.to : ""}. C: from outside · Esc: back to the train`));
   };
+  // the line picker (owner, Oct 2026: "no way of switching between 4-6, 2,
+  // 1, 3, 56, 61"): shown by the Villamos button and while riding
+  {
+    const tb = document.getElementById("tramBar");
+    if (tb && trams) {
+      const refs = [...new Set(trams.routes.map(r => r.ref))].sort((a, b) => a - b);
+      tb.innerHTML = `<b>${tt("Villamos", "Tram")}</b>` + refs.map(r => `<button data-ref="${r}">${r}</button>`).join("") +
+        `<button class="x">${tt("leszáll", "leave")}</button>`;
+      tb.querySelectorAll("button[data-ref]").forEach(b => b.addEventListener("click", () => window.__tram(b.dataset.ref)));
+      tb.querySelector(".x").addEventListener("click", () => { state.tramBar = false; if (state.tram) window.__tram(); });
+      setInterval(() => {
+        const on = !state.menu && (!!state.tram || !!state.tramBar);
+        tb.classList.toggle("on", on);
+        if (!on) return;
+        const ref = state.tram ? trams.routes[state.tram.ri].ref : "";
+        tb.querySelectorAll("button[data-ref]").forEach(b => b.classList.toggle("on", b.dataset.ref === ref));
+      }, 250);
+    }
+    window.__tramBar = () => { state.tramBar = true; if (!state.tram) window.__tram(); };
+  }
   addEventListener("keydown", e => {
     if (!state.tram || state.menu) return;
     if (e.code === "KeyC") { state.tram.out = !state.tram.out; state.yaw = state.tram.out ? 0.35 : 0; state.pitch = state.tram.out ? -0.1 : -0.05; e.stopImmediatePropagation(); }
-    if (e.code === "Escape") { state.tram = null; state.yaw = 0; state.pitch = -0.02; e.stopImmediatePropagation(); e.preventDefault(); }
+    if (e.code === "Escape") { state.tram = null; state.tramBar = false; state.yaw = 0; state.pitch = -0.02; e.stopImmediatePropagation(); e.preventDefault(); }
   }, true);
   window.__addCrater = addCrater;
   function distanceAt(sx, sy) {
@@ -2503,6 +2628,7 @@ export async function boot(assets) {
   // ---- loop
   let last = performance.now(), fps = 60, acc = 0;
   function frame(now, byHand) {
+    const jsT0 = performance.now();
     // Clamped at zero as well as at the top: a timestamp that goes backwards
     // — a clock adjustment, a tab resuming, a hand-driven tick — would give a
     // negative dt and run the entire simulation in reverse, train, clock,
@@ -3258,13 +3384,16 @@ export async function boot(assets) {
       if (dobogo && Math.hypot(dobogo.xy[0] - camEye[0], dobogo.xy[1] + camEye[2]) < 9000)
         upload(heartDyn, buildHeart(dobogo.xy[0], dobogo.ele + 34, -dobogo.xy[1], performance.now() * 0.001));
       else heartDyn.count = 0;
-      if (trams && city) upload(tramDyn, trams.build(state.hour * 3600, camEye[0], -camEye[2], 3000, night));
+      if (trams && city) upload(tramDyn, trams.build(state.hour * 3600, camEye[0], -camEye[2], state.lite ? 1400 : 3000, night));
       else tramDyn.count = 0;
-      if (roadTraffic && roadTraffic.lights && state.show.roads) upload(tlDyn, buildTrafficLights(roadTraffic, camEye[0], -camEye[2], roadSurface));
-      else tlDyn.count = 0;
-      if (roadTraffic && state.show.roads) upload(walkDyn, buildWalkers(roadTraffic, camEye[0], -camEye[2], state.hour, roadSurface,
-                                                                     !!(state.wx && state.wx.precip.kind && state.wx.precip.rate > 0.1)));
-      else walkDyn.count = 0;
+      // (the lamps change every few seconds: rebuilt every 6th frame; on a
+      // phone the walkers every 2nd, and fewer of them, nearer)
+      const fN = state.frameN || 0;
+      if (!(roadTraffic && roadTraffic.lights && state.show.roads)) tlDyn.count = 0;
+      else if (fN % 6 === 0) upload(tlDyn, buildTrafficLights(roadTraffic, camEye[0], -camEye[2], roadSurface, state.lite ? 260 : 420));
+      if (!(roadTraffic && state.show.roads)) walkDyn.count = 0;
+      else if (!state.lite || fN % 2 === 0) upload(walkDyn, buildWalkers(roadTraffic, camEye[0], -camEye[2], state.hour, roadSurface,
+                                                     !!(state.wx && state.wx.precip.kind && state.wx.precip.rate > 0.1), state.lite));
       if (kisvasut && Math.hypot(kisvasut.pts[0][0] - camEye[0], kisvasut.pts[0][1] + camEye[2]) < 16000)
         upload(kisDyn, kisvasut.train(state.hour * 3600));
       else kisDyn.count = 0;
@@ -3522,6 +3651,7 @@ export async function boot(assets) {
       }
       if (pTrk.u.uPull) gl.uniform1f(pTrk.u.uPull, 0.0);
       drawModels(vp, camEye, sunDir, pal, lift);
+      drawGraffiti(vp, camEye, pal, lift);
       gl.uniform1f(pTrk.u.uSnow, snowCover);
 
       // buildings: the real footprints first, by kilometre cell
@@ -3563,6 +3693,8 @@ export async function boot(assets) {
         });
         if (lineExtras) { gl.bindVertexArray(lineExtras.vao); gl.drawArrays(gl.TRIANGLES, 0, lineExtras.count); }
         if (lineStructs) { gl.bindVertexArray(lineStructs.vao); gl.drawArrays(gl.TRIANGLES, 0, lineStructs.count); }
+        if (horsesMesh) { gl.bindVertexArray(horsesMesh.vao); gl.drawArrays(gl.TRIANGLES, 0, horsesMesh.count); }
+        if (wallsMesh) { gl.bindVertexArray(wallsMesh.vao); gl.drawArrays(gl.TRIANGLES, 0, wallsMesh.count); }
         if (kisTrack && kisTrack.count) { gl.bindVertexArray(kisTrack.vao); gl.drawArrays(gl.TRIANGLES, 0, kisTrack.count); }
         if (partsMesh.count) {
           gl.bindVertexArray(partsMesh.vao);
@@ -4110,6 +4242,20 @@ export async function boot(assets) {
     // a photograph is taken here, straight after the picture is drawn: the
     // drawing buffer is cleared once the frame is handed to the page
     if (state.snapReq) { state.snapReq = false; takePhoto(camEye, fwd); }
+    // how long this frame's own work took (the fps box shows it: if it is most
+    // of the frame, the phone is short of processor, not of graphics)
+    // recorded loops (owner's asset library; credits in the README): birds
+    // and air outside the train, a car's cabin, music on the menu
+    if (state.sound && sound.setLoop) {
+      const A = `${window.DATA_BASE || "data/"}audio/amb/`;
+      const inCar = !!(state.car && state.car.active);
+      const out = !state.menu && !inCar && (state.follow || state.fly || state.tram || state.tour || (state.drone && state.drone.active));
+      sound.setLoop("amb_out", A + "outdoors.m4a", out ? 0.5 * (1 - Math.min(1, (state.night || 0) * 0.7)) : 0);
+      sound.setLoop("amb_car", A + "car.m4a", inCar && !state.menu ? 0.45 : 0);
+      sound.setLoop("amb_menu", A + "menu.m4a", state.menu ? 0.5 : 0);
+    }
+    state.jsMs = (state.jsMs || 0) * 0.9 + (performance.now() - jsT0) * 0.1;
+    state.frameN = (state.frameN || 0) + 1;
     if (!byHand) requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
