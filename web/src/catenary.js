@@ -1,3 +1,4 @@
+import { FBuf } from "./engine.js";
 // -------------------------------------------------------------- catenary
 //
 // The overhead line. Line 70 is electrified at 25 kV 50 Hz — the desk has a
@@ -44,7 +45,7 @@ const PORC   = [0.44, 0.29, 0.21];
  *                       across the whole formation, which is what MÁV does.
  */
 export function buildCatenary(downPts, upPts, yardSpan) {
-  const V = [], C = [];
+  const V = new FBuf(), C = new FBuf();
   // world is x east, y up, z south — so north is negated on the way in, as
   // everywhere else that builds geometry from the (east, north) data
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
@@ -169,7 +170,7 @@ export function buildCatenary(downPts, upPts, yardSpan) {
       }
     }
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
 }
 
 /** Wires over the station and yard tracks. Only the two running lines were
@@ -179,7 +180,7 @@ export function buildCatenary(downPts, upPts, yardSpan) {
  *  wired already) and inside the corridor gets a contact wire and a
  *  messenger; the portals over wide yards are what they hang from. */
 export function buildYardWires(ways, railYAt) {
-  const V = [], C = [];
+  const V = new FBuf(), C = new FBuf();
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
   const quad = (a, b, c, d, col) => { push(a,col); push(b,col); push(c,col);
                                       push(a,col); push(c,col); push(d,col); };
@@ -200,5 +201,5 @@ export function buildYardWires(ways, railYAt) {
       wire([a[0], ya + MESSENGER_H, a[1]], [b[0], yb + MESSENGER_H, b[1]], R_MESS);
     }
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
 }

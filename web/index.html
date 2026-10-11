@@ -330,6 +330,13 @@
       <div class="step"><span id="lStep">…</span><span id="lPct">0%</span></div>
       <div class="tip" id="lTip"></div></div></div>
   <script>
+  // The first script error on the page, kept for the loading screen: when the
+  // game's own script fails to start (a phone out of memory, a browser too
+  // old), the loader would only say "can't find variable boot".
+  window.__firstErr = null;
+  addEventListener("error", function (e) {
+    if (!window.__firstErr) window.__firstErr = (e.message || "script error") + (e.lineno ? " (" + e.lineno + ":" + e.colno + ")" : "");
+  });
   // The loading screen. window.__loadStep(text, 0..1) moves the bar;
   // window.__loadDone() fades it out. Tips rotate while it waits.
   (function () {
@@ -847,6 +854,10 @@
           get(`${DATA}map${suffix}.png`, 2, 'url'),
         ]);
       const assets = { world, route, context, mapMeta, timetable, heightNear, heightFar, coverNear, map };
+      if (typeof boot !== 'function') {
+        throw new Error((window.LANG === 'en' ? 'the game script did not load: ' : 'a játék kódja nem töltődött be: ') +
+                        (window.__firstErr || (window.LANG === 'en' ? 'no error reported (out of memory?)' : 'nincs hibaüzenet (elfogyott a memória?)')));
+      }
       await boot(assets);
     } catch (e) {
       document.getElementById('err').textContent = 'Startup failed: ' + e.message;

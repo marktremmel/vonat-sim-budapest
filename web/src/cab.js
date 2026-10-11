@@ -1,3 +1,4 @@
+import { FBuf } from "./engine.js";
 import { tt } from "./i18n.js";
 // The driver's desk. Drawn flat over the scene the way EasyLine and the
 // DOS-era simulators did it — pillars, a roof edge, and a console you read
@@ -246,7 +247,7 @@ function roundRect(c, x, y, w, h, r) {
 // windows with frames, a grab rail and the mirror outside. The instrument
 // face (faceA..D) stays where it was: clicks on the desk map through it.
 export function buildCab(eye, fwd, right, up, stock = "KISS") {
-  const V = [], C = [], U = [];
+  const V = new FBuf(), C = new FBuf(), U = [];
   const P = (r, u, f) => [
     eye[0] + right[0]*r + up[0]*u + fwd[0]*f,
     eye[1] + right[1]*r + up[1]*u + fwd[1]*f,
@@ -346,7 +347,7 @@ export function buildCab(eye, fwd, right, up, stock = "KISS") {
   quad(P(-HW, -1.16, 0.42), P(HW, -1.16, 0.42),
        P(HW, BOT, 0.36), P(-HW, BOT, 0.36), floorC);
 
-  return { verts: new Float32Array(V), cols: new Float32Array(C),
+  return { verts: V.arr(), cols: C.arr(),
            uvs: new Float32Array(U), count: V.length / 3,
            // the instrument face, so a click can be turned into a pixel:
            // p = A + u*(B-A) + v*(D-A), and the canvas is the same u,v

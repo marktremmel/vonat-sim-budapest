@@ -607,6 +607,47 @@ vec3 facade(inout vec3 base, float u, float relH, float H, int kind, float seed,
 }
 `;
 
+// The dark timeline (?mode=dark): every strike leaves a crater. Up to 16,
+// as (world x, world z, radius m, depth m). The ground dips into a bowl with
+// a thrown-up rim, everything round it is scorched, and buildings inside the
+// blast collapse to rubble. All in the vertex and fragment shaders, so a
+// strike costs nothing to add and nothing is rebuilt.
+export const CRATER_GLSL = `
+uniform highp vec4 uCrater[16]; uniform highp int uCraterN;
+float craterDip(vec2 xz) {
+  float h = 0.0;
+  for (int i = 0; i < 16; i++) {
+    if (i >= uCraterN) break;
+    vec4 c = uCrater[i];
+    float d = length(xz - c.xy) / c.z;
+    if (d < 1.0) h -= c.w * (1.0 - d * d);
+    else if (d < 1.7) h += c.w * 0.22 * sin((d - 1.0) / 0.7 * 3.14159);
+  }
+  return h;
+}
+float scorchAt(vec2 xz) {
+  float s = 0.0;
+  for (int i = 0; i < 16; i++) {
+    if (i >= uCraterN) break;
+    vec4 c = uCrater[i];
+    float d = length(xz - c.xy) / c.z;
+    float n = fract(sin(dot(floor(xz * 0.5), vec2(12.9898, 78.233))) * 43758.5453);
+    s = max(s, smoothstep(3.2 + n * 0.8, 0.9, d));
+  }
+  return s;
+}
+// how wrecked a building standing at xz is: 1 inside 1.4 radii, none past 2.6
+float blastAt(vec2 xz) {
+  float b = 0.0;
+  for (int i = 0; i < 16; i++) {
+    if (i >= uCraterN) break;
+    vec4 c = uCrater[i];
+    b = max(b, smoothstep(2.6, 1.4, length(xz - c.xy) / c.z));
+  }
+  return b;
+}
+`;
+
 export const STREETLIGHT_GLSL = `
 uniform vec3 uSL[48]; uniform int uSLn; uniform float uSLon;
 vec3 streetLight(vec3 wpos, vec3 base, vec3 nrm) {
@@ -720,6 +761,7 @@ uniform float uDanube;
 uniform vec2 uWaterAB;   // level = a + b * north metres
 
 float decode(vec3 c){ return (c.r*255.0*256.0 + c.g*255.0) * 0.1; }
+${CRATER_GLSL}
 
 // w is world xz, and world z runs south, so north = -w.y
 float sampleH(vec2 w){
@@ -775,6 +817,7 @@ void main(){
     // deep quarry two kilometres away from filling up.
     h = wl;
   }
+  h += craterDip(w);
   vWorld = vec3(w.x, h, w.y);
   vDist = length(vWorld - uEye);
   gl_Position = uVP * vec4(vWorld, 1.0);
@@ -792,6 +835,7 @@ uniform vec4 uCloudDeck, uCloudShape, uCloudWind;
 uniform float uCloudT, uCloudShadow;
 uniform vec4 uLamp; uniform vec3 uLampDir;
 ${STREETLIGHT_GLSL}
+${CRATER_GLSL}
 uniform sampler2D uCover, uReflect;
 uniform vec2 uNearSize, uNearStep, uViewport;
 uniform vec2 uWaterAB; uniform float uClipBelow; uniform float uDanube;
@@ -1104,6 +1148,7 @@ void main(){
   }
   col += headlight(vWorld, base, n, uLamp, uLampDir);
   col += streetLight(vWorld, base, n);
+  col *= 1.0 - 0.82 * scorchAt(vWorld.xz);
   float f = 1.0 - exp(-vDist * uFogDensity);
   col = mix(col, uFogCol, clamp(f, 0.0, 1.0));
   col += bayer(gl_FragCoord.xy) * uDither;
@@ -1129,9 +1174,21 @@ uniform mat4 uVP; uniform vec3 uEye;
 // from above and far away. 0.3% of the range is invisible in size and plenty
 // for the depth test. Zero for everything else.
 uniform float uPull;
+${CRATER_GLSL}
 void main(){
-  vCol = aCol; vWorld = aPos; vDist = length(aPos - uEye); vNrm = aNrm; vBld = aBld;
-  vec3 p = aPos + (uEye - aPos) * uPull;
+  vec3 q = aPos;
+  if (uCraterN > 0) {
+    q.y += craterDip(q.xz);
+    // a polygon building in the blast (aBld.y is its wall height): its walls
+    // and roof come down to a rubble heap a couple of metres high
+    float b = aBld.y > 0.5 ? blastAt(q.xz) : 0.0;
+    if (b > 0.0) {
+      float heap = 1.2 + 2.6 * fract(sin(dot(floor(aPos.xz * 0.4), vec2(12.99, 78.23))) * 43758.55);
+      q.y = min(q.y, mix(q.y, aBld.x + craterDip(q.xz) + heap, b));
+    }
+  }
+  vCol = aCol; vWorld = q; vDist = length(q - uEye); vNrm = aNrm; vBld = aBld;
+  vec3 p = q + (uEye - q) * uPull;
   gl_Position = uVP * vec4(p, 1.0);
 }`;
 
@@ -1147,6 +1204,7 @@ uniform vec4 uCloudDeck, uCloudShape, uCloudWind;
 uniform float uCloudT, uCloudShadow;
 uniform vec4 uLamp; uniform vec3 uLampDir;
 ${STREETLIGHT_GLSL}
+${CRATER_GLSL}
 ${FACADE_GLSL}
 ${CLOUD_FIELD_GLSL}
 // A train's headlight, as one spot. It is cheap enough to be worth having —
@@ -1281,6 +1339,7 @@ void main(){
   col += glow * 1.35;
   col += headlight(vWorld, base, n, uLamp, uLampDir);
   col += streetLight(vWorld, base, n);
+  col *= 1.0 - 0.82 * scorchAt(vWorld.xz);
   float f = 1.0 - exp(-vDist * uFogDensity);
   col = mix(col, uFogCol, clamp(f, 0.0, 1.0));
   col += bayer(gl_FragCoord.xy) * uDither;
@@ -1321,6 +1380,7 @@ float cloudShade(vec3 wpos, vec3 sunDir, vec4 deck, vec4 shape, vec4 wind,
 float decode(vec3 c){ return (c.r*255.0*256.0 + c.g*255.0) * 0.1; }
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
 
+${CRATER_GLSL}
 void main(){
   int id = gl_InstanceID;
   int n = uSide;
@@ -1451,8 +1511,14 @@ void main(){
                                  : 0.44 + rt * 0.26);
 
   // 3D X-Cross intersecting quads: Plane 0 at angle theta, Plane 1 at theta + 90 deg
-  float treeAng = r * 6.2831853 + aCorner.z * 1.5707963;
+  float treeAng = r * 6.2831853 + aCorner.z * 1.0471976;   // three planes, 60° apart
   vec3 planeDir = vec3(cos(treeAng), 0.0, sin(treeAng));
+  // the dark timeline: a tree in the blast is gone, one on the crater's
+  // slope goes down with the ground
+  if (uCraterN > 0) {
+    if (blastAt(foot.xz) > 0.55) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+    foot.y += craterDip(foot.xz);
+  }
   vec3 p = foot + planeDir * (aCorner.x * wide * 0.5) + vec3(0.0, aCorner.y * tall, 0.0);
   vUv = vec2(aCorner.x * 0.5 + 0.5, aCorner.y);
   vDist = d; vKind = cov; vSeed = r; vFootY = h; vSp = sp;
@@ -1490,6 +1556,7 @@ float cloudShade(vec3 wpos, vec3 sunDir, vec4 deck, vec4 shape, vec4 wind,
   float n = deckField(hit, deck, shape, deckFlowW(deck, wind), t, 3);
   return 1.0 - amount * deckDensity(n, deck.z, shape.x);
 }
+${CRATER_GLSL}
 void main(){
   vec3 foot = aFoot.xyz;
   float d = length(foot - uEye);
@@ -1497,9 +1564,22 @@ void main(){
   float reach = uMaxDist * clamp(aDim.x / 9.0, 0.25, 1.0);
   if (d > reach) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
   float sp = aFoot.w, tall = aDim.x, wide = aDim.y, r = aDim.z;
-  float treeAng = r * 6.2831853 + aCorner.z * 1.5707963;
+  float treeAng = r * 6.2831853 + aCorner.z * 1.0471976;   // three planes, 60° apart
   vec3 planeDir = vec3(cos(treeAng), 0.0, sin(treeAng));
+  // the dark timeline: a tree in the blast is gone, one on the crater's
+  // slope goes down with the ground
+  if (uCraterN > 0) {
+    if (blastAt(foot.xz) > 0.55) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+    foot.y += craterDip(foot.xz);
+  }
   vec3 p = foot + planeDir * (aCorner.x * wide * 0.5) + vec3(0.0, aCorner.y * tall, 0.0);
+  // a flower bed lies on the ground: one flat quad, not the upright cross
+  // (from anywhere but straight on that was a spiky star in the lawn)
+  if (sp > 15.5) {
+    if (aCorner.z > 0.5) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+    vec3 side2 = vec3(-planeDir.z, 0.0, planeDir.x);
+    p = foot + planeDir * (aCorner.x * wide * 0.5) + side2 * ((aCorner.y - 0.5) * wide) + vec3(0.0, 0.12, 0.0);
+  }
   vUv = vec2(aCorner.x * 0.5 + 0.5, aCorner.y);
   vDist = d; vKind = 13.0; vSeed = r; vFootY = foot.y; vSp = sp;
   vWaterY = uWaterAB.x + uWaterAB.y * (-foot.z);
@@ -1775,7 +1855,7 @@ void main(){
   float dist2 = dot(d, d);
 
   // 1. Adjustable Chromatic Aberration
-  vec2 caOff = d * (0.0055 * uChroma * (0.4 + dist2 * 2.5));
+  vec2 caOff = d * (0.012 * uChroma * (0.4 + dist2 * 2.5));   // (0.0055 was under a game pixel)
   vec3 c;
   c.r = texture(uTex, vUv + caOff).r;
   c.g = texture(uTex, vUv).g;
@@ -1860,9 +1940,12 @@ void main(){
   c = clamp(c, 0.0, 1.0);
 
   // 4. Adjustable Dynamic 35mm analogue film grain
-  float noise = fract(sin(dot(gl_FragCoord.xy + fract(uTime * 23.17) * 97.0, vec2(12.9898, 78.233))) * 43758.5453);
+  // per game pixel, not per screen pixel: on a 2K screen a screen-pixel grain
+  // of ±4% averaged away to nothing (the owner: "haven't noticed much grain")
+  vec2 gp = floor(vUv * vec2(textureSize(uTex, 0)));
+  float noise = fract(sin(dot(gp + fract(uTime * 23.17) * 97.0, vec2(12.9898, 78.233))) * 43758.5453);
   float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
-  float grain = (noise - 0.5) * 0.075 * uGrain * (1.0 - smoothstep(0.20, 0.90, lum));
+  float grain = (noise - 0.5) * 0.16 * uGrain * (1.0 - smoothstep(0.25, 0.95, lum));
   c += grain;
 
   // 5. Cinematic photographic vignette
@@ -2091,6 +2174,7 @@ float cloudShade(vec3 wpos, vec3 sunDir, vec4 deck, vec4 shape, vec4 wind,
   return 1.0 - amount * deckDensity(n, deck.z, shape.x);
 }
 float decode(vec3 c){ return (c.r*255.0*256.0 + c.g*255.0) * 0.1; }
+${CRATER_GLSL}
 void main(){
   float ang = aRotHgtCls.x, hgt = aRotHgtCls.y, flat_ = aRotHgtCls.w;
   float ca = cos(ang), sa = sin(ang);
@@ -2138,6 +2222,11 @@ void main(){
   if (lift > 1.5) lift += 1.0;           // the ground between the corners rises too
   vH = lift + 0.70 * hgt + 1.2;
   vWorld = vec3(w.x, g - 1.2 + (corner.y < 0.01 ? 0.0 : lift + corner.y * hgt), -w.y);   // world z runs south
+  if (uCraterN > 0) {
+    vWorld.y += craterDip(vWorld.xz);
+    float b = blastAt(vec2(aPosSize.x, -aPosSize.y));
+    if (b > 0.0) vWorld.y = min(vWorld.y, mix(vWorld.y, g - 1.2 + craterDip(vWorld.xz) + 1.5 + corner.y * 1.5, b));
+  }
   vDist = length(vWorld - uEye);
   vCls = aRotHgtCls.z; vUp = corner.y; vFlat = flat_;
   vSeed = fract(sin(dot(aPosSize.xy, vec2(12.9898, 78.233))) * 43758.5453);
@@ -2178,6 +2267,7 @@ uniform vec3 uEye;
 uniform vec3 uSunDir, uSunCol, uSkyCol, uFogCol;
 uniform float uFogDensity, uDither, uSnow, uWet, uLift, uNight;
 ${STREETLIGHT_GLSL}
+${CRATER_GLSL}
 ${FACADE_GLSL}
 float hb(vec2 p){ return fract(sin(dot(floor(p), vec2(127.1,311.7))) * 43758.5453); }
 float bayer(vec2 p){
@@ -2348,6 +2438,7 @@ void main(){
     col += bulb * mix(share * 0.28, pane * lit, detail) * uNight;
   }
   col += streetLight(vWorld, roof ? col * 0.6 : wall, n) * 0.7;
+  col *= 1.0 - 0.7 * scorchAt(vWorld.xz);
   float f = 1.0 - exp(-vDist * uFogDensity);
   col = mix(col, uFogCol, clamp(f, 0.0, 1.0));
   col += bayer(gl_FragCoord.xy) * uDither;

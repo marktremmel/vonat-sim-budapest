@@ -1,11 +1,11 @@
-import { norm } from "./engine.js";
+import { norm, FBuf } from "./engine.js";
 
 // Everything that is built once and drawn as a mesh: the track, the
 // corridor, roads, buildings, yard tracks, stations, signals, crossings
 // and the people on the platforms.
 // ---------------------------------------------------------------- track mesh
 export function buildTrack(route, pts, opts = {}) {
-  const V = [], C = [];
+  const V = new FBuf(), C = new FBuf();
   const railGauge = 1.435, railTop = 0.16, ballastTop = 2.6, ballastBot = 4.6;
   const colBallast = [0.34, 0.31, 0.28], colSleeper = [0.26, 0.22, 0.19],
         colRail = [0.42, 0.40, 0.40];
@@ -29,7 +29,7 @@ export function buildTrack(route, pts, opts = {}) {
       quad(P(p,o+0.04,railTop), P(q,o+0.04,railTop), P(q,o+0.04,0.0), P(p,o+0.04,0.0), colRail);
     }
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
 }
 
 // ------------------------------------------------------------- earthworks
@@ -233,7 +233,7 @@ export function buildCorridor(pts, demAt, coverAt, stride = 1, bridges = [], und
     }
     rows.push(row);
   }
-  const V = [], C = [];
+  const V = new FBuf(), C = new FBuf();
   const onBridge = (m) => bridges.some(([b0, b1]) => m >= b0 - 10 && m <= b1 + 10);
   for (let i = 0; i < rows.length - 1; i++) {
     const A = rows[i], B = rows[i + 1];
@@ -277,7 +277,7 @@ export function buildCorridor(pts, demAt, coverAt, stride = 1, bridges = [], und
       quad(W(-5.5, fl), W(5.5, fl), W(5.5, p.z - 1.6), W(-5.5, p.z - 1.6), ABUT);
     }
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
 }
 
 // ------------------------------------------------------------------ roads
@@ -416,7 +416,7 @@ export function buildRoads(ways, widths, demAt, waterAt, railDistAt) {
   // a road is a carriageway, a kerb strip either side, and on anything above
   // tertiary a broken centre line. Segments are split so they follow the
   // ground instead of bridging over it.
-  const V = [], C = [], streetLamps = [];
+  const V = new FBuf(), C = new FBuf(), streetLamps = [];
   // a quad from four world points, for the bridges, which do not follow the
   // ground and so cannot use the strip helper
   const quad = (a, b, c, d, col) => {
@@ -693,11 +693,22 @@ export function buildRoads(ways, widths, demAt, waterAt, railDistAt) {
       continue;
     }
 
-    cap(pts[0][0], pts[0][1], hw, -1, col);
-    cap(pts[pts.length-1][0], pts[pts.length-1][1], hw, -1, col);
+    // At a junction two roads overlap at the same height and fought for the
+    // pixels, markings and all (the owner's "messy roads"). The bigger road
+    // wins cleanly: smaller roads are laid a little lower (1.2 cm a class;
+    // lower, not the big ones higher, so no car sinks into a motorway), and
+    // the markings and kerbs stop short of each end, where the junctions are.
+    const CL = -1 - Math.min(6, cls) * 0.012;
+    const wayLen = pts.reduce((a, q, i) => i ? a + Math.hypot(q[0] - pts[i-1][0], q[1] - pts[i-1][1]) : 0, 0);
+    const clearEnd = hw + 4;
+    if (wayLen < 2) continue;      // a stub too short to draw: its caps stood alone as grey hexagons
+    let along = 0;
+    cap(pts[0][0], pts[0][1], hw, CL, col);
+    cap(pts[pts.length-1][0], pts[pts.length-1][1], hw, CL, col);
     for (let i = 0; i < pts.length - 1; i++) {
       const [ax, ay] = pts[i], [bx, by] = pts[i + 1];
       const L = Math.hypot(bx - ax, by - ay);
+      const along0 = along; along += L;
       if (L < 0.5 || L > 600) continue;
       const steps = Math.max(1, Math.min(24, Math.round(L / 18)));
       for (let k = 0; k < steps; k++) {
@@ -715,7 +726,9 @@ export function buildRoads(ways, widths, demAt, waterAt, railDistAt) {
         // solid on a main road, the lane lines between same-direction lanes
         // dashed. Each mark is a band cut out of the carriageway, not laid
         // on it (see above).
-        const nl = paved ? Math.max(1, lanes || (cls <= 2 ? 2 : 1)) : 1;
+        const sA = along0 + L * t0, sB = along0 + L * t1;
+        const inside = sA > clearEnd && sB < wayLen - clearEnd;
+        const nl = paved && inside ? Math.max(1, lanes || (cls <= 2 ? 2 : 1)) : 1;
         const marks = [];
         for (let li = 1; li < nl; li++) {
           const o = -hw + 2 * hw * li / nl;
@@ -724,16 +737,16 @@ export function buildRoads(ways, widths, demAt, waterAt, railDistAt) {
         }
         let from = -hw;
         for (const o of marks) {
-          strip(x0, y0, x1, y1, from, o - 0.13, -1, col);
-          strip(x0, y0, x1, y1, o - 0.13, o + 0.13, -1, MARK_COL);
+          strip(x0, y0, x1, y1, from, o - 0.13, CL, col);
+          strip(x0, y0, x1, y1, o - 0.13, o + 0.13, CL, MARK_COL);
           from = o + 0.13;
         }
-        strip(x0, y0, x1, y1, from, hw, -1, col);
-        if (paved) {
+        strip(x0, y0, x1, y1, from, hw, CL, col);
+        if (paved && inside) {
           // the kerbs are laterally clear of the carriageway, so they may sit
           // lower without ever overlapping it
-          strip(x0, y0, x1, y1, -hw - 0.9, -hw, -1.07, KERB_COL);
-          strip(x0, y0, x1, y1, hw, hw + 0.9, -1.07, KERB_COL);
+          strip(x0, y0, x1, y1, -hw - 0.9, -hw, CL - 0.07, KERB_COL);
+          strip(x0, y0, x1, y1, hw, hw + 0.9, CL - 0.07, KERB_COL);
         }
       }
     }
@@ -780,7 +793,7 @@ export function buildRoads(ways, widths, demAt, waterAt, railDistAt) {
       }
     }
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3, lamps: streetLamps };
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3, lamps: streetLamps };
 }
 
 // -------------------------------------------------------------- buildings
@@ -860,7 +873,7 @@ const POLY_ROOF_TILE = [0.40, 0.23, 0.17];
  *               is built from the tracks instead, in `buildTrainsheds`.
  */
 export function buildPolyBuildings(polys, demAt, sheds) {
-  const V = [], C = [], N = [], I = [], cells = new Map();
+  const V = new FBuf(), C = new FBuf(), N = new FBuf(), I = new FBuf(), cells = new Map();
   // Per-vertex building info for the façade shader: [ground y, wall height,
   // class, seed]. Without it the shader measured storeys from a fixed 95 m
   // above sea level, so no row of windows sat on a floor.
@@ -1040,14 +1053,45 @@ export function buildPolyBuildings(polys, demAt, sheds) {
       const k = roof === 2 ? 0.02 : Math.max(0.55, 1 - 7.5 / Math.max(ext, 1));
       const big = k > 0.56;
       const ridge = eave + (big ? Math.min(B.rh, 4.2) : B.rh);
-      const inner = B.pts.map(q => [B.cx + (q[0]-B.cx)*k, B.cy + (q[1]-B.cy)*k]);
+      // Pulling the outline toward its centroid folds the roof over itself on
+      // any concave shape (an L, a U, a Pest block with a notch): the dark
+      // slivers and broken hips seen from above. Concave and big outlines are
+      // inset along each corner's bisector instead, by a depth the outline's
+      // own width allows; small convex houses keep the centroid hip.
+      let area = 0, per = 0, concave = false, sgn = 0;
+      for (let i = 0; i < n; i++) {
+        const a = B.pts[i], b = B.pts[(i + 1) % n], c = B.pts[(i + 2) % n];
+        area += a[0] * b[1] - b[0] * a[1];
+        per += Math.hypot(b[0] - a[0], b[1] - a[1]);
+        const cr = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
+        if (Math.abs(cr) > 1e-3) { const sg = Math.sign(cr); if (!sgn) sgn = sg; else if (sg !== sgn) concave = true; }
+      }
+      area *= 0.5;
+      let inner;
+      if (roof !== 2 && (concave || big) && per > 0) {
+        const ccw = area > 0 ? 1 : -1;
+        const d = Math.min(7.5, 0.9 * Math.abs(area) / per);
+        inner = B.pts.map((q, i) => {
+          const pv = B.pts[(i - 1 + n) % n], nx_ = B.pts[(i + 1) % n];
+          let e1x = q[0] - pv[0], e1y = q[1] - pv[1], e2x = nx_[0] - q[0], e2y = nx_[1] - q[1];
+          const l1 = Math.hypot(e1x, e1y) || 1, l2 = Math.hypot(e2x, e2y) || 1;
+          const n1x = -e1y / l1 * ccw, n1y = e1x / l1 * ccw, n2x = -e2y / l2 * ccw, n2y = e2x / l2 * ccw;
+          let mx = n1x + n2x, my = n1y + n2y; const ml = Math.hypot(mx, my) || 1; mx /= ml; my /= ml;
+          const f = d / Math.max(0.35, mx * n1x + my * n1y);
+          return [q[0] + mx * f, q[1] + my * f];
+        });
+      } else {
+        inner = B.pts.map(q => [B.cx + (q[0]-B.cx)*k, B.cy + (q[1]-B.cy)*k]);
+      }
       for (let i = 0; i < n; i++) {
         const a = B.pts[i], b = B.pts[(i + 1) % n];
         const ia = inner[i], ib = inner[(i + 1) % n];
         quad([a[0], eave, a[1]], [b[0], eave, b[1]],
              [ib[0], ridge, ib[1]], [ia[0], ridge, ia[1]], rt);
       }
-      const top = big ? [0.16, 0.16, 0.17] : [rt[0]*1.1, rt[1]*1.1, rt[2]*1.1];
+      // a flat roof or a courtyard seen from above is gravel, tar paper or
+      // paving, not a hole: it was 0.16 grey, and the blocks read as pits
+      const top = big ? [0.44, 0.42, 0.40] : [rt[0]*1.1, rt[1]*1.1, rt[2]*1.1];
       for (const [i, j, kk] of B.tri)
         tri([inner[i][0], ridge, inner[i][1]], [inner[j][0], ridge, inner[j][1]],
             [inner[kk][0], ridge, inner[kk][1]], top);
@@ -1058,8 +1102,8 @@ export function buildPolyBuildings(polys, demAt, sheds) {
     else cells.set(key, { start, count: cnt,
                           cx: Math.floor(B.cx/1000), cy: Math.floor(B.cy/1000) });
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), info: new Float32Array(I),
-           nrms: new Float32Array(N), count: V.length / 3,
+  return { verts: V.arr(), cols: C.arr(), info: I.arr(),
+           nrms: N.arr(), count: V.length / 3,
            cells: [...cells.values()] };
 }
 
@@ -1093,7 +1137,7 @@ export function unpackRails(b64, count) {
 }
 
 export function buildYardTracks(ways, demAt, railYAt) {
-  const V = [], C = [];
+  const V = new FBuf(), C = new FBuf();
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
   const quad = (a, b, c, d, col) => { push(a,col); push(b,col); push(c,col);
                                       push(a,col); push(c,col); push(d,col); };
@@ -1238,7 +1282,7 @@ export function buildYardTracks(ways, demAt, railYAt) {
       }
     }
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
 }
 
 export function unpackRoads(b64, count, hasLanes = false) {
@@ -1389,7 +1433,7 @@ export function osmPlatformSections(pl, tracks, railYAt) {
  *  one at Kispest in the owner's photos): a deck 6.9 m over the rails, two
  *  lattice sides, and a stair tower at each end. */
 export function buildFootbridges(list, demAt, railYAt) {
-  const V = [], C = [];
+  const V = new FBuf(), C = new FBuf();
   const push = (p, c) => { V.push(p[0], p[1], -p[2]); C.push(c[0], c[1], c[2]); };
   const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
   const STEEL = [0.34, 0.40, 0.38], DECK = [0.42, 0.42, 0.41], STAIR = [0.46, 0.46, 0.45];
@@ -1435,11 +1479,11 @@ export function buildFootbridges(list, demAt, railYAt) {
       quad(c(0, -1.8, Y + 1.3), c(4, -1.8, Y + 1.3), c(4, 1.8, Y + 1.3), c(0, 1.8, Y + 1.3), STEEL);
     }
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
 }
 
 export function buildStations(stops, downPts, upPts, demAt, majors, osmFor = null) {
-  const V = [], C = [], boards = [], lamps = [];
+  const V = new FBuf(), C = new FBuf(), boards = [], lamps = [];
   const PLAT_H = 0.55, INNER = 1.75, OUTER = 5.6;
   const topCol = [0.60, 0.59, 0.57], faceCol = [0.44, 0.43, 0.42];
   const idxAt = m => Math.max(1, Math.min(downPts.length - 2,
@@ -1621,7 +1665,7 @@ export function buildStations(stops, downPts, upPts, demAt, majors, osmFor = nul
     boards.push({ name: text, x: p[0] + nx * 0.0, y: p[1] + ny * 0.0,
                   h: g + 5.6, ang: Math.atan2(fx, fy) });
   }
-  return { mesh: { verts: new Float32Array(V), cols: new Float32Array(C),
+  return { mesh: { verts: V.arr(), cols: C.arr(),
                    count: V.length / 3 }, boards, lamps };
 }
 
@@ -1633,8 +1677,8 @@ export function buildStations(stops, downPts, upPts, demAt, majors, osmFor = nul
  * same trick the train lamps and lit windows use.
  */
 export function buildPlatformLamps(lamps, night) {
-  const V = [], C = [];
-  if (!(night > 0.02)) return { verts: new Float32Array(V), cols: new Float32Array(C), count: 0 };
+  const V = new FBuf(), C = new FBuf();
+  if (!(night > 0.02)) return { verts: V.arr(), cols: C.arr(), count: 0 };
   const k = Math.min(1, night);
   const platCol = [0.55 + 1.85 * k, 0.50 + 1.55 * k, 0.36 + 0.95 * k];
   const streetCol = [0.70 + 2.50 * k, 0.55 + 1.90 * k, 0.25 + 0.90 * k];
@@ -1654,7 +1698,7 @@ export function buildPlatformLamps(lamps, night) {
     P(-r, -h, -r); P(r, -h, -r); P(r, -h, r);
     P(-r, -h, -r); P(r, -h, r); P(-r, -h, r);
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
 }
 
 export function boardAtlas(names, W = 512, H = 64) {
@@ -1690,7 +1734,7 @@ export function boardAtlas(names, W = 512, H = 64) {
  * the track, because everybody does.
  */
 export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, rainy = false, osmFor = null) {
-  const V = [], C = [];
+  const V = new FBuf(), C = new FBuf();
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
   const quad = (a, b, c, d, col) => { push(a,col); push(b,col); push(c,col);
                                       push(a,col); push(c,col); push(d,col); };
@@ -1820,7 +1864,7 @@ export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, 
       if (r(24) < 0.18) person(x + ux * 0.8, y + uy * 0.8, g, fx, fy, (k) => r(k + 40), i);
     }
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
 }
 
 // -------------------------------------------------------- signal geometry
@@ -1833,7 +1877,7 @@ const LAMP = [
 ];
 
 export function buildSignals(sigs, downPts, upPts, aspectOf) {
-  const V = [], C = [];
+  const V = new FBuf(), C = new FBuf();
   const post = [0.20, 0.20, 0.20], head = [0.10, 0.10, 0.11];
   const at = (pts, m) => {
     const f = (m - pts[0][3]) / 10;
@@ -1872,7 +1916,7 @@ export function buildSignals(sigs, downPts, upPts, aspectOf) {
       box(x + fx, g + 4.85, z + fz, 0.26, 0.26, 0.26, col);
     }
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
 }
 
 
@@ -1880,7 +1924,7 @@ export function buildSignals(sigs, downPts, upPts, aspectOf) {
 // 68 crossings, with the barrier type OSM records for each: full, half,
 // double half, or none. The booms drop when a train is close enough.
 export function buildCrossings(crossings, downPts, demAt, trains) {
-  const V = [], C = [];
+  const V = new FBuf(), C = new FBuf();
   const at = (m) => {
     const f = (m - downPts[0][3]) / 10;
     const i = Math.max(0, Math.min(downPts.length - 2, Math.floor(f)));
@@ -1941,7 +1985,7 @@ export function buildCrossings(crossings, downPts, demAt, trains) {
       }
     }
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
 }
 
 /**
@@ -1957,7 +2001,7 @@ export function buildCrossings(crossings, downPts, demAt, trains) {
  * every dead end would put one across the middle of the throat.
  */
 export function buildBufferStops(ends) {
-  const V = [], C = [];
+  const V = new FBuf(), C = new FBuf();
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
   const quad = (a, b, c, d, col) => { push(a,col); push(b,col); push(c,col);
                                       push(a,col); push(c,col); push(d,col); };
@@ -1994,7 +2038,7 @@ export function buildBufferStops(ends) {
     quad(P(0.10, -1.02, 1.18), P(0.30, -1.02, 1.18),
          P(0.30, 1.02, 1.18), P(0.10, 1.02, 1.18), STEEL);
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
 }
 
 
@@ -2010,7 +2054,7 @@ export const SOLAR = [0.020, 0.030, 0.050];
 // track (landmarks.js); the extras' own ballast deck there was a second
 // bridge z-fighting under the truss (the Northern Railway Bridge on line 70)
 export function buildCityExtras(x, tx, demAt, waterAt, railDistAt, skipAt = null) {
-  const V = [], C = [];
+  const V = new FBuf(), C = new FBuf();
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
   const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
   const BALLAST = [0.36, 0.33, 0.30], RAIL = [0.30, 0.29, 0.28], TRAMBED = [0.32, 0.32, 0.33];
@@ -2083,7 +2127,7 @@ export function buildCityExtras(x, tx, demAt, waterAt, railDistAt, skipAt = null
         quad([xx, g + 0.6, y], [xx + 3.0, g + 0.6, y], [xx + 3.0, g + 1.75, y + 2.4], [xx, g + 1.75, y + 2.4], SOLAR);
       }
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
 }
 
 // Park furniture from the BP Fatár cadastre (tools/bake_trees.py): benches,
@@ -2091,7 +2135,7 @@ export function buildCityExtras(x, tx, demAt, waterAt, railDistAt, skipAt = null
 // a point, so a bench's facing is a guess from its position (stable per spot).
 // list: [x, y, kind] in this line's frame; 0 bench, 1 bin, 2 statue, 3 fountain.
 export function buildParkThings(list, demAt) {
-  const V = [], C = [];
+  const V = new FBuf(), C = new FBuf();
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
   const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
   // an upright box round (x, y) turned by ang, half-sizes hx (along) and hz (across)
@@ -2128,5 +2172,5 @@ export function buildParkThings(list, demAt) {
       box(x, y, g, ang, 0.32, 0.32, 0.85, 1.0, STONE, WATER);
     }
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
 }

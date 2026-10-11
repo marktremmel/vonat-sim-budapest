@@ -29,9 +29,11 @@ places.
     - a light leak, a flare, a print or film border and a date stamp. These are drawn into the saved PNG.
 - **Budapest's trams:** lines 1, 2, 3, 4, 6, 56 and 61 run on their OSM routes, stopping at their stops (you cannot board them yet).
 - **S21 runs the MÁV 416 "Uzsgyi"** diesel railcar, with a diesel engine note; the overhead line ends at Kőbánya-Kispest.
+  Through Zugló and Kőbánya alsó it runs on its real embankment with the streets passing under, and it drops into a cutting under the airport road (`tools/raise_profile.py`).
+- **Stations use their real platforms from OSM** (islands, low or high), with the footbridges over the line (`tools/bake_platforms.py`). Stations OSM has no platform for keep a generic one.
 - **Particles:** a crashed aircraft burns and smokes, the Gripen's afterburner, wingtip vapour; and, at dusk in autumn and winter, a starling murmuration over Kispest.
 - **Announcements:** "Következő állomás: …" after departure and "… következik" before arrival.
-- `?mode=dark`: a first step of the "dark timeline" sandbox (K strikes the point in the middle of the view).
+- `?mode=dark`: the "dark timeline" sandbox. K strikes the middle of the view and J picks the weapon (shell, heavy bomb, very heavy bomb); each leaves a crater, scorched ground, and buildings and trees in the blast turned to rubble.
 - **The Királyréti kisvasút** (line 70's world): the 760 mm forest railway from Kismaros up to Királyrét. It is taken from OSM (9.7 km, 8 stops). An Mk48 with three coaches runs it by itself all day. You cannot drive it.
   - Ride as a passenger, watch in sightseeing mode (Kilátás), give orders on the dispatcher board;
     fly (Cessna, Gripen, helicopter), fly a drone, or drive a car. Buildings are solid, trains brake for a car on the line, and the car stops at a closed boom.
@@ -158,6 +160,12 @@ city tiles loaded. Not tested.
     python3 tools/bake_map.py         # plan map PNG for the in-game map
     SZOB_KM=0,63.6 python3 tools/bake_timetable.py  # a working day
     python3 tools/build_sim.py        # one self-contained HTML
+
+Per-line patches and extras, after the line's route and context exist:
+
+    python3 tools/raise_profile.py s21        # the S21 bank and cutting, into route_s21.json
+    python3 tools/bake_linex.py <line>        # names, quarries, solar, pipelines -> extras_<line>.json
+    python3 tools/bake_platforms.py <line>    # OSM platforms + footbridges -> the same extras file
 
 ## Derived data
 
@@ -294,6 +302,13 @@ to do — the source of every clipping complaint up to that point.
 The same shape gives an embankment where the ground is low and a cutting where
 it is high, without having to decide which, and the bank is capped so a cutting
 wall cannot climb across the rails.
+
+The elevation data averages 30 m cells, so a real 7 m railway bank comes out
+about 2 m high. Where that matters (S21 through Zugló and Kőbánya alsó, and its
+cutting under the airport road) `tools/raise_profile.py` lifts or lowers the
+baked profile from a table of ramps. On those stretches only, the bank gets a
+real 1:1.5 slope, its top widens for sidings beside it, and roads stay in the
+street and pass under (NOTES Trap 15).
 
 **Buildings** are 62k oriented boxes with hipped roofs, bucketed into 1 km
 cells and uploaded per frame within 3.4 km of the camera. Footprints are
@@ -1073,7 +1088,10 @@ blended toward rail level within 11 m and out to 34 m. Without it the terrain
 mesh samples raw ground and pokes straight through the track, because at
 25.7 m per pixel a railway is barely one pixel wide.
 
-**Stations** are synthesised, not surveyed: a platform deck 55 cm above rail,
+**Stations** come from OSM's platforms where it maps them (`tools/bake_platforms.py`,
+26 Sep 2026): each platform's line or area, its `height`, and its width from the
+tracks either side, so an island fills the gap between two tracks. Elsewhere they
+are synthesised: a platform deck 55 cm above rail,
 165 m at a halt and 210 m at a station, placed on the far side of the running
 line from its neighbour, which is where a side platform actually sits. Name
 boards are drawn into a canvas atlas at load, one row each, in MÁV blue.
@@ -1156,7 +1174,7 @@ The first three had been described in this file as if they worked.
   (km 30–63.6).
 - Passenger loading is a demand model, not data: bigger places exchange more
   people and dwell is 18 s plus a second per four passengers.
-- Platform sides and lengths are inferred, not from a real station diagram.
+- Where OSM has no platform, platform sides and lengths are inferred, not from a real station diagram. Where it has one, a platform mapped as a line gets its width from the tracks beside it; OSM's track spacing can make an island narrower than the real one (Kispest: 1.5 m).
   Nothing is numbered and there are no buildings placed deliberately — the
   station buildings you see are whatever OSM tagged nearby.
 - Name boards face the viewer rather than sitting parallel to the track like

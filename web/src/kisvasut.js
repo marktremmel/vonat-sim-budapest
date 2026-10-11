@@ -1,3 +1,4 @@
+import { FBuf } from "./engine.js";
 // The Királyréti Erdei Vasút: Kismaros – Szokolya – Királyrét, 760 mm gauge,
 // eleven kilometres up the valley into the Börzsöny (tools/bake_kisvasut.py
 // → data/kisvasut.json). Its train runs on its own: an Mk48 diesel, green
@@ -61,7 +62,7 @@ export class Kisvasut {
   }
   /** The track (static): 760 mm on a narrow ballast bed. */
   track() {
-    const V = [], C = [];
+    const V = new FBuf(), C = new FBuf();
     const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
     const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
     for (let s = 0; s + 2 <= this.len; s += 2) {
@@ -76,12 +77,12 @@ export class Kisvasut {
       for (const g of [-0.38, 0.38])
         quad(P(a, g - 0.04, 0.02), P(b, g - 0.04, 0.02), P(b, g + 0.04, 0.02), P(a, g + 0.04, 0.02), [0.30, 0.25, 0.22]);
     }
-    return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+    return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
   }
   /** The train at time t. */
   train(t) {
     const { s, dir } = this.where(t);
-    const V = [], C = [];
+    const V = new FBuf(), C = new FBuf();
     const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
     const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
     // a box between two chainages, width w, from y0 to y1 above the rail
@@ -120,6 +121,6 @@ export class Kisvasut {
       else for (let p = 0; p <= 4; p++) { const [q0, q1] = seg(c0 + p * 2.4, c0 + p * 2.4 + 0.18); box(q0, q1, 1.05, 1.35, 2.35, COACH); }
       box(a, b, 1.12, 2.35, 2.62, ROOF);
     }
-    return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+    return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
   }
 }

@@ -1,3 +1,4 @@
+import { FBuf } from "./engine.js";
 // Budapest's trams (tools/bake_trams.py → data/trams.json): lines 1, 2, 3, 4,
 // 6, 56 and 61 on their OSM routes, one relation per direction. The first
 // step of the "one world" plan (docs/UNIFIED_ENGINE_SPEC.md): the city's tram
@@ -21,7 +22,8 @@ const TRAM_MODEL = {   // [sections, section length, articulation gap, height]
   "2": [2, 13.0, 0.4, 3.3], "3": [2, 13.5, 0.4, 3.3], "56": [3, 11.0, 0.35, 3.35], "61": [3, 11.0, 0.35, 3.35],
 };
 const TRAM_YEL = [0.96, 0.76, 0.08], TRAM_WHITE = [0.92, 0.92, 0.90], TRAM_WIN = [0.10, 0.12, 0.15],
-      TRAM_ROOF = [0.62, 0.63, 0.64], TRAM_SKIRT = [0.20, 0.20, 0.22], TRAM_LAMP = [2.2, 2.1, 1.8];
+      TRAM_ROOF = [0.62, 0.63, 0.64], TRAM_SKIRT = [0.20, 0.20, 0.22], TRAM_LAMP = [2.2, 2.1, 1.8],
+      TRAM_DOOR = [0.16, 0.19, 0.22], TRAM_BOGIE = [0.12, 0.12, 0.13];
 const TRAM_V_CRUISE = 9.0, TRAM_DWELL = 20;
 
 export class Trams {
@@ -84,7 +86,7 @@ export class Trams {
   }
   /** Every tram near (cx, cn) at time t (seconds of the day), as a mesh. */
   build(t, cx, cn, reach = 3000, night = 0) {
-    const V = [], C = [];
+    const V = new FBuf(), C = new FBuf();
     const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
     const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
     const day0 = 4.5 * 3600, day1 = 24 * 3600;           // trams run from 4:30 to midnight
@@ -110,14 +112,51 @@ export class Trams {
             quad(P(a, -W, y0), P(b, -W, y0), P(b, -W, y1), P(a, -W, y1), col);
             quad(P(a, W, y0), P(b, W, y0), P(b, W, y1), P(a, W, y1), col);
           };
+          // a piece of the side between two fractions of the section (u0..u1
+          // along it), at one height range, on both sides
+          const piece = (u0, u1, y0, y1, col, inset = 0) => {
+            const A = this.at(r, s0 + secL * u0), Bq = this.at(r, s0 + secL * u1);
+            for (const sg of [-1, 1]) {
+              const w = sg * (W - inset);
+              quad(P(A, w, y0), P(Bq, w, y0), P(Bq, w, y1), P(A, w, y1), col);
+            }
+          };
           band(0.30, 0.55, TRAM_SKIRT);
           band(0.55, 1.05, TRAM_YEL);
           band(1.05, 1.18, TRAM_WHITE);
-          band(1.18, 2.35, TRAM_WIN);
+          // the window band: panes with yellow pillars between them, and two
+          // doors a section (dark glass to the floor, framed in yellow). One
+          // continuous black stripe read as a toy.
+          const bays = Math.max(3, Math.round(secL / 1.75));
+          const doorAt = new Set([1, bays - 2]);
+          for (let k2 = 0; k2 < bays; k2++) {
+            const u0 = k2 / bays, u1 = (k2 + 1) / bays, gap = 0.09 / secL * 1.75;
+            if (doorAt.has(k2)) {
+              piece(u0, u1, 1.05, 2.35, TRAM_YEL);
+              piece(u0 + gap, u1 - gap, 0.62, 2.25, TRAM_DOOR, -0.01);
+              piece((u0 + u1) / 2 - 0.004, (u0 + u1) / 2 + 0.004, 0.62, 2.25, TRAM_SKIRT, -0.02);
+            } else {
+              piece(u0, u1, 1.18, 2.35, TRAM_YEL);
+              piece(u0 + gap, u1 - gap, 1.28, 2.25, TRAM_WIN, -0.01);
+            }
+          }
           band(2.35, H - 0.25, TRAM_YEL);
           quad(P(a, -W, H - 0.25), P(b, -W, H - 0.25), P(b, -W * 0.8, H), P(a, -W * 0.8, H), TRAM_ROOF);
           quad(P(a, W, H - 0.25), P(b, W, H - 0.25), P(b, W * 0.8, H), P(a, W * 0.8, H), TRAM_ROOF);
           quad(P(a, -W * 0.8, H), P(b, -W * 0.8, H), P(b, W * 0.8, H), P(a, W * 0.8, H), TRAM_ROOF);
+          // a bogie under each end of the section: dark, inset, with a wheel
+          // line; and a roof box (the traction equipment) on every other one
+          for (const uc of [0.2, 0.8]) {
+            piece(uc - 0.07, uc + 0.07, 0.05, 0.45, TRAM_BOGIE, 0.25);
+            piece(uc - 0.05, uc - 0.01, 0.05, 0.35, TRAM_SKIRT, 0.2);
+            piece(uc + 0.01, uc + 0.05, 0.05, 0.35, TRAM_SKIRT, 0.2);
+          }
+          if (j % 2 === 1) {
+            const R0 = this.at(r, s0 + secL * 0.3), R1 = this.at(r, s0 + secL * 0.7);
+            quad(P(R0, -0.7, H + 0.02), P(R1, -0.7, H + 0.02), P(R1, -0.7, H + 0.4), P(R0, -0.7, H + 0.4), TRAM_ROOF);
+            quad(P(R0, 0.7, H + 0.02), P(R1, 0.7, H + 0.02), P(R1, 0.7, H + 0.4), P(R0, 0.7, H + 0.4), TRAM_ROOF);
+            quad(P(R0, -0.7, H + 0.4), P(R1, -0.7, H + 0.4), P(R1, 0.7, H + 0.4), P(R0, 0.7, H + 0.4), TRAM_SKIRT);
+          }
           // ends: the cab faces at the two ends, dark bellows between sections
           const end = (q, col) => quad(P(q, -W, 0.3), P(q, W, 0.3), P(q, W, H - 0.25), P(q, -W, H - 0.25), col);
           end(b, j === 0 ? TRAM_YEL : TRAM_SKIRT);
@@ -134,6 +173,6 @@ export class Trams {
         }
       }
     }
-    return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+    return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
   }
 }

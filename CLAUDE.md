@@ -15,7 +15,13 @@ running the build. Where a claim was checked by running the code, it says so.
 ## Handoff: where the work is right now (update this first and last every session)
 
 **26 Sep 2026, S-14** (after S-13, which is pushed as `c69287b`).
-- S-14 raised S21 onto its real embankment through Zugló and Kőbánya (`tools/raise_profile.py`, NOTES Trap 15). The log is **`docs/SESSION_S14.md`**; S-13's is `docs/SESSION_S13.md`; the to-do list is `docs/OWNER_BACKLOG.md`.
+- S-14 did three things:
+  - raised S21 onto its real embankment through Zugló and Kőbánya, and lowered it into a cutting under the airport road (`tools/raise_profile.py`, NOTES Trap 15);
+  - gave stations their real OSM platforms and footbridges on all three lines (`tools/bake_platforms.py`, Trap 16).
+- The log is **`docs/SESSION_S14.md`**; the to-do list is `docs/OWNER_BACKLOG.md`.
+- **S-15 (26 Sep, not committed):** a bug census with seven classes fixed (roofs, junctions, trees, tram, flower beds…), grain and chroma, frame-time work, dark timeline craters. Log: `docs/SESSION_S15.md`.
+- **Phone loading (8–11 Oct, not committed):** memory at load halved (`FBuf`, `state.lite`), NOTES Trap 17. Untested on a real phone.
+- **What to do next is `docs/ROADMAP.md`** (stages 0–6 and the recommended order, written 26 Sep after S-14).
 - S-14 is pushed as `5cc5d82` (26 Sep, on the owner's word). Git rule: commit or push only after the owner's review.
 - Tests 28/28.
 - `web/data` is 82 MB; line 70's context is 5.3 MB (Fót and Szentendre extracts added).
@@ -563,24 +569,16 @@ Status per item, marked seen or not: `szob-fele/REVIEW.md` → "Round 9: where i
 
 ## Still open
 
-1. City layer follow-ups:
-   - Stadium roofs cover the pitch (inner rings are not cut).
-   - Tiles have no chimneys or other structures.
-   - Keleti's and Kelenföld's yards are not drawn (yard tracks come only from the lines' own extracts).
-   - City-tile roads stay in the traffic and car grids after their tile is dropped.
-   - Beyond the line's near heightmap (south of 47.456 on line 70, e.g. Kispest and Budafok) buildings stand on the 100 m far heightmap.
-   - The original expansion request (districts 8–9, Keleti, Kelenföld, Budafok, Háros, Kispest) is covered by the city box; the notes below are older.
-   - Today each line bakes only a 2–5 km ring, as one JSON.
-   - A whole-Budapest city layer needs tiling/LOD streaming (the line 70 context alone is 6.4 MB).
-   - Also: roads on the Buda side (the Alagút and Clark Ádám tér are not in any extract), and all 1,936 OSM building parts in Budapest (`q_parts_bp` census, 23 Sep).
-2. Line 71 (no context, broken alignment): copy `build_s21.sh`.
-3. Courtyards not cut out of relation blocks.
-4. ~60% of road way-ends have no junction link (600 m bake cut-off).
-5. Ships do not avoid each other; aircraft do not avoid anything.
-6. Landmark to-dos in `szob-fele/LANDMARKS.md`.
-7. The dispatcher game needs denser traffic (see the seventh pass).
-8. MÁV GTFS for lines 70 and S21 (line 2 now uses the printed timetable).
-9. The rail tunnel portal model (`portal`) exists, but no road tunnels are in the data yet.
+The owner's list with statuses is `docs/OWNER_BACKLOG.md`, grouped into
+stages in `docs/ROADMAP.md`. The list that used to be here (22–25 Sep) is
+out of date. The city-tile road leak was fixed in S-13, and the city tiles gained
+structures and rails in S-9. Items from it that are still open:
+- stadium roofs cover the pitch (inner rings are not cut);
+- courtyards are not cut out of relation blocks;
+- line 71 (no context, broken alignment);
+- ships don't avoid each other, and aircraft don't avoid anything;
+- the dispatcher game needs denser traffic;
+- MÁV GTFS for lines 70 and S21.
 
 ## Things that are right and should not be re-opened
 

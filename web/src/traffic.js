@@ -1,3 +1,4 @@
+import { FBuf } from "./engine.js";
 import { CAR_LEN, CAR_H } from "./trains.js";
 import { demRidge } from "./geom.js";
 import { LANG } from "./i18n.js";
@@ -889,14 +890,30 @@ export class RoadTraffic {
  *               dead in a circle around you, which is what Mark saw. The
  *               caller passes a reach that grows with how high the camera is.
  */
+// The car mesh is rebuilt every frame. Building it into fresh JS arrays and
+// copying them into new typed arrays made garbage by the megabyte (code
+// audit 4.1): it now writes into two typed buffers kept between frames, which
+// grow when they must, and hands out views of them. upload() copies the view
+// to the GPU straight away, so reusing the buffer next frame is safe.
+const RT_BUF = { v: new Float32Array(1 << 16), c: new Float32Array(1 << 16), n: 0 };
+function rtPush(x, y, z, r, g, b) {
+  const B = RT_BUF;
+  if (B.n + 3 > B.v.length) {
+    const v = new Float32Array(B.v.length * 2), c = new Float32Array(B.c.length * 2);
+    v.set(B.v); c.set(B.c); B.v = v; B.c = c;
+  }
+  B.v[B.n] = x; B.v[B.n + 1] = y; B.v[B.n + 2] = z;
+  B.c[B.n] = r; B.c[B.n + 1] = g; B.c[B.n + 2] = b;
+  B.n += 3;
+}
 export function buildRoadTraffic(rt, camX, camZ, demAt, night, reach, surfaceAt, models, snowy) {
-  const V = [], C = [];
+  RT_BUF.n = 0;
   // Cars with a textured model (models/cars.json, tools/bake_models.py) are
   // not built here: they go out as instances, one list per model, of
   // [x, y, z, heading, length, atlas cell, 0, 0]. Only their lamps are drawn
   // here, at night. Buses, lorries and bikes stay as they were.
   const inst = models ? models.map(() => []) : null;
-  const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
+  const push = (p, col) => rtPush(p[0], p[1], -p[2], col[0], col[1], col[2]);
   const quad = (a, b, c, d, col) => {
     push(a, col); push(b, col); push(c, col);
     push(a, col); push(c, col); push(d, col);
@@ -1201,7 +1218,7 @@ export function buildRoadTraffic(rt, camX, camZ, demAt, night, reach, surfaceAt,
            v.v < 1.0 ? [TAIL[0] * 1.7, TAIL[1], TAIL[2]] : TAIL);
     }
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3, inst };
+  return { verts: RT_BUF.v.subarray(0, RT_BUF.n), cols: RT_BUF.c.subarray(0, RT_BUF.n), count: RT_BUF.n / 3, inst };
 }
 
 // ----------------------------------------------------------- river traffic
@@ -1351,7 +1368,7 @@ export class RiverTraffic {
 }
 
 export function buildRiverTraffic(rt, camX, camZ, waterY, night) {
-  const V = [], C = [];
+  const V = new FBuf(), C = new FBuf();
   if (!rt || !rt.lane) return { verts: new Float32Array(0), cols: new Float32Array(0), count: 0 };
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
   const quad = (a, b, c, d, col) => {
@@ -1490,5 +1507,5 @@ export function buildRiverTraffic(rt, camX, camZ, waterY, night) {
            P(cxo + 2.1, 0.7 - 1.6, free + 1.6), P(cxo - 2.1, 0.7 - 1.6, free + 1.6), col);
     }
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
 }

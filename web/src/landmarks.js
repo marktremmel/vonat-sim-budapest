@@ -1,3 +1,4 @@
+import { FBuf } from "./engine.js";
 // -------------------------------------------------------------- landmarks
 //
 // Hand-modelled buildings, anchored to their own OSM footprint.
@@ -41,7 +42,7 @@ let landmarkIsWater = null;
 export function setLandmarkWater(fn) { landmarkIsWater = fn; }
 
 export function buildLandmarks(anchors, demAt, waterAt, railNear) {
-  const V = [], C = [];
+  const V = new FBuf(), C = new FBuf();
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
   const tri = (a, b, c, col) => { push(a, col); push(b, col); push(c, col); };
   const quad = (a, b, c, d, col) => { tri(a, b, c, col); tri(a, c, d, col); };
@@ -1072,7 +1073,7 @@ export function buildLandmarks(anchors, demAt, waterAt, railNear) {
       quad(P(-3.0, 0, 80.0), P(3.0, 0, 80.0), P(3.0, 0, 86.0), P(-3.0, 0, 86.0), [0.28, 0.46, 0.36]);
     }
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
 }
 
 // ------------------------------------------------------------ trainsheds
@@ -1092,7 +1093,7 @@ const PERON_EDGE = [0.88, 0.80, 0.22];
 const PERSON_COL = [0.14, 0.15, 0.17];
 
 export function buildTrainsheds(sheds) {
-  const V = [], C = [];
+  const V = new FBuf(), C = new FBuf();
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
   const quad = (a, b, c, d, col) => { push(a,col); push(b,col); push(c,col);
                                       push(a,col); push(c,col); push(d,col); };
@@ -1366,5 +1367,5 @@ export function buildTrainsheds(sheds) {
            P(bu + 0.75, tv + 0.16, 1.65), P(bu + 0.75, tv - 0.16, 1.65), [0.92, 0.12, 0.10]);
     }
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
 }

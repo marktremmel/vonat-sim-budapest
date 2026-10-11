@@ -1,3 +1,4 @@
+import { FBuf } from "./engine.js";
 import { carGeometry } from "./car.js";
 
 // Things in the air: a few light aircraft and a helicopter going about their
@@ -238,7 +239,7 @@ const WHITE = [0.90, 0.91, 0.92], RED = [0.72, 0.12, 0.10], BLUE = [0.10, 0.28, 
       DARKG = [0.10, 0.11, 0.13], PROP = [0.18, 0.18, 0.19], YEL = [0.92, 0.72, 0.12];
 
 export function buildAircraft(air, plane, car = null) {
-  const V = [], C = [], N = [];
+  const V = new FBuf(), C = new FBuf(), N = new FBuf();
   const push = (p, col) => { V.push(p[0], p[1], p[2]); C.push(col[0], col[1], col[2]); };
   const quad = (a, b, c, d, col) => {
     push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col);
@@ -342,8 +343,8 @@ export function buildAircraft(air, plane, car = null) {
     else if (plane.type === "heli") heli(plane);
     else cessna(plane, YEL);
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C),
-           nrms: new Float32Array(N), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(),
+           nrms: N.arr(), count: V.length / 3 };
 }
 
 // ------------------------------------------------------------- cockpit
@@ -358,7 +359,7 @@ export function buildAircraft(air, plane, car = null) {
 //           with its green marker, a centre stick;
 //   heli:   a glass nose to the floor, a centre post, an overhead panel.
 export function buildCockpit(eye, f, r, u, type = "cessna") {
-  const V = [], C = [], U = [];
+  const V = new FBuf(), C = new FBuf(), U = [];
   const P = (x, y, z) => [eye[0] + r[0]*x + u[0]*y + f[0]*z,
                           eye[1] + r[1]*x + u[1]*y + f[1]*z,
                           eye[2] + r[2]*x + u[2]*y + f[2]*z];
@@ -425,5 +426,5 @@ export function buildCockpit(eye, f, r, u, type = "cessna") {
     box(-0.20, -0.14, -0.42, -0.36, 0.36, 0.60, DARK);
     box(-0.30, -0.04, -0.33, -0.30, 0.34, 0.37, DARK);
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), uvs: new Float32Array(U), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(), uvs: new Float32Array(U), count: V.length / 3 };
 }

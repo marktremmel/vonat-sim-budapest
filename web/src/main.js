@@ -97,6 +97,8 @@ export async function boot(assets) {
   // here yields once so the bar can repaint between the long builds
   const step = async (text, f) => {
     if (window.__loadStep) window.__loadStep(text, f);
+    // memory at each step, for the console (window.__bootMem): Chrome only
+    if (performance.memory) (window.__bootMem = window.__bootMem || []).push([text, Math.round(performance.memory.usedJSHeapSize / 1e6)]);
     // (a hidden tab gets its timers throttled to one a minute: no bar to
     // repaint there anyway, so no yield)
     if (!document.hidden) await new Promise(r => setTimeout(r, 0));
@@ -214,12 +216,12 @@ export async function boot(assets) {
   gl.bindVertexArray(vegVao);
   const vb = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, vb);
-  // Two 90-degree intersecting quads (X-cross billboard, 12 vertices total)
+  // Three quads 60° apart (18 vertices). Two at 90° read as a paper X up
+  // close and a star from above; three read as a round crown and trunk.
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-    // Plane 0 (angle theta)
     -1, 0, 0,   1, 0, 0,   1, 1, 0,  -1, 0, 0,   1, 1, 0,  -1, 1, 0,
-    // Plane 1 (angle theta + 90 deg)
-    -1, 0, 1,   1, 0, 1,   1, 1, 1,  -1, 0, 1,   1, 1, 1,  -1, 1, 1
+    -1, 0, 1,   1, 0, 1,   1, 1, 1,  -1, 0, 1,   1, 1, 1,  -1, 1, 1,
+    -1, 0, 2,   1, 0, 2,   1, 1, 2,  -1, 0, 2,   1, 1, 2,  -1, 1, 2
   ]), gl.STATIC_DRAW);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
   // one tile's cadastre trees: the same X-cross corners, and 8 floats per
@@ -655,7 +657,19 @@ export async function boot(assets) {
                               (north) => wA + wB * north, railDistAt);
   const roadMesh = colouredVao(roadData);
   // vehicles drive on the surface the road was laid on
-  const roadSurface = (x, y) => roadSurfaceAt(demAt, railDistAt, x, y);
+  // the road surface under every car, every frame, was nine DEM samples and a
+  // rail-grid search each: kept on a 1 m grid (the ground does not move)
+  const surfMemo = new Map();
+  const roadSurface = (x, y) => {
+    const k = Math.round(x) * 400009 + Math.round(y);   // (frames reach ~150 km north)
+    let v = surfMemo.get(k);
+    if (v === undefined) {
+      if (surfMemo.size > 400000) surfMemo.clear();
+      v = roadSurfaceAt(demAt, railDistAt, x, y);
+      surfMemo.set(k, v);
+    }
+    return v;
+  };
   const streetLamps = roadData.lamps || [];
 
   // Spatial index for street & platform lamps for fast real-time culling
@@ -669,7 +683,23 @@ export async function boot(assets) {
   }
   const slArr = new Float32Array(48 * 3); let slN = 0;
   const photoLightArr = new Float32Array(48 * 3);
+  // the dark timeline's craters (?mode=dark): [x, z, radius, depth] each,
+  // world coordinates; CRATER_GLSL in the terrain, ground and building shaders
+  const craterArr = new Float32Array(16 * 4);
+  state.craters = [];
+  function setCraters(pr) {
+    if (!pr.u.uCraterN) return;
+    gl.uniform1i(pr.u.uCraterN, state.craters.length);
+    if (state.craters.length) gl.uniform4fv(pr.u.uCrater, craterArr);
+  }
+  function addCrater(x, z, r, depth) {
+    state.craters.push([x, z, r, depth]);
+    if (state.craters.length > 16) state.craters.shift();
+    craterArr.fill(0);
+    state.craters.forEach((c, i) => craterArr.set(c, i * 4));
+  }
   function setStreetLights(pr) {
+    setCraters(pr);
     if (!pr.u.uSL) return;
     // photo mode's own lamps, day or night, instead of the street's
     const PL = state.photo && state.photo.lights;
@@ -704,8 +734,24 @@ export async function boot(assets) {
     return out;
   }
   // real footprints for anything big enough that a box would be wrong
-  const polyList = (ctx.polys && ctx.polys.data)
+  // On a phone (a touch device) the whole line's detailed footprints and their
+  // collision solids do not fit: loading reached about 700 MB and the browser
+  // killed the tab, reloading in a loop (owner, Oct 2026). There, footprints
+  // and solids are kept within about 1.6 km of the track; further out (the
+  // Szentendre and Fót extracts, mostly) only the box buildings are drawn.
+  const LITE = document.body.classList.contains("touch") || (navigator.deviceMemory || 8) <= 3;
+  const nearLine = (() => {
+    const CELLN = 400, set = new Set();
+    for (let i = 0; i < routeData.track_down.length; i += 8) {
+      const q = routeData.track_down[i], cx = Math.floor(q[0] / CELLN), cy = Math.floor(q[1] / CELLN);
+      for (let dx = -4; dx <= 4; dx++) for (let dy = -4; dy <= 4; dy++) set.add((cx + dx) * 100003 + (cy + dy));
+    }
+    return (x, y) => set.has(Math.floor(x / CELLN) * 100003 + Math.floor(y / CELLN));
+  })();
+  state.lite = LITE;
+  let polyList = (ctx.polys && ctx.polys.data)
     ? unpackPolyBuildings(ctx.polys.data, ctx.polys.count, ctx.polys.colours) : [];
+  if (LITE) polyList = polyList.filter(B => nearLine(B.cx, B.cy));
 
 
   // hand-modelled buildings, placed by their own OSM footprints
@@ -1323,6 +1369,7 @@ export async function boot(assets) {
   for (let i = 0; i < (ctx.buildings.count || 0); i++) {
     const o = i * 8, cx = bld[o], cn = bld[o + 1], hu = bld[o + 2], hv = bld[o + 3], ang = bld[o + 4];
     const c = Math.cos(ang), sn = Math.sin(ang);
+    if (LITE && !nearLine(cx, cn)) continue;            // (no collision solid far from the line on a phone)
     const pts = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) =>
       [cx + u * hu * c - v * hv * sn, cn + u * hu * sn + v * hv * c]);
     const [lo, hi] = groundSpan(pts);
@@ -1824,19 +1871,44 @@ export async function boot(assets) {
   // unless the address says ?mode=dark): K strikes where the middle of the
   // view meets the world. A fireball, sparks, a smoke column that burns for a
   // minute, the boom and the shake. No crater and no damage yet.
+  // Second step: a strike leaves a crater, scorched ground and collapsed
+  // buildings round it (CRATER_GLSL). Three sizes (J cycles them, shown in the
+  // notice): a shell (6 m crater), a heavy bomb (14 m), a very heavy one
+  // (30 m). Sizes are round numbers for the game, not ballistics. Up to 16
+  // craters stay; the oldest goes first.
+  const DARK_W = [
+    { hu: "gránát", en: "shell", r: 6, depth: 2.5, fx: 3, burn: 25 },
+    { hu: "nehézbomba", en: "heavy bomb", r: 14, depth: 6, fx: 6, burn: 60 },
+    { hu: "igen nehéz bomba", en: "very heavy bomb", r: 30, depth: 11, fx: 10, burn: 120 },
+  ];
+  state.darkW = 1;
   if (new URLSearchParams(location.search).get("mode") === "dark") {
+    const say = (t) => { const n = document.getElementById("photoToast"); if (!n) return;
+      n.innerHTML = `<div><b>${t}</b><span>${tt("K: csapás a kép közepére · J: másik fegyver", "K: strike the middle of the view · J: another weapon")}</span></div>`;
+      n.classList.remove("on"); void n.offsetWidth; n.classList.add("on");
+      clearTimeout(say.tm); say.tm = setTimeout(() => n.classList.remove("on"), 2500); };
     addEventListener("keydown", e => {
-      if (e.code !== "KeyK" || state.menu) return;
+      if (state.menu) return;
+      if (e.code === "KeyJ") {
+        state.darkW = (state.darkW + 1) % DARK_W.length;
+        const w = DARK_W[state.darkW];
+        say(tt("Fegyver: ", "Weapon: ") + tt(w.hu, w.en) + " (K)");
+        return;
+      }
+      if (e.code !== "KeyK") return;
       const t = distanceAt(0, 0), L = state.lastCam;
       if (t == null || !L) return;
       const d = norm(sub(M4.apply(L.invVP, [0, 0, 1, 1]).slice(0, 3).map((v, i, a) => v / M4.apply(L.invVP, [0, 0, 1, 1])[3]), L.eye));
       const p = add(L.eye, scale(d, t));
-      vfx.explode(p[0], p[1], p[2], 6);
-      vfx.burn(p[0], p[1], p[2], 60);
-      state.shake = 1.4;
+      const w = DARK_W[state.darkW];
+      vfx.explode(p[0], p[1], p[2], w.fx);
+      vfx.burn(p[0], p[1], p[2], w.burn);
+      addCrater(p[0], p[2], w.r, w.depth);
+      state.shake = 0.6 + w.fx * 0.15;
       if (sound.boom) sound.boom(t);
     });
   }
+  window.__addCrater = addCrater;
   function distanceAt(sx, sy) {
     const L = state.lastCam; if (!L) return null;
     const m = L.invVP, P = (z) => { const v = [sx, sy, z, 1], o = [0, 0, 0, 0];
@@ -3099,7 +3171,9 @@ export async function boot(assets) {
         state.slCam = [camX, camZ];
         const near = gatherLampsNear(camX, camZ, 450)
           .map(l => [l, (l[0] - camX) ** 2 + (l[2] - camZ) ** 2])
-          .sort((a, b) => a[1] - b[1]).slice(0, 48);
+          // (each lamp is a loop step in every lit fragment at night: fewer on
+          // the lower quality settings, which is what phones start on)
+          .sort((a, b) => a[1] - b[1]).slice(0, (state.cityR || 3200) <= 1900 ? 12 : (state.cityR || 3200) <= 3200 ? 24 : 48);
         slArr.fill(0);
         near.forEach(([l], i) => { slArr[i*3] = l[0]; slArr[i*3+1] = l[1]; slArr[i*3+2] = -l[2]; });
         slN = near.length;
@@ -3402,7 +3476,7 @@ export async function boot(assets) {
 
       // vegetation
       if (state.show.veg) {
-      gl.useProgram(pVeg.p);
+      gl.useProgram(pVeg.p); setCraters(pVeg);
       gl.uniformMatrix4fv(pVeg.u.uVP, false, vp);
       gl.uniform1f(pVeg.u.uClipBelow, refl);
       gl.uniform2f(pVeg.u.uWaterAB, WA + (state.danube || 0), WB);
@@ -3444,11 +3518,11 @@ export async function boot(assets) {
         gl.uniform1f(pVeg.u.uSpacing, spacing);
         gl.uniform1i(pVeg.u.uSide, side);
         gl.uniform1f(pVeg.u.uMaxDist, maxd);
-        gl.drawArraysInstanced(gl.TRIANGLES, 0, 12, side * side);
+        gl.drawArraysInstanced(gl.TRIANGLES, 0, 18, side * side);
       }
       // Budapest's own trees, from the cadastre, per loaded city tile
       if (city) {
-        gl.useProgram(pTree.p);
+        gl.useProgram(pTree.p); setCraters(pTree);
         const U = pTree.u;
         gl.uniformMatrix4fv(U.uVP, false, vp);
         gl.uniform1f(U.uClipBelow, refl);
@@ -3468,7 +3542,7 @@ export async function boot(assets) {
         gl.uniform1f(U.uCloudT, state.wxT);
         gl.uniform1f(U.uCloudShadow, cloudShadow);
         gl.uniform1f(U.uMaxDist, (state.cityR || 3200) > 2000 ? 2400 : 1300);
-        city.each(m => { if (m.tr) { gl.bindVertexArray(m.tr.vao); gl.drawArraysInstanced(gl.TRIANGLES, 0, 12, m.tr.n); } });
+        city.each(m => { if (m.tr) { gl.bindVertexArray(m.tr.vao); gl.drawArraysInstanced(gl.TRIANGLES, 0, 18, m.tr.n); } });
       }
       }
 

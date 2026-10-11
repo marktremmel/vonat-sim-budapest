@@ -408,6 +408,12 @@ mistake each one represents. Check these before believing anything.
     either side (only tracks within 5 m count; past that it is the next one
     over, and an island once came out 11 m wide). If a station looks wrong,
     look at its OSM platform first.
+17. **Memory at load is the phone's limit, not frame rate.** Mesh builders
+    that collect vertices in plain JS arrays cost 8 bytes a number plus the
+    copies made as the array grows; with the S-13 extracts, loading passed
+    700 MB and phones reloaded the page in a loop. Use `FBuf` (engine.js) in
+    any builder; check `window.__bootMem` after adding data to a line; keep
+    far-away detail out of the boot on touch devices (`state.lite`).
 
 ## Twelfth pass — the wire, the platforms, and Nyugati
 - **The overhead line.** A 25 kV railway with no catenary anywhere on it now

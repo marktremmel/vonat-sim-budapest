@@ -18,6 +18,10 @@ images came with that message.
 When you finish something, change its status here and add the date. Do not
 delete lines.
 
+**The stages this list is grouped into, and the recommended order:**
+[ROADMAP.md](ROADMAP.md) (26 Sep). **Waiting on the owner:** the two Újpest spots
+(rows below) and what "cars: models are slow" means.
+
 ---
 
 ## Standing wishes (apply to everything)
@@ -196,12 +200,13 @@ delete lines.
 | Photo mode: stop time, drone, hue, saturation, vignette, noise, FOV, DOF, tilt-shift miniature | 25 Sep | done |
 | Photo mode stops everything; orbit; place lights | 25 Sep | done |
 | Stickers (place, scale, flip), light effects, caption | 25 Sep | done |
-| "Haven't noticed much grain or chroma" | 25 Sep | open (effects may be too subtle; check) |
+| "Haven't noticed much grain or chroma" | 25 Sep | done (S-15: measured, the owner was right: grain changed the picture by 0.4 of 255 levels. It is now per game pixel and twice as strong (1.9); chroma offset doubled; seen) |
 | DOF jumping near the train | 25 Sep | done |
 | DOF and motion blur switchable in settings | 25 Sep | done |
-| Does the resolution setting (élesség) work? | 24 Sep | open (never checked) |
+| Does the resolution setting (élesség) work? | 24 Sep | done (S-15: yes, 320×180 at 0.6 to 887×666 at 2.6) |
 | Station announcements with local TTS | 25 Sep | done |
 | Choppy | 23 Sep | partly (automatic resolution) |
+| Frame-loop allocations (trains, signals, cars rebuilt into new arrays every frame) and the 48-light loop in every fragment (code audit 4.1, 4.2; added to this list 26 Sep) | 25 Sep audit | done for cars and lamps (S-15: car mesh in reused buffers, road height cached; p90 frame 30–36 → 23 ms in a busy view; lamps capped 12/24/48 by quality). Trains and signals still allocate |
 | An infrastructure tour for the owner's students | 25 Sep | open (idea) |
 | Discover the Pilis and the Danube Bend: settings visible, "opportunities present" | 23 Sep | partly (Kilátás, missions, photo album) |
 
@@ -224,18 +229,26 @@ delete lines.
 | Tilted pixels push together (pitch/tilt reprojection) | 25 Sep prenight | built (motion blur skips the sky and points behind the last camera) |
 | Missing roads in Esztergom, and near/after Dabas | 25 Sep prenight | done (seen) |
 | Tree variety: poplars look like spikes, zoo trees, trunk/branch contrast | 25 Sep prenight | built (fuller columns, only real columnar cultivars; lighter bark, inner-crown shade, limbs) |
-| South (S21) needs deeper data care like the north | 25 Sep prenight | open |
+| South (S21) needs deeper data care like the north | 25 Sep prenight | partly (26 Sep: roads to 1.5 km, the Zugló bank and the airport-road cutting, OSM platforms; the places list above is ROADMAP Stage 1) |
 | Ócsa hydrocarbon extraction wells (petroleum pumpjacks) | 25 Sep prenight | done (pumpjacks where OSM maps wells: 32 in the region, only 1 in the Ócsa field itself; seen) |
 | Cars: models are slow, drive model cars directly | 25 Sep prenight | open |
 | Fót infrastructure: logistics warehouses & highway interchanges | 25 Sep prenight | built (Fót extract in line 70's context) |
 | Western side of Danube (Szentendre & Pilis villages) missing | 25 Sep prenight | partly (Szentendre, the island's south, Budakalász; the Pilis villages not) |
 | Ground color does not change over seasons | 25 Sep prenight | done (corridor seasons; seen) |
 | **Unified One World Engine**: all lines, trams, hop between vehicles | 25 Sep prenight | open (full spec in UNIFIED_ENGINE_SPEC.md) |
-| **High Impact Events / Disasters ("The Dark Timeline")** | 25 Sep prenight | partly (`?mode=dark`: K strikes the point in view; no craters, damage or panel) |
+| **High Impact Events / Disasters ("The Dark Timeline")** | 25 Sep prenight | partly (S-15: three weapons (J), craters, scorching, buildings and trees in the blast to rubble; seen. No panel, landmarks don't break, craters not kept. ROADMAP Stage D) |
 | **Tram line 3 (Mexikói út M ⇄ Kőbánya ⇄ Gubacsi út)** | 25 Sep prenight | built (runs; not boardable) |
 | **Tram line 56/56A/61 (Kelenföld ⇄ Déli pu. ⇄ Széll Kálmán ⇄ Hűvösvölgy)** | 25 Sep prenight | built (56 and 61 run; not boardable) |
 | **Modern VFX Particle Engine (Fire, Explosions, Sparks, Smoke)** | 25 Sep prenight | built (a smaller version: `web/src/vfx.js`) |
 
+
+## Feedback 26 Sep, after S-14
+
+| request | from | status |
+| --- | --- | --- |
+| "Roads and trams and houses are still kinda buggy or messy in execution … I just really wanna polish it" | 26 Sep | partly (S-15 bug census: roofs folding on concave outlines, black flat roofs, junction z-fighting and kerbs across roads, stub hexagons, paper-X trees, star flower beds, the toy tram. All fixed and seen; see `SESSION_S15.md` for what is left) |
+| Start Stage 0; add the dark timeline | 26 Sep | Stage 0 in progress; dark timeline is ROADMAP Stage D |
+| The game would not load on the phone: it kept reloading, then stopped at 70–74% with "can't find variable boot" | 8–11 Oct | built (memory at load cut from about 700 MB to about 350 MB; far footprints skipped on touch devices; the loader now shows the real error). **Not tested on a real phone** |
 
 ## Feedback 26 Sep, during S-13 (the owner's words, short)
 

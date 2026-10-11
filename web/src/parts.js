@@ -1,3 +1,4 @@
+import { FBuf } from "./engine.js";
 // OSM 3D building parts ("Simple 3D Buildings"). Where mappers have modelled
 // a building part by part — the Parliament in 112 of them, the Bazilika in
 // 16, Matthias Church's tower, the Opera — each part is a footprint with its
@@ -13,7 +14,7 @@
 const WALL_DEF = [0.80, 0.75, 0.64], ROOF_DEF = [0.34, 0.35, 0.37], DOME_DEF = [0.40, 0.52, 0.48];
 
 export function buildParts(parts, demAt) {
-  const V = [], C = [], N = [], I = [];
+  const V = new FBuf(), C = new FBuf(), N = new FBuf(), I = new FBuf();
   let info = [0, 0, 0, 0];
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]);
                              I.push(info[0], info[1], info[2], info[3]); };
@@ -158,6 +159,6 @@ export function buildParts(parts, demAt) {
       quad([a[0], eave, a[1]], [b[0], eave, b[1]], [c[0], top, c[1]], [d[0], top, d[1]], rc);
     }
   });
-  return { verts: new Float32Array(V), cols: new Float32Array(C), nrms: new Float32Array(N),
-           info: new Float32Array(I), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(), nrms: N.arr(),
+           info: I.arr(), count: V.length / 3 };
 }

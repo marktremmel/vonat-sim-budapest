@@ -1,3 +1,4 @@
+import { FBuf } from "./engine.js";
 // Dobogókő, the "heart chakra of the world" (so the Pilis legend goes): a
 // big red heart hanging over the summit, beating — lub-dub, about once a
 // second — and turning slowly. An easter egg; the owner's idea.
@@ -8,7 +9,7 @@
 
 /** Photo mode's placed lamps, as small glowing bulbs (world coordinates). */
 export function buildBulbs(list, lvl) {
-  const V = [], C = [], N = [];
+  const V = new FBuf(), C = new FBuf(), N = new FBuf();
   const g = 2.5 + lvl * 2;
   for (const p of list) {
     const r = 0.35;
@@ -22,11 +23,11 @@ export function buildBulbs(list, lvl) {
       }
     }
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), nrms: new Float32Array(N), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(), nrms: N.arr(), count: V.length / 3 };
 }
 
 export function buildHeart(cx, cy, cz, t) {
-  const V = [], C = [], N = [];
+  const V = new FBuf(), C = new FBuf(), N = new FBuf();
   // lub-dub: two beats close together, then a rest
   const ph = (t * 1.05) % 1;
   const beat = Math.exp(-Math.pow((ph - 0.08) / 0.05, 2)) * 0.16 + Math.exp(-Math.pow((ph - 0.28) / 0.06, 2)) * 0.10;
@@ -65,5 +66,5 @@ export function buildHeart(cx, cy, cz, t) {
       if (k === 0) tri(mid, P(a1, k), P(a0, k), col(0)); else tri(mid, P(a0, k), P(a1, k), col(8));
     }
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C), nrms: new Float32Array(N), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(), nrms: N.arr(), count: V.length / 3 };
 }

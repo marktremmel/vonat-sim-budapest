@@ -1,3 +1,4 @@
+import { FBuf } from "./engine.js";
 // ------------------------------------------------------------ structures
 //
 // The freestanding things: chimneys, silos, tanks, water towers, lattice
@@ -49,7 +50,7 @@ export function unpackStructures(b64, count) {
 }
 
 export function buildStructures(list, demAt) {
-  const V = [], C = [];
+  const V = new FBuf(), C = new FBuf();
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
   const quad = (a, b, c, d, col) => { push(a,col); push(b,col); push(c,col);
                                       push(a,col); push(c,col); push(d,col); };
@@ -353,5 +354,5 @@ export function buildStructures(list, demAt) {
     }
   }
 
-  return { verts: new Float32Array(V), cols: new Float32Array(C), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
 }

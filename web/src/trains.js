@@ -1,3 +1,4 @@
+import { FBuf } from "./engine.js";
 // The rolling stock. Four classes, told apart by silhouette.
 // --------------------------------------------------------- train geometry
 //
@@ -67,7 +68,7 @@ function vehRnd(seed, k, salt) {
 /** @param hollow  draw `player` too, without its window glass — passenger
  *                 mode sits inside it and looks out through real openings */
 export function buildTrains(traffic, downPts, upPts, player, night = 0, hollow = false, sideOf = null) {
-  const V = [], C = [], N = [];
+  const V = new FBuf(), C = new FBuf(), N = new FBuf();
   const glass = [
     GLASS_DAY[0] * (1.0 - night) + GLASS_LIT[0] * night,
     GLASS_DAY[1] * (1.0 - night) + GLASS_LIT[1] * night,
@@ -152,8 +153,8 @@ export function buildTrains(traffic, downPts, upPts, player, night = 0, hollow =
       }
     }
   }
-  return { verts: new Float32Array(V), cols: new Float32Array(C),
-           nrms: new Float32Array(N), count: V.length / 3 };
+  return { verts: V.arr(), cols: C.arr(),
+           nrms: N.arr(), count: V.length / 3 };
 }
 
 /** One side of a body, cut into abutting horizontal bands over a longitudinal

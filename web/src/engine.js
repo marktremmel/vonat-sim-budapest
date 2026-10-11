@@ -187,3 +187,26 @@ export const dot = (a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
 export const cross = (a,b)=>[a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
 export const len = a=>Math.hypot(a[0],a[1],a[2]);
 export const norm = a=>{const l=len(a)||1; return [a[0]/l,a[1]/l,a[2]/l];};
+
+// A growable Float32Array with an array's push() and length. The mesh
+// builders collected their vertices in plain JS arrays (8 bytes a number,
+// re-copied as they grow, then copied again into a typed array): loading
+// left about 700 MB allocated, and a phone's browser killed the tab and
+// reloaded it in a loop (owner, Oct 2026). This is a drop-in for those arrays
+// at 4 bytes a number; arr() hands back an exact-size typed array.
+export class FBuf {
+  constructor(n = 4096) { this.a = new Float32Array(n); this.length = 0; }
+  push() {
+    const k = arguments.length;
+    let n = this.length;
+    if (n + k > this.a.length) {
+      const b = new Float32Array(Math.max(this.a.length * 2, n + k));
+      b.set(this.a.subarray(0, n)); this.a = b;
+    }
+    const a = this.a;
+    for (let i = 0; i < k; i++) a[n++] = arguments[i];
+    this.length = n;
+    return n;
+  }
+  arr() { const out = this.a.slice(0, this.length); this.a = null; return out; }
+}
