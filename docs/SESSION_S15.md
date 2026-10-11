@@ -101,4 +101,4 @@ The published build was S-14 (`5cc5d82`), byte-identical to the repository.
 
 ## Where this session stopped
 
-Not committed (the owner reviews first).
+Pushed as `4baab71` (11 Oct, on the owner's word). The phone fix is not yet confirmed on a real phone.

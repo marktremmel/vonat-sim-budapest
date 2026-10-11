@@ -19,8 +19,8 @@ running the build. Where a claim was checked by running the code, it says so.
   - raised S21 onto its real embankment through Zugló and Kőbánya, and lowered it into a cutting under the airport road (`tools/raise_profile.py`, NOTES Trap 15);
   - gave stations their real OSM platforms and footbridges on all three lines (`tools/bake_platforms.py`, Trap 16).
 - The log is **`docs/SESSION_S14.md`**; the to-do list is `docs/OWNER_BACKLOG.md`.
-- **S-15 (26 Sep, not committed):** a bug census with seven classes fixed (roofs, junctions, trees, tram, flower beds…), grain and chroma, frame-time work, dark timeline craters. Log: `docs/SESSION_S15.md`.
-- **Phone loading (8–11 Oct, not committed):** memory at load halved (`FBuf`, `state.lite`), NOTES Trap 17. Untested on a real phone.
+- **S-15 (pushed as `4baab71`, 11 Oct):** a bug census with seven classes fixed (roofs, junctions, trees, tram, flower beds…), grain and chroma, frame-time work, dark timeline craters. Log: `docs/SESSION_S15.md`.
+- **Phone loading (8–11 Oct, in `4baab71`):** memory at load halved (`FBuf`, `state.lite`), NOTES Trap 17. Untested on a real phone.
 - **What to do next is `docs/ROADMAP.md`** (stages 0–6 and the recommended order, written 26 Sep after S-14).
 - S-14 is pushed as `5cc5d82` (26 Sep, on the owner's word). Git rule: commit or push only after the owner's review.
 - Tests 28/28.
