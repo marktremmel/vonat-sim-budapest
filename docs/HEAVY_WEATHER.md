@@ -3,7 +3,7 @@
 The owner asked for an "insane" weather option after reviewing S-19: rain on the
 camera, spray behind cars, splashes. It is a switch in Beállítás:
 **Erős időjárás (cseppek, permet)** / *Heavy weather (drops, spray)*. It is off
-by default and remembered in `szobPrefs.gfx.heavy`. Not committed.
+by default and remembered in `szobPrefs.gfx.heavy`. Pushed in `ffe8dce` (26 Oct).
 
 ## What it does
 

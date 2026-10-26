@@ -2,7 +2,7 @@
 
 On 14 Oct the owner asked whether a derailment could really derail and break
 up. This note covers what was built for that, how it was checked, and what was
-not done. None of it is committed.
+not done. Pushed in `ffe8dce` (26 Oct).
 
 Screenshots: `docs/img/derailment_s20.jpg`. They were taken from the canvas
 in the preview (port 8178) at 1280×800.
