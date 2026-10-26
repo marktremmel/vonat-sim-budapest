@@ -21,10 +21,11 @@ Around the trains there is a whole region:
 
 ## Current session
 
-- **What to do next:** [ROADMAP.md](ROADMAP.md) has the stages, and the backlog is the list of record.
-- **The current session:** `SESSION_S16.md` (phone controls, fps, missions, dark panel, share links).
-- **Before it:** `SESSION_S15.md` (bug census and Stage 0, the dark timeline's craters).
-- **The one before:** `SESSION_S14.md` (26 Sep: the S21 bank and cutting, OSM platforms and footbridges; pushed as `5cc5d82`). `SESSION_S13.md` has the one before.
+- **What to do next:** [ROADMAP.md](ROADMAP.md) has the stages, and [OWNER_BACKLOG.md](OWNER_BACKLOG.md) is the list of record.
+- **The current session:** `SESSION_S19.md` (14 Oct, by Antigravity, rewritten after review: hero / on-foot mode with a blast, the map that opens and drops a pin, tram stop names, re-baked maps; §7 lists the eight bugs the review fixed).
+- **Before it:** `SESSION_S18.md` (13 Oct: animated 3D pedestrian models, street furniture, picture tests, bus & horse models, Bzmot).
+- **The one before:** `SESSION_S17.md` (12 Oct: Kopár-hágó tunnel, Pázmáneum, Nagykörút traffic fix, tram bar, graffiti).
+
 
 ## Read in this order
 
@@ -118,6 +119,7 @@ unchanged, and rerun `ground_filter.py`.
 | --- | --- | --- |
 | `docs/START_HERE.md` | orientation | current |
 | `docs/ROADMAP.md` | the stages ahead, the feedback deep dive, the recommended order | current (26 Sep) |
+| `docs/SESSION_S18.md` | the model pipeline's first part: animated people | current (13 Oct) |
 | `docs/WHERE_NEXT.md` | engine options, and a five-step plan to make the game easier to extend | current (Oct, S-17) |
 | `docs/ASSET_GUIDE.md` | what assets to get, in what form and licence | current (Oct, S-17) |
 | `docs/OWNER_BACKLOG.md` | every request and its status | current; keep it updated |

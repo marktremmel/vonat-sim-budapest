@@ -54,7 +54,7 @@ three.js and keep everything else.
 
 ## The plan: five steps, each one ships
 
-**Step 1. A model pipeline** (one to two sessions).
+**Step 1. A model pipeline** (one to two sessions). *Started in S-18: animated people are in (`tools/bake_people.py`, animation as vertex frames in a texture, as planned here). Static props, a horse and a bus are still to do.*
 - `tools/bake_gltf.py` (through Blender, which is installed): any GLB or FBX
   → a compact mesh, an atlas, and animation baked into a texture (each frame
   of a walk cycle stored as vertex positions; no skeleton maths at runtime,

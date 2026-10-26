@@ -14,14 +14,14 @@ import { FBuf } from "./engine.js";
 // speckle. Every surface here is cut into abutting pieces instead, so nothing
 // is ever coplanar with anything else.
 
-export const CAR_LEN = { KISS: 25.0, FLIRT: 18.5, EC: 26.4, FREIGHT: 14.5, M416: 22.9 };
-export const CAR_H   = { KISS: 4.60, FLIRT: 4.12, EC: 4.05, FREIGHT: 3.90, M416: 3.89 };
+export const CAR_LEN = { KISS: 25.0, FLIRT: 18.5, EC: 26.4, FREIGHT: 14.5, M416: 22.9, BZMOT: 13.97 };
+export const CAR_H   = { KISS: 4.60, FLIRT: 4.12, EC: 4.05, FREIGHT: 3.90, M416: 3.89, BZMOT: 3.42 };
 const LOCO_LEN = 19.5;
 
 // How much of its own length a vehicle gives up to the gap at each end. A
 // Stadler unit is close-coupled with a gangway and reads as one train; screw
 // couplings and buffers leave a real gap you can see daylight through.
-const COUPLE = { KISS: 0.494, FLIRT: 0.494, EC: 0.481, FREIGHT: 0.472, M416: 0.492 };
+const COUPLE = { KISS: 0.494, FLIRT: 0.494, EC: 0.481, FREIGHT: 0.472, M416: 0.492, BZMOT: 0.485 };
 
 // MÁV liveries. The suburban Stadlers are white over blue with yellow doors —
 // the doors are the most recognisable thing about them at any distance.
@@ -34,6 +34,10 @@ const LIVERY = {
   // over a blue band, yellow doors, a light grey roof
   M416: { upper: [0.86,0.87,0.88], lower: [0.12,0.30,0.64], door: [0.96,0.78,0.12],
           skirt: [0.46,0.47,0.49], roof: [0.58,0.59,0.60] },
+  // MÁV 117 Bzmot "Piroska": classic Hungarian red railbus, cream/grey roof,
+  // bright yellow cab warning apron, dark undercarriage
+  BZMOT:{ upper: [0.85,0.16,0.14], lower: [0.85,0.16,0.14], door: [0.85,0.16,0.14],
+          cabBand: [0.96,0.82,0.12], skirt: [0.24,0.25,0.27], roof: [0.72,0.74,0.76] },
   EC:   { upper: [0.74,0.77,0.81], lower: [0.13,0.20,0.36], door: [0.62,0.66,0.70],
           skirt: [0.22,0.23,0.26], roof: [0.36,0.37,0.39] },
   // V43: blue body over a grey lower band, and a yellow cab front
@@ -63,6 +67,24 @@ function vehRnd(seed, k, salt) {
   let h = (seed * 374761393 + k * 668265263 + salt * 2246822519) | 0;
   h = (h ^ (h >>> 13)) * 1274126177 | 0;
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+/** Where each vehicle of train `t` sits: its centre's chainage, its body's
+ *  half length and height. The same layout `buildTrains` draws, for the
+ *  wreck (wreck.js), which takes the cars over from the track. */
+export function carLayout(t) {
+  const stock = t.stock || "KISS";
+  const hauled = stock === "EC" || stock === "FREIGHT";
+  const unitLen = CAR_LEN[stock] || 26, out = [];
+  let cursor = t.m;
+  for (let k = 0; k < t.cars; k++) {
+    const isLoco = hauled && k === 0;
+    const L = isLoco ? LOCO_LEN : unitLen;
+    out.push({ c: cursor - t.dir * L * 0.5, half: L * (isLoco ? 0.48 : COUPLE[stock]),
+               H: isLoco ? 4.3 : CAR_H[stock] || 4 });
+    cursor -= t.dir * L;
+  }
+  return out;
 }
 
 /** @param hollow  draw `player` too, without its window glass — passenger
@@ -120,7 +142,7 @@ export function buildTrains(traffic, downPts, upPts, player, night = 0, hollow =
       const L = isLoco ? LOCO_LEN : unitLen;
       const c = cursor - t.dir * L * 0.5;
       cursor -= t.dir * L;
-      if (c < pts[0][3] + 5 || c > pts[pts.length-1][3] - 5) continue;
+      if (!(t.wreck && t.wreck[k]) && (c < pts[0][3] + 5 || c > pts[pts.length-1][3] - 5)) continue;
 
       const half = L * (isLoco ? 0.48 : COUPLE[stock]);
       const a = at(pts, c - half), b = at(pts, c + half);
@@ -133,23 +155,32 @@ export function buildTrains(traffic, downPts, upPts, player, night = 0, hollow =
         g + up,
         a[1] + uy * (along + half) + ny * off,
       ];
+      // a wrecked car has left the track: its own pose (wreck.js), the
+      // body turned about its middle by roll, then pitch, then heading
+      const wp = t.wreck && t.wreck[k];
+      const Pw = wp ? (along, off, up) => {
+        const z = up - wp.H * 0.5;
+        const y1 = off * wp.cr - z * wp.sr, z1 = off * wp.sr + z * wp.cr;
+        const x2 = along * wp.cp - z1 * wp.sp, z2 = along * wp.sp + z1 * wp.cp;
+        return [wp.x + wp.ux * x2 - wp.uy * y1, wp.y + z2, wp.n + wp.uy * x2 + wp.ux * y1];
+      } : P;
       const frontEnd = k === 0 ? t.dir : 0;
       const rearEnd = k === t.cars - 1 ? -t.dir : 0;
 
-      if (isLoco) buildLoco(quad, P, half, stock, tGlass, night, t.loco);
+      if (isLoco) buildLoco(quad, Pw, half, stock, tGlass, night, t.loco);
       else if (stock === "FREIGHT")
-        buildWagon(quad, P, half, tSeed, k);
-      else buildCoach(quad, P, half, stock, k, t.cars, frontEnd, rearEnd, tGlass, night);
+        buildWagon(quad, Pw, half, tSeed, k);
+      else buildCoach(quad, Pw, half, stock, k, t.cars, frontEnd, rearEnd, tGlass, night);
 
       // gangway: what makes a Stadler unit read as one train rather than a
       // line of separate boxes
       if ((stock === "KISS" || stock === "FLIRT" || stock === "M416") && k < t.cars - 1) {
         const gy0 = 0.85, gy1 = 3.10, gw = 0.92, ext = L * (0.5 - COUPLE[stock]) + 0.02;
         for (const sgn of [-1, 1])
-          quad(P(-half - ext, sgn*gw, gy0), P(-half, sgn*gw, gy0),
-               P(-half, sgn*gw, gy1), P(-half - ext, sgn*gw, gy1), DARK);
-        quad(P(-half - ext, -gw, gy1), P(-half, -gw, gy1),
-             P(-half, gw, gy1), P(-half - ext, gw, gy1), DARK);
+          quad(Pw(-half - ext, sgn*gw, gy0), Pw(-half, sgn*gw, gy0),
+               Pw(-half, sgn*gw, gy1), Pw(-half - ext, sgn*gw, gy1), DARK);
+        quad(Pw(-half - ext, -gw, gy1), Pw(-half, -gw, gy1),
+             Pw(-half, gw, gy1), Pw(-half - ext, gw, gy1), DARK);
       }
     }
   }
@@ -172,7 +203,7 @@ function buildCoach(quad, P, half, stock, k, cars, frontEnd, rearEnd, glass, nig
   const SEAT_BLUE = [0.12, 0.32, 0.62], FLOOR_GREY = [0.32, 0.33, 0.35];
   const W = 1.42, Wt = 1.06;
   const doubleDeck = stock === "KISS";
-  const floor = doubleDeck ? 0.62 : (stock === "FLIRT" ? 0.60 : stock === "M416" ? 1.12 : 1.05);
+  const floor = doubleDeck ? 0.62 : (stock === "FLIRT" ? 0.60 : stock === "M416" ? 1.12 : stock === "BZMOT" ? 1.05 : 1.05);
   const roofHi = CAR_H[stock];
   // A KISS roof is one continuous line at full height, nose to tail. What is
   // single-level over the bogies is the floor inside, not the roof: there the
@@ -181,8 +212,8 @@ function buildCoach(quad, P, half, stock, k, cars, frontEnd, rearEnd, glass, nig
   // hump on every car.
   const endTop = roofHi;
   const step = doubleDeck ? half * 0.56 : half;
-  // (the 416's front is nearly upright: a short nose)
-  const nose = (frontEnd || rearEnd) ? (stock === "FLIRT" ? 1.30 : stock === "M416" ? 0.45 : 1.05) : 0;
+  // (the 416 and Bzmot fronts are nearly upright: a short nose)
+  const nose = (frontEnd || rearEnd) ? (stock === "FLIRT" ? 1.30 : (stock === "M416" || stock === "BZMOT") ? 0.38 : 1.05) : 0;
   const e0 = -half + (rearEnd ? nose : 0);
   const e1 =  half - (frontEnd ? nose : 0);
 
@@ -191,10 +222,11 @@ function buildCoach(quad, P, half, stock, k, cars, frontEnd, rearEnd, glass, nig
   const hiWin = doubleDeck ? [2.72, 3.48] : null;
   const beltY = doubleDeck ? 2.10 : loWin[1] + 0.12;
 
-  // doors sit in the single-deck sections of a KISS, at the ends of anything else
+  // doors sit in the single-deck sections of a KISS, near ends of a Bzmot, at the ends of anything else
   const dHalf = 0.66;
   const doors = doubleDeck ? [-step - 1.15, step + 1.15]
-                           : [-half * 0.66, half * 0.66];
+                           : (stock === "BZMOT" ? [-half + 2.1, half - 2.1]
+                                                : [-half * 0.66, half * 0.66]);
   const spans = [];
   {
     let x = e0;
@@ -340,6 +372,15 @@ function cabEnd(quad, P, ee, out, W, Wt, topH, floor, liv, nose, glass, night, s
          P(fo, wTip, topH - 1.60), P(fo, -wTip, topH - 1.60), liv.lower);
     quad(P(fo, -0.26, 0.55), P(fo, 0.26, 0.55), P(fo, 0.26, 0.98), P(fo, -0.26, 0.98), [0.78, 0.10, 0.10]);
     quad(P(fo, -wTip, 0.38), P(fo, wTip, 0.38), P(fo, wTip, 0.55), P(fo, -wTip, 0.55), [0.30, 0.31, 0.33]);
+  } else if (stock === "BZMOT") {
+    // the bright yellow warning band under the windscreen, and twin buffers
+    const fo = tip + out * 0.02;
+    quad(P(fo, -wTip, topH - 1.95), P(fo, wTip, topH - 1.95),
+         P(fo, wTip, topH - 1.55), P(fo, -wTip, topH - 1.55), liv.cabBand);
+    for (const bx of [-0.85, 0.85]) {
+      quad(P(fo + out * 0.08, bx - 0.20, 0.65), P(fo + out * 0.08, bx + 0.20, 0.65),
+           P(fo + out * 0.08, bx + 0.20, 1.05), P(fo + out * 0.08, bx - 0.20, 1.05), [0.15, 0.15, 0.16]);
+    }
   }
 
   // ---- Train-Specific 3D Driver's Cockpit & Interior Architecture
@@ -373,6 +414,19 @@ function cabEnd(quad, P, ee, out, W, Wt, topH, floor, liv, nose, glass, night, s
     // Knorr D2 Train Brake Valve Handle
     quad(P(ee + out * 0.10, 0.22, floor + 0.76), P(ee + out * 0.20, 0.22, floor + 0.76),
          P(ee + out * 0.20, 0.26, floor + 0.94), P(ee + out * 0.10, 0.26, floor + 0.94), LEVER_RED);
+  } else if (stock === "BZMOT") {
+    // Bzmot Studenka Classic Driver's Cab
+    const BZ_BROWN = [0.38, 0.24, 0.16], DIAL_CREAM = [0.92, 0.88, 0.72], LEVER_RED = [0.82, 0.18, 0.14];
+    quad(P(cabBack, -W * 0.95, floor), P(cabBack, W * 0.95, floor),
+         P(cabBack, W * 0.95, topH - 0.2), P(cabBack, -W * 0.95, topH - 0.2), [0.42, 0.32, 0.24]);
+    quad(P(ee - out * 0.10, -W * 0.65, floor + 0.70), P(deskFront, -wTip * 0.68, floor + 0.70),
+         P(deskFront, wTip * 0.68, floor + 0.70), P(ee - out * 0.10, W * 0.65, floor + 0.70), BZ_BROWN);
+    quad(P(deskFront + out * 0.04, -0.20, floor + 0.74), P(deskFront + out * 0.12, -0.20, floor + 0.90),
+         P(deskFront + out * 0.12, -0.06, floor + 0.90), P(deskFront + out * 0.04, -0.06, floor + 0.74), DIAL_CREAM);
+    quad(P(deskFront + out * 0.04, 0.06, floor + 0.74), P(deskFront + out * 0.12, 0.06, floor + 0.90),
+         P(deskFront + out * 0.12, 0.20, floor + 0.90), P(deskFront + out * 0.04, 0.20, floor + 0.74), DIAL_CREAM);
+    quad(P(ee + out * 0.10, 0.22, floor + 0.72), P(ee + out * 0.18, 0.22, floor + 0.72),
+         P(ee + out * 0.18, 0.26, floor + 0.88), P(ee + out * 0.10, 0.26, floor + 0.88), LEVER_RED);
   } else {
     // Stadler KISS & FLIRT Modern Digital Glass Cockpit
     const DESK_DARK = [0.15, 0.16, 0.18], SCREEN_BLUE = [0.10, 0.52, 0.92], SCREEN_GREEN = [0.14, 0.82, 0.35];

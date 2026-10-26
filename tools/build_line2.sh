@@ -18,8 +18,8 @@ python3 tools/fetch_terrain.py 12                    # cached tiles are skipped
 # derived
 python3 tools/line_alignment.py line2    # one path + Nyugati prefix, profile
 rm -f data/raw/height_near_dsm_line2.png
-python3 tools/bake_world.py line2        # heightmaps, land cover, water fit
-python3 tools/ground_filter.py line2     # take the roofs out of the DEM
+DDM25=0 python3 tools/bake_world.py line2   # land cover, water fit (terrarium heights)
+HEIGHTS_ONLY=1 python3 tools/bake_world.py line2   # ground from DDM25 (tools/ddm25.py)
 python3 tools/bake_route.py line2        # stops, signals, crossings, km table
 python3 tools/bake_context.py line2      # buildings, roads, landmarks
 python3 tools/bake_map.py line2          # inset map

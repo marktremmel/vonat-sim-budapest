@@ -2,6 +2,7 @@
 """Budapest's tram routes for trams.js.
 
     python3 tools/overpass.py tools/q_trams.ql data/raw/trams.json
+    python3 tools/overpass.py tools/q_tram_stops.ql data/raw/tram_stops.json
     python3 tools/bake_trams.py            # -> web/data/trams.json
 
 Each OSM route relation (one per direction, PTv2) is chained from its way
@@ -14,6 +15,10 @@ import json, math
 
 REFS = {"1", "2", "3", "4", "6", "56", "61"}
 els = json.load(open("data/raw/trams.json", encoding="utf-8"))["elements"]
+# the stop nodes' names: `out geom` gives the relation members' positions only
+NAMES = {e["id"]: e["tags"]["name"] for e in
+         json.load(open("data/raw/tram_stops.json", encoding="utf-8"))["elements"]
+         if e.get("tags", {}).get("name")}
 
 def dist(a, b):
     return math.hypot((a[0] - b[0]) * 111200, (a[1] - b[1]) * 75100)
@@ -46,16 +51,19 @@ for r in els:
     if len(chain) < 2: continue
     cum = [0.0]
     for i in range(1, len(chain)): cum.append(cum[-1] + dist(chain[i - 1], chain[i]))
-    stops = []
+    stops = {}
     for m in r.get("members", []):
         if m["type"] != "node" or not m.get("role", "").startswith("stop"): continue
         p = (m["lat"], m["lon"])
         best = min(range(len(chain)), key=lambda i: dist(chain[i], p))
-        if dist(chain[best], p) < 40: stops.append(round(cum[best], 1))
-    stops = sorted(set(stops))
+        if dist(chain[best], p) < 40:
+            stops.setdefault(round(cum[best], 1), NAMES.get(m["ref"], ""))
+    stop_names = [stops[k] for k in sorted(stops)]
+    stops = sorted(stops)
     routes.append({"ref": t["ref"], "name": t.get("name", ""), "to": t.get("to", ""),
                    "len": round(cum[-1], 1),
-                   "pts": [[round(a, 6), round(b, 6)] for a, b in chain], "stops": stops})
+                   "pts": [[round(a, 6), round(b, 6)] for a, b in chain], "stops": stops,
+                   "stop_names": stop_names})
 # the full runs only (both directions); short workings (a 4 to Mester utca)
 # would double the trams on part of the line
 longest = {}

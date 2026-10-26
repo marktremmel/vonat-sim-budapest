@@ -60,6 +60,7 @@ export const COVER_COL = [
   [0.55,0.51,0.29],[0.37,0.45,0.26],[0.48,0.46,0.26],[0.46,0.42,0.38],
   [0.40,0.39,0.38],[0.20,0.30,0.34],[0.52,0.49,0.45],[0.34,0.42,0.33],
   [0.36,0.33,0.30],[0.30,0.45,0.24],[0.72,0.68,0.55],[0.80,0.75,0.60],
+  [0.68,0.67,0.65],
 ];
 
 // One surface near the line, instead of two fighting each other.
@@ -982,7 +983,11 @@ export function buildPolyBuildings(polys, demAt, sheds) {
     const wall = B.wallCol || POLY_WALL[Math.min(B.cls, POLY_WALL.length - 1)];
     const shade = 0.86 + ((oi * 2654435761) % 1000) / 1000 * 0.28;
     const wc = [wall[0]*shade, wall[1]*shade, wall[2]*shade];
-    const roof = (sheds && sheds.has(oi)) ? 0 : B.roof;
+    let roof = (sheds && sheds.has(oi)) ? 0 : B.roof;
+    // Déli pályaudvar has an open platform throat and flat modern pavilion, not a barrel vault hangar
+    if (roof === 3 && B.cls === 2 && (Math.hypot(B.cx - 18930, B.cy - 4838) < 600 || Math.hypot(B.cx - 126, B.cy - 210) < 50)) {
+      roof = 0;
+    }
     const eave = g + slopeLift + Math.max(2.5, B.h - (roof && roof !== 5 ? B.rh : 0));
     const n = B.pts.length;
     const seed = ((oi * 2654435761) >>> 0) % 997 / 997;
@@ -1184,7 +1189,7 @@ export function unpackRails(b64, count) {
   return ways;
 }
 
-export function buildYardTracks(ways, demAt, railYAt) {
+export function buildYardTracks(ways, demAt, railYAt, trackDistAt = null) {
   const V = new FBuf(), C = new FBuf();
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
   const quad = (a, b, c, d, col) => { push(a,col); push(b,col); push(c,col);
@@ -1235,9 +1240,9 @@ export function buildYardTracks(ways, demAt, railYAt) {
         const seed = Math.sin(w.pts[0][0] * 12.9898 + w.pts[0][1] * 78.233) * 43758.5453;
         const rnd = seed - Math.floor(seed);
         if (rnd <= 0.54) {
-          const rakeType = Math.floor(rnd * 10) % 4;
-          const wagonLen = rakeType === 2 ? 23.5 : (rakeType === 1 ? 15.0 : (rakeType === 3 ? 19.5 : 13.5));
-          const numWagons = Math.min(7, Math.max(2, Math.floor((trackLen - 28) / (wagonLen + 0.6))));
+          const rakeType = Math.floor(rnd * 15) % 5;
+          const wagonLen = rakeType === 4 ? 13.97 : (rakeType === 2 ? 23.5 : (rakeType === 1 ? 15.0 : (rakeType === 3 ? 19.5 : 13.5)));
+          const numWagons = rakeType === 4 ? (rnd < 0.35 ? 1 : 2) : Math.min(7, Math.max(2, Math.floor((trackLen - 28) / (wagonLen + 0.6))));
 
           const ptAtS = (s) => {
             let i = 1;
@@ -1265,6 +1270,10 @@ export function buildYardTracks(ways, demAt, railYAt) {
             // its ends (a turnout): a wagon there stood on the running line,
             // in the way of every train (seen before Rákosrendező).
             if (Math.min(pFront.off, pBack.off, pMid.off) < 9) continue;
+            // (the baked `off` is measured from the down line only: where the
+            // up line runs apart from it, through Vác and the bigger stations,
+            // wagons stood on the up line, 0.7 m from its centre)
+            if (trackDistAt && Math.min(trackDistAt(pFront.x, pFront.y), trackDistAt(pBack.x, pBack.y), trackDistAt(pMid.x, pMid.y)) < 4) continue;
 
             const hw = 1.42;
             const yBase = pMid.elev + 0.45;
@@ -1322,6 +1331,32 @@ export function buildYardTracks(ways, demAt, railYAt) {
               quad(F(0, 3.2), B(0, 3.2), B(hw, 2.3), F(hw, 2.3), ROOF);
               quad(F(hw, 0), F(-hw, 0), F(-hw, 3.0), F(hw, 3.0), MAV_BLUE);
               quad(B(-hw, 0), B(hw, 0), B(hw, 3.0), B(-hw, 3.0), MAV_BLUE);
+            } else if (rakeType === 4) {
+              // MÁV 117 Bzmot "Piroska" Branchline Diesel Railbus
+              const MAV_RED = [0.85, 0.16, 0.14], CAB_YELLOW = [0.96, 0.82, 0.12];
+              const ROOF = [0.72, 0.74, 0.76], GLASS = [0.12, 0.14, 0.18], CHASSIS = [0.24, 0.25, 0.27];
+              // Underframe chassis & buffer beams
+              quad(F(-hw, 0), B(-hw, 0), B(hw, 0), F(hw, 0), CHASSIS);
+              // Sides in MÁV red
+              quad(F(-hw, 0), B(-hw, 0), B(-hw, 1.25), F(-hw, 1.25), MAV_RED);
+              quad(B(hw, 0), F(hw, 0), F(hw, 1.25), B(hw, 1.25), MAV_RED);
+              quad(F(-hw, 2.15), B(-hw, 2.15), B(-hw, 2.45), F(-hw, 2.45), MAV_RED);
+              quad(B(hw, 2.15), F(hw, 2.15), F(hw, 2.45), B(hw, 2.45), MAV_RED);
+              // Passenger windows
+              quad(F(-hw - 0.01, 1.25), B(-hw - 0.01, 1.25), B(-hw - 0.01, 2.15), F(-hw - 0.01, 2.15), GLASS);
+              quad(B(hw + 0.01, 1.25), F(hw + 0.01, 1.25), F(hw + 0.01, 2.15), B(hw + 0.01, 2.15), GLASS);
+              // Rounded roof
+              quad(F(-hw, 2.45), B(-hw, 2.45), B(0, 2.95), F(0, 2.95), ROOF);
+              quad(F(0, 2.95), B(0, 2.95), B(hw, 2.45), F(hw, 2.45), ROOF);
+              // Front and rear ends with bright yellow warning band
+              quad(F(hw, 0), F(-hw, 0), F(-hw, 0.95), F(hw, 0.95), MAV_RED);
+              quad(F(hw, 0.95), F(-hw, 0.95), F(-hw, 1.55), F(hw, 1.55), CAB_YELLOW);
+              quad(F(hw, 1.55), F(-hw, 1.55), F(-hw, 2.25), F(hw, 2.25), GLASS);
+              quad(F(hw, 2.25), F(-hw, 2.25), F(-hw, 2.65), F(hw, 2.65), MAV_RED);
+              quad(B(-hw, 0), B(hw, 0), B(hw, 0.95), B(-hw, 0.95), MAV_RED);
+              quad(B(-hw, 0.95), B(hw, 0.95), B(hw, 1.55), B(-hw, 1.55), CAB_YELLOW);
+              quad(B(-hw, 1.55), B(hw, 1.55), B(hw, 2.25), B(-hw, 2.25), GLASS);
+              quad(B(-hw, 2.25), B(hw, 2.25), B(hw, 2.65), B(-hw, 2.65), MAV_RED);
             } else {
               // Container Flat Sggrss with 40ft container
               const CONT_COL = (wg % 3 === 0) ? [0.28, 0.52, 0.74] : ((wg % 3 === 1) ? [0.82, 0.40, 0.14] : [0.14, 0.46, 0.28]);
@@ -1789,7 +1824,11 @@ export function boardAtlas(names, W = 512, H = 64) {
  * platform position so they do not swim about between frames, and they face
  * the track, because everybody does.
  */
-export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, rainy = false, osmFor = null, walk = null) {
+// With `sink` (an array), each person is added to it as eight numbers for the
+// textured, animated models (main.js people3d): x, y, z, yaw, height, a 0..1
+// pick of which model, the walk phase (-1 standing) and a shade. Only the
+// suitcase and the umbrella are then still built as boxes.
+export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, rainy = false, osmFor = null, walk = null, sink = null) {
   const V = new FBuf(), C = new FBuf();
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
   const quad = (a, b, c, d, col) => { push(a,col); push(b,col); push(c,col);
@@ -1824,7 +1863,7 @@ export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, 
     for (let k = 0; k < 4; k++) quad(c[k], c[(k+1)%4], t[(k+1)%4], t[k], col);
     quad(t[0], t[1], t[2], t[3], col);
   };
-  const person = (x, y, g, fx, fy, r, i, swing = 0) => {
+  const person = (x, y, g, fx, fy, r, i, swing = 0, phase = -1) => {
     const kid = r(1) < 0.10, old = !kid && r(2) < 0.18;
     const H = kid ? 1.05 + r(3) * 0.25 : (1.58 + r(3) * 0.30) * (old ? 0.96 : 1);
     const W = (kid ? 0.16 : 0.20 + r(4) * 0.06) * (r(5) < 0.2 ? 1.2 : 1);
@@ -1835,26 +1874,28 @@ export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, 
     const skirt = !kid && r(10) < 0.22;
     const legH = H * 0.47, bodyH = H * 0.33, headH = H * 0.13;
     const lean = old ? 0.06 : 0;
+    const bx = x + fx * lean, by = y + fy * lean, hx = bx + fx * lean, hy = by + fy * lean, h0 = g + legH + bodyH;
+    if (sink) sink.push(x, g, -y, Math.atan2(fx, fy), H, r(26), phase, 0.88 + r(27) * 0.24);
+    else {
     if (skirt) box(x, g, y, fx, fy, W * 0.95, W * 0.6, g + legH * 0.45, g + legH, coat);
     for (const sd of [-1, 1]) {                                   // legs
       // (walking: the legs swing against each other along the way they face)
       const lx = x + (-fy) * sd * W * 0.45 + fx * swing * sd * 0.22, ly = y + fx * sd * W * 0.45 + fy * swing * sd * 0.22;
       box(lx, g, ly, fx, fy, W * 0.36, W * 0.4, g, g + legH, skirt ? skin : legs);
     }
-    const bx = x + fx * lean, by = y + fy * lean;
     box(bx, g, by, fx, fy, W, W * 0.62, g + legH, g + legH + bodyH, coat);      // body
     for (const sd of [-1, 1]) {                                   // arms
       const ax = bx + (-fy) * sd * W * 1.18, ay = by + fx * sd * W * 1.18;
       box(ax, g, ay, fx, fy, W * 0.2, W * 0.28, g + legH + bodyH * 0.05, g + legH + bodyH * 0.95, coat);
     }
-    const hx = bx + fx * lean, hy = by + fy * lean, h0 = g + legH + bodyH;
     box(hx, g, hy, fx, fy, W * 0.46, W * 0.5, h0, h0 + headH, skin);            // head
     if (r(11) < 0.16) {                                           // a hat
       box(hx, g, hy, fx, fy, W * 0.56, W * 0.6, h0 + headH * 0.85, h0 + headH * 1.2, r(12) < 0.5 ? coat : [0.12,0.12,0.13]);
     } else {
       box(hx - fx * W * 0.08, g, hy - fy * W * 0.08, fx, fy, W * 0.5, W * 0.46, h0 + headH * 0.7, h0 + headH * 1.08, hair);
     }
-    const extra = r(13);
+    }
+    const extra = sink && r(13) < 0.45 ? 0.6 : r(13);
     if (extra < 0.22 && !kid) {                                   // backpack
       box(bx - fx * W * 0.85, g, by - fy * W * 0.85, fx, fy, W * 0.72, W * 0.3, g + legH + bodyH * 0.25, g + legH + bodyH * 0.95, [0.16 + r(14)*0.5, 0.18, 0.22]);
     } else if (extra < 0.45 && !kid) {                            // a bag at the side
@@ -1948,7 +1989,10 @@ export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, 
         if (Math.hypot(x - camX, y - camZ) > reach) continue;
         const g = groundAt(x, y);
         if (!isFinite(g)) continue;
-        person(x, y, g - 0.2, ux * dir, uy * dir, r, k, Math.sin(t * pace * 3.6 + r(35) * 6.28));
+        // (the model's stride is about 1.45 m a cycle, so the phase follows the
+        // distance walked and the feet do not slide)
+        const ph = sAt * dir / 1.45 + r(35);
+        person(x, y, g - (sink ? 0.05 : 0.2), ux * dir, uy * dir, r, k, Math.sin(t * pace * 3.6 + r(35) * 6.28), ph - Math.floor(ph));
         made++;
       }
     }
@@ -2002,12 +2046,14 @@ export function buildWalls(walls, groundAt) {
   return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
 }
 
-export function buildHorses(places, groundAt) {
+export function buildHorses(places, groundAt, mesh) {
   const V = new FBuf(), C = new FBuf();
   const push = (p, c) => { V.push(p[0], p[1], -p[2]); C.push(c[0], c[1], c[2]); };
   const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
   const hash = (n) => { const x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); };
   const COAT = [[0.36, 0.20, 0.11], [0.50, 0.28, 0.14], [0.66, 0.64, 0.60], [0.10, 0.09, 0.08], [0.68, 0.55, 0.36]];
+  const f32 = b64 => (typeof atob === "function" && b64) ? new Float32Array(Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer) : null;
+  const vStand = mesh && f32(mesh.stand), vGraze = mesh && f32(mesh.graze);
   places.forEach((pl, pi) => {
     const n = 3 + Math.floor(hash(pi + 0.5) * 4);
     for (let k = 0; k < n; k++) {
@@ -2016,34 +2062,43 @@ export function buildHorses(places, groundAt) {
       if (!isFinite(g)) continue;
       const a = r(3) * 6.283, fx = Math.cos(a), fy = Math.sin(a), sx = -fy, sy = fx;
       const coat = COAT[Math.floor(r(4) * COAT.length)], dark = [coat[0] * 0.45, coat[1] * 0.45, coat[2] * 0.45];
-      const P = (al, ac, up) => [x + fx * al + sx * ac, g + up, y + fy * al + sy * ac];
-      // a box from (al0..al1) x (±hw) x (y0..y1), in the horse's own frame
-      const box = (al0, al1, hw, y0, y1, col) => {
-        const c = [P(al0, -hw, y0), P(al1, -hw, y0), P(al1, hw, y0), P(al0, hw, y0)];
-        const t = [P(al0, -hw, y1), P(al1, -hw, y1), P(al1, hw, y1), P(al0, hw, y1)];
-        for (let i = 0; i < 4; i++) quad(c[i], c[(i + 1) % 4], t[(i + 1) % 4], t[i], col);
-        quad(t[0], t[1], t[2], t[3], col);
-      };
-      box(-0.95, 0.85, 0.30, 0.95, 1.55, coat);                               // the barrel
-      for (const [al, ac] of [[-0.8, -0.2], [-0.8, 0.2], [0.7, -0.2], [0.7, 0.2]]) {
-        // each leg: two crossed planes
-        quad(P(al - 0.08, ac, 0), P(al + 0.08, ac, 0), P(al + 0.08, ac, 1.0), P(al - 0.08, ac, 1.0), dark);
-        quad(P(al, ac - 0.07, 0), P(al, ac + 0.07, 0), P(al, ac + 0.07, 1.0), P(al, ac - 0.07, 1.0), dark);
-      }
       const graze = r(5) < 0.45;
-      if (graze) { box(0.85, 1.25, 0.14, 0.75, 1.35, coat); box(1.15, 1.6, 0.12, 0.15, 0.85, coat); }       // neck down, head at the grass
-      else { box(0.75, 1.15, 0.14, 1.35, 2.05, coat); box(1.05, 1.6, 0.12, 1.85, 2.2, coat);                // neck up, head forward
-             quad(P(0.72, 0, 1.5), P(0.78, 0, 2.1), P(1.0, 0, 2.15), P(0.95, 0, 1.55), dark); }             // the mane
-      quad(P(-0.95, 0, 1.45), P(-1.05, 0, 1.45), P(-1.2, 0, 0.65), P(-1.02, 0, 0.7), dark);                // the tail
+      if (vStand && vGraze) {
+        const vArr = graze ? vGraze : vStand;
+        for (let i = 0; i < vArr.length; i += 3) {
+          const lx = vArr[i], ly = vArr[i + 1], lz = vArr[i + 2];
+          const wx = x + fx * lx + sx * lz;
+          const wy = g + ly;
+          const wz = y + fy * lx + sy * lz;
+          const isDark = ly < 0.35 || (lx < -0.70 && ly < 0.85);
+          push([wx, wy, wz], isDark ? dark : coat);
+        }
+      } else {
+        const P = (al, ac, up) => [x + fx * al + sx * ac, g + up, y + fy * al + sy * ac];
+        const box = (al0, al1, hw, y0, y1, col) => {
+          const c = [P(al0, -hw, y0), P(al1, -hw, y0), P(al1, hw, y0), P(al0, hw, y0)];
+          const t = [P(al0, -hw, y1), P(al1, -hw, y1), P(al1, hw, y1), P(al0, hw, y1)];
+          for (let i = 0; i < 4; i++) quad(c[i], c[(i + 1) % 4], t[(i + 1) % 4], t[i], col);
+          quad(t[0], t[1], t[2], t[3], col);
+        };
+        box(-0.95, 0.85, 0.30, 0.95, 1.55, coat);
+        for (const [al, ac] of [[-0.8, -0.2], [-0.8, 0.2], [0.7, -0.2], [0.7, 0.2]]) {
+          quad(P(al - 0.08, ac, 0), P(al + 0.08, ac, 0), P(al + 0.08, ac, 1.0), P(al - 0.08, ac, 1.0), dark);
+          quad(P(al, ac - 0.07, 0), P(al, ac + 0.07, 0), P(al, ac + 0.07, 1.0), P(al - 0.07, ac, 1.0), dark);
+        }
+        if (graze) { box(0.85, 1.25, 0.14, 0.75, 1.35, coat); box(1.15, 1.6, 0.12, 0.15, 0.85, coat); }
+        else { box(0.75, 1.15, 0.14, 1.35, 2.05, coat); box(1.05, 1.6, 0.12, 1.85, 2.2, coat);
+               quad(P(0.72, 0, 1.5), P(0.78, 0, 2.1), P(1.0, 0, 2.15), P(0.95, 0, 1.55), dark); }
+        quad(P(-0.95, 0, 1.45), P(-1.05, 0, 1.45), P(-1.2, 0, 0.65), P(-1.02, 0, 0.7), dark);
+      }
     }
   });
   return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
 }
-
 /** People walking on the pavements near the camera (see buildPlatformPeople). */
-export function buildWalkers(rt, camX, camZ, hour, groundAt, rainy = false, lite = false) {
+export function buildWalkers(rt, camX, camZ, hour, groundAt, rainy = false, lite = false, sink = null) {
   return buildPlatformPeople([], [], [], null, hour, null, rainy, null,
-    { rt, camX, camZ, t: rt.clock || 0, groundAt, reach: lite ? 130 : 230, max: lite ? 50 : 220 });
+    { rt, camX, camZ, t: rt.clock || 0, groundAt, reach: lite ? 130 : 230, max: lite ? 50 : 220 }, sink);
 }
 
 // -------------------------------------------------------- signal geometry
@@ -2243,7 +2298,13 @@ export function buildCityExtras(x, tx, demAt, waterAt, railDistAt, skipAt = null
     const gauge = kind === 1 ? 1.0 : 1.435, bw = kind === 2 ? 1.6 : kind === 1 ? 1.9 : 2.7;
     const yOf = (p) => {
       const g = demAt(p[0], p[1]);
-      if (bridge) return Math.max(g + 6, waterAt(p[1]) + 10);
+      if (bridge) {
+        if (kind === 2) {
+          const isOverWater = waterAt && Math.abs(p[0] - 5200) < 1700 && g <= waterAt(p[1]) + 2.5;
+          return isOverWater ? waterAt(p[1]) + 9.0 : g + 0.38;
+        }
+        return Math.max(g + 6, waterAt(p[1]) + 10);
+      }
       return g + (kind === 2 ? 0.38 : 0.34);
     };
     for (let i = 0; i + 1 < P.length; i++) {
@@ -2261,7 +2322,7 @@ export function buildCityExtras(x, tx, demAt, waterAt, railDistAt, skipAt = null
         const o = sg * gauge / 2;
         quad(Q(a, ya, o - 0.07, 0.07), Q(b, yb, o - 0.07, 0.07), Q(b, yb, o + 0.07, 0.07), Q(a, ya, o + 0.07, 0.07), RAIL);
       }
-      if (bridge) {   // a deck edge and a pier now and then
+      if (bridge && kind !== 2) {   // railway bridges get deck edges; trams on road bridges run flush
         for (const sg of [-1, 1])
           quad(Q(a, ya, sg * bw, -1.2), Q(b, yb, sg * bw, -1.2), Q(b, yb, sg * bw, 0.1), Q(a, ya, sg * bw, 0.1), [0.40, 0.38, 0.36]);
       }

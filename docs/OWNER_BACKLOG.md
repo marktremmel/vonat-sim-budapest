@@ -283,8 +283,8 @@ delete lines.
 | Part of the Nagykörút is inaccessible for the cars (owner: cars seen from Nyugati only as far as Oktogon/Király) | 11, 12 Oct | done (S-17: traffic dropped every road piece under 90 m, or 40 m in city tiles, and OSM cuts the körút into dozens of short pieces there. Main roads now keep pieces from 6 m. Cars on main roads along Oktogon–Blaha by tenths: 15, 10, 12, 2, 6, 5, 10, 2, 1, 14; it was none in the middle six) |
 | Haven't seen many walking people | 11 Oct | built (S-17: about twice as many on desktop, up to 220 within 230 m) |
 | Look at `~/Downloads/Game Assets` and use what fits | 11 Oct | answered (S-17: PSX Characters and Quaternius base characters + animations for people and a persona; Quaternius/KayKit street props; Soviet block kits; FilmCow SFX; Panchout music. S-17 imported the first: outdoor ambience and a car-cabin loop from FilmCow, and Clement Panchout's "Contemplative" as menu music) |
-| A new start: a high view of the city and region, pan and tap anywhere to drop into a nearby vehicle of your choice | 11, 12 Oct | open (agreed as the next big piece) |
-| Personas: your own character and colours, super-abilities ("Hancock"), other ways of getting around | 11 Oct | open (after the new start; Quaternius characters as the base) |
+| A new start: a high view of the city and region, pan and tap anywhere to drop into a nearby vehicle of your choice | 11, 12 Oct | built (S-19: the corner map opens the full map; drag pans, buttons zoom 1–6×, a click drops a pin offering hero, city stroll, car, nearest tram or a Cessna; map badges board trams and trains. Checked in the preview by script, not by the owner) |
+| Personas: your own character and colours, super-abilities ("Hancock"), other ways of getting around | 11 Oct | partly (S-19: the 24 PSX characters to pick from, one brightness tint (no separate skin or garment colours), flight, a blast (E) and a boosted-dive landing blast that throw cars, a city stroll without powers. Not built: lifting and throwing cars, charged jump, boost FOV. See `SESSION_S19.md`) |
 | Graffiti on walls (stickers has some; the owner will photograph more at the end of October); "on the side wall before Aquincum and the next stop, on small walls and on standing wagons, small details" | 12 Oct | built (S-17: OSM walls, retaining walls and noise barriers within 70 m of the line are now drawn, `tools/bake_walls.py`: 106 on line 2, 83 on line 70, 7 on S21. The 40 graffiti pieces of the sticker pack go on about a third of the wall stretches and on some standing wagons: 790 pieces on line 2. Seen on a wall by Aquincum and on a brown wagon. Not on phones. Open: the owner's own photos 62–66 are not in the sheet yet; no graffiti on underpass walls, bridge piers or buildings) |
 | Klotildliget: why does it exist? | 12 Oct | answered in chat, from memory and unverified: a garden suburb of Piliscsaba, named after Archduchess Klotild |
 | The Pázmány campus at Piliscsaba ("awkwardly bad project"), nice to pass | 12 Oct | partly (S-17: the **Pázmáneum** stop added at km 28.98 from OSM; seen. The campus buildings: OSM footprints only, not looked at) |
@@ -303,4 +303,45 @@ delete lines.
 | Some water features have no water in them, "just blue texture" | 12 Oct | open, reproduced (line 2 km 15.75 and Dorog: lakes are painted on sloping ground with no level surface or bank. Cause and fix in `docs/WHERE_NEXT.md`: level each lake in the bake) |
 | The owner will get assets: "write me a guide on what exactly we need" | 12 Oct | done (`docs/ASSET_GUIDE.md`; pack names from memory, not checked online) |
 | Where to go from here: easier to sustain and add to; Unreal or Godot if need be; what AI can do for style and fidelity; one friendly OSM request that rebuilds the world with far more detail | 12 Oct | answered (`docs/WHERE_NEXT.md`: stay in the browser; a model pipeline, one world, a rules-driven world compiler, picture tests, then new data sources) |
-| The start screen is doable; "might need the whole city brought together" | 12 Oct | open (agreed: it follows from "one world", step 2 in `WHERE_NEXT.md`) |
+| The start screen is doable; "might need the whole city brought together" | 12 Oct | done (S-19: high regional view with interactive tactical drop pin modal and live teleportation) |
+| "As I play it's just not at that state" for an itch.io page: not there yet | 12 Oct | noted (the itch files are ready in `itch/`, unpublished; the owner decides when) |
+| A broken, burnt-out model car driving in traffic | 12 Oct | done (the pack's Car 06 has only a rusted-wreck skin and was used as the "sports car"; it is out of traffic, and so is the US postal van skin. Checked: 0 of Car 06 among 249 cars near Nyugati) |
+| The player car is very cringe | 12 Oct | open (S-19 changed only where the car starts: on the road surface, and from a map pin. The car model and physics are as before; there is no vehicle throw) |
+| Keyboard shortcuts mix and do two things at once ("like shift Z") | 12 Oct | partly (found and fixed: ⇧T also switched the ground off; ⇧O also switched the wires off; ⇧L toggled labels; in the dark timeline K and J also switched the sky and the sander. ⇧Z itself: one handler, no clash found; **need what it did**. Open: plain letters T, R, K, N, O, P still switch whole layers off, which looks like a bug when hit by accident) |
+| Kenney All-in-1 3.7.0 added to `Game Assets` | 12 Oct | looked at (CC0, GLB. Useful: Car Kit (bus-less, but van, trucks, tractor, ambulance, police, taxi, garbage truck), City Kit Roads (street lights, traffic lights, signs, barriers), Watercraft Pack (tugs, cargo ships, rowing boats), Train Kit, Mini Characters (26 GLB), Animated Characters (FBX). Nothing imported: it waits for the model pipeline, `WHERE_NEXT.md` step 1) |
+| "Proceed with what we can … continue pushing forward" | 13 Oct | S-18: step 1 of `WHERE_NEXT.md` started. **People are now textured, animated models** on desktop: 24 civilians from the owner's PSX Characters pack, an 8-frame walk made in Blender (`tools/bake_people.py`), on platforms and pavements. Seen on line 70. Not on phones; frame rate not measured; see `docs/SESSION_S18.md` |
+| Animated low-poly pedestrians (asset guide item 1; "nicer people", "haven't seen many walking people") | 23 Sep, 11 Oct | built (S-18, as above) |
+| Street furniture (asset guide item 2) | 13 Oct | partly (S-18: OSM benches, bins and vending machines within 150 m of the lines as textured models from two heyheythere PSX kits, `tools/bake_props.py` + `tools/bake_street.py`; platform ones stand on the platform facing the track. Seen on line 70. Open: stops where OSM has no benches, bus shelters, the low fence, lamps as models) |
+| Still missing from the library: a horse, a bus, a bus shelter, a bicycle (searched 13 Oct; Kenney has a toy horse only) | 13 Oct | open (to get; see `docs/ASSET_GUIDE.md`) |
+
+## Feedback 13–14 Oct (Session S-19: Hero persona, blast physics, high-res map, tram expansion)
+
+| request | from | status |
+| --- | --- | --- |
+| "Katt ide idea is not very smart zoom in and zoom and pan based on position or pan if open, click also didn't work" | 14 Oct | built (S-19: as described; a drag pans, a click without a drag drops a pin. Not seen by the owner) |
+| "Destruction not really visible didn't react much but had a large brown stuff over the screen for a long time" | 14 Oct | built (S-19: the hero's blast uses the S-15 craters and throws road vehicles in arcs, without the brown smoke. The crater shader is S-15's, unchanged. 14 Oct review: thrown cars now land and lie for 26 s; the hero and cars stand in the crater) |
+| "If one world why it needed to load to switch trains?" | 14 Oct | answered (S-19: within a line, trains and trams switch without loading; another line reloads the page, because each line has its own frame and data. The 250 MB figure was not measured) |
+| "Map is very low res, the previous was so detailed and pretty" | 14 Oct | built (S-19: `bake_map.py` re-baked at `SCALE = 1`, 25.7 m/px, twice the linear resolution: line 70 is 1361×1941 px; smoothing on; corner map at 1.4×, full map opens at 2.2×. Not seen by the owner) |
+| "POIs labels on the map should scale with zoom currently too big" | 14 Oct | built (S-19: sizes follow the zoom, minor stops hidden below 1.35×, overlapping landmark labels skipped. 14 Oct review: the landmark labels were 200–775 m off (the castle in Pest) and wrong on line 2 and S21; now placed from lat/lon. Not seen by the owner) |
+| "The blast and destruction is built in really nicely" | 14 Oct | noted (praise from owner) |
+| Review of S-19 (14 Oct, the owner: "eval review and look for bugs"): eight bugs | 14 Oct | done (14 Oct, checked in the preview by script; sand colour and map labels by numbers, not by eye): trams on the riverbed on line 2/S21; tram stop names out of step (now OSM names); sand drawn as quarry; street plaque never on "… út"; flight strafe mirrored; a crater on every dive landing, hero and cars floating over craters; map landmarks hundreds of metres off; thrown cars spinning up and vanishing in the air. Also removed: an invented 139 m viaduct at Hűvösvölgy. See `SESSION_S19.md` §7 |
+
+## Feedback 14 Oct evening (after the S-19 review)
+
+| request | from | status |
+| --- | --- | --- |
+| Esc returns to the train, but without the cab | 14 Oct | done (every mode returns to the cab with the desk; `SESSION_S19.md` §8) |
+| Depth of field should be minimal at the start | 14 Oct | done (default 0.12, was 0.35) |
+| Hero stopped moving; no looking down | 14 Oct | done (stuck on a train roof: riding rewritten; camera to 74° down; seen by script) |
+| How to switch line, how to get back to the start menu | 14 Oct | answered (Esc in the cab opens the menu; the line cards there reload with that line) |
+| Still obstacles on the tracks | 14 Oct | done (walls cut back, wagons off the up line, trees off the line; nothing within 2.67 m) |
+| The train slows by itself under manual control, holds 42 km/h | 14 Oct | not reproduced. Likely the map's "board a train", which only followed an AI train; it now hands you that train |
+| Switching trains should be better | 14 Oct | done (take over the train you pick on the map; the line is no longer empty after a start) |
+| Dunakeszi lakes: half of the water a little higher, as ground | 14 Oct | done (every lake flat at one level; banks as grass. Seen against the old build) |
+| Map: pan down? Clicks inconsistent with the pin and the nearest tram | 14 Oct | done (pan held to the edges; card clicks ignored; one tram boarding. Line 70's map ends just south of Nyugati) |
+| Hero hover pose ("fly standing idle position I don't see") | 14 Oct | built (lean, legs mid-stride, bob; not seen by the owner) |
+| "Insane" weather: drops on the lens and FPV camera, spray behind cars | 14 Oct | open (idea) |
+| Other destruction simulations | 14 Oct | open (idea) |
+| A derailment that really derails and breaks up | 14 Oct | open (idea) |
+| More fidelity | 14 Oct | open |
+

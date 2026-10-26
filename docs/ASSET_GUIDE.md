@@ -26,7 +26,7 @@ read the licence before paying.
 
 | # | what | used for | notes |
 | --- | --- | --- | --- |
-| 1 | **Animated low-poly people**: 8–12 civilians, mixed ages, walk + idle + sit | platforms, pavements, tram and train interiors, the persona | You already have Quaternius base characters and an animation library in `Game Assets`. Try those first: this may need no purchase |
+| 1 | **Animated low-poly people**: 8–12 civilians, mixed ages, walk + idle + sit | platforms, pavements, tram and train interiors, the persona | **Done in S-18 with your PSX Characters pack**: no purchase needed. More variety (old people, children, winter coats) would still help |
 | 2 | **Street furniture, European**: bus shelter, bench, bin, bollard, bike rack, kiosk, advertising column, post box, street clock, phone box, fences and railings, concrete panel fence | every street and platform; OSM has the positions of benches, bins, shelters, bike racks | Kenney "City Kit" packs and KayKit city packs are CC0 but generic. One Eastern European prop pack is worth more than three generic ones |
 | 3 | **Railway furniture**: platform canopy, station name board, clock, ticket machine, level-crossing parts, buffer stop, relay cabinet, signal box, water crane, semaphore | stations and yards | Rare as a pack. Photos are a good substitute: see below |
 | 4 | **Vehicles**: city bus (to paint BKK blue), articulated bus, trolleybus, van, lorry, tractor, bicycle, scooter, motorbike | road traffic; "other ways of getting around" | The cars are already models. Buses are the biggest gap: OSM has the bus routes |
@@ -55,7 +55,8 @@ read the licence before paying.
    `bake_facades.py`) turns it into an atlas and a compact mesh in `web/data`.
 3. The README credits the author.
 
-**The limit today:** the game can draw textured static models (the cars) and
-flat decals (graffiti). It cannot yet load glTF directly or play skeletal
-animation. That loader is the first step in `WHERE_NEXT.md`, and items 1, 2,
+**The limit today (updated in S-18):** the game draws textured static models
+(the cars), flat decals (graffiti) and animated people baked through Blender
+(`tools/bake_people.py`: any rigged FBX with a Mixamo skeleton works). It
+cannot yet load glTF directly. That loader is the first step in `WHERE_NEXT.md`, and items 1, 2,
 3, 4 and 7 above all wait on it.

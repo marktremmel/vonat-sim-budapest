@@ -70,7 +70,7 @@ import os as _os
 _p = f"web/data/extras{SUF}.json"
 if _os.path.exists(_p):
     _old = json.load(open(_p, encoding="utf-8"))
-    for k in ("platforms", "footbridges", "walls"):
+    for k in ("platforms", "footbridges", "walls", "street"):
         if k in _old: out[k] = _old[k]
 json.dump(out, open(_p, "w"), separators=(",", ":"))
 print(LINE, {k: len(v) for k, v in out.items()})

@@ -1,6 +1,6 @@
 import { makePlane, PLANES, PLANE_ORDER } from "./aircraft.js";
 import { makeCar } from "./car.js";
-import { LAYERS } from "./hud.js";
+import { LAYERS, CHAR_MODELS } from "./hud.js";
 import { M4, norm, cross, add, scale, sub } from "./engine.js";
 
 // Keyboard, pointer and wheel. Everything here reads or writes `state`,
@@ -11,6 +11,17 @@ import { M4, norm, cross, add, scale, sub } from "./engine.js";
 export function installInput(ctx) {
   const { cv, hud, panelCanvas, keys, route, routeData, driver,
           traffic, roadTraffic, riverTraffic, playerTrain, sound, startRun, toggleMenu } = ctx;
+  // Esc from any mode: back to the driver's seat, desk and all (index.html
+  // toCab, the same as the Fülke button). Each mode used to clear only
+  // itself, so after the hero you were on the train with no cab.
+  const backToCab = () => {
+    if (window.__toCab) { window.__toCab(); return; }
+    if (state.person) state.person.active = false;
+    if (state.car) state.car.active = false;
+    if (state.plane) state.plane.active = false;
+    state.tram = null; state.tour = null; state.passenger = null; state.follow = false; state.fly = null;
+    state.cab = true; state.yaw = 0; state.pitch = -0.02; state.zoom = 1;
+  };
   addEventListener("keydown", e => {
     keys.add(e.code);
     // photo mode (main.js) owns Esc, Space and Z; the rest of its keys are the
@@ -58,30 +69,167 @@ export function installInput(ctx) {
         if (cty) cty.each(m => (m.ways || []).forEach(consider));
       }
       const at = best || { x: c[0], y: c[1], yaw: state.yaw || 0 };
-      state.car = makeCar(at.x, at.y, at.yaw);
+      const startY = (window.SIM && SIM.carSurf) ? SIM.carSurf(at.x, at.y, 110).y : 110;
+      state.car = makeCar(at.x, at.y, at.yaw, startY);
       if (state.plane) state.plane.active = false;
       if (state.drone) state.drone.active = false;
+      if (state.person) state.person.active = false;
       state.fly = null; state.follow = false; state.followIdx = -1; state.passenger = null;
       state.followCarIdx = -1; state.followShipIdx = -1; state.tour = null;
-      state.pitch = 0; state.zoom = 1;
+      state.yaw = 0; state.pitch = 0; state.zoom = 1;
       return;
+    }
+    // Person / Superhero (Hancock) Mode: shift+H
+    if (e.code === "KeyH" && e.shiftKey) {
+      if (state.person && state.person.active) {
+        backToCab();
+        state.messages = state.messages || [];
+        state.messages.push({ text: "Vissza a vonathoz", t: 2.5, tone: "info" });
+      } else {
+        const c = state.camXZ || route.at(driver.m);
+        const gy = (window.SIM && SIM.carSurf) ? SIM.carSurf(c[0], c[1], 110).y : 110;
+        const selIdx = state.selectedCharIdx !== undefined ? state.selectedCharIdx : 0;
+        const curModel = CHAR_MODELS[selIdx] || CHAR_MODELS[0];
+        state.person = {
+          x: c[0], n: c[1], y: gy + 0.2,
+          yaw: state.yaw || 0, pitch: 0,
+          v: [0, 0, 0],
+          onGround: true, flying: false,
+          charIdx: selIdx,
+          height: 1.82,
+          tintScale: state.selectedCharTint !== undefined ? state.selectedCharTint : 1.0,
+          heroAbilities: true,
+          walkDist: 0, phase: -1.0,
+          active: true, firstPerson: false
+        };
+        if (state.plane) state.plane.active = false;
+        if (state.drone) state.drone.active = false;
+        if (state.car) state.car.active = false;
+        state.tram = null; state.fly = null; state.follow = false; state.followIdx = -1; state.cab = false; state.passenger = null;
+        state.yaw = 0; state.pitch = 0; state.zoom = 1;
+        state.messages = state.messages || [];
+        state.messages.push({
+          text: `🦸 Hancock Hős aktív · ${curModel.name} · Space: repülés, E: robbanás, C/X: süllyedés, V: karakterváltás`,
+          t: 4.5, tone: "good"
+        });
+      }
+      return;
+    }
+
+    if (state.person && state.person.active) {
+      if (e.code === "Escape") {
+        backToCab();
+        e.preventDefault(); return;
+      }
+      if (e.code === "KeyE" && state.person.heroAbilities) {
+        state.person.triggerBlast = true;
+        e.preventDefault(); return;
+      }
+      if (e.code === "KeyF") {
+        state.person.firstPerson = !state.person.firstPerson;
+        state.messages = state.messages || [];
+        state.messages.push({
+          text: state.person.firstPerson ? "Kamera: Belső nézet (FPS)" : "Kamera: Külső nézet (3rd Person)",
+          t: 2.5, tone: "info"
+        });
+        e.preventDefault(); return;
+      }
+      if (e.code === "KeyP") {
+        state.paused = !state.paused;
+        e.preventDefault(); return;
+      }
+      if (e.code === "KeyV") {
+        state.person.charIdx = ((state.person.charIdx || 0) + 1) % CHAR_MODELS.length;
+        state.selectedCharIdx = state.person.charIdx;
+        const cur = CHAR_MODELS[state.person.charIdx];
+        state.messages = state.messages || [];
+        state.messages.push({
+          text: `Karakter: ${cur.name} (${cur.gender === "m" ? "👨 Férfi" : "👩 Nő"}) [${state.person.charIdx + 1}/24]`,
+          t: 3, tone: "good"
+        });
+        e.preventDefault(); return;
+      }
+      if (["Space", "KeyW", "KeyS", "KeyA", "KeyD", "KeyC", "KeyX", "KeyE", "ShiftLeft", "ShiftRight", "ControlLeft", "ControlRight"].includes(e.code)) {
+        e.preventDefault(); return;
+      }
     }
     if (state.car && state.car.active) {
       if (e.code === "Escape") {
-        state.car.active = false; state.yaw = 0; state.pitch = -0.02; state.zoom = 1;
+        backToCab();
         e.preventDefault(); return;
       }
       if (e.code === "KeyC") { state.car.cockpit = !state.car.cockpit; return; }
+      if (e.code === "KeyP") { state.paused = !state.paused; e.preventDefault(); return; }
       if (["Space", "KeyW", "KeyS", "KeyA", "KeyD", "KeyQ", "KeyE", "KeyR", "KeyF", "KeyX",
            "KeyJ", "KeyM", "KeyB", "KeyV", "KeyI", "KeyY", "ArrowUp", "ArrowDown", "ArrowLeft",
            "ArrowRight", "Backspace", "KeyH"].includes(e.code)) { e.preventDefault(); return; }
     }
+    if (state.tram) {
+      if (e.code === "Escape") {
+        backToCab();
+        e.preventDefault(); return;
+      }
+      if (e.code === "KeyP") {
+        state.paused = !state.paused;
+        e.preventDefault(); return;
+      }
+      if (e.code === "KeyT" && e.shiftKey) {
+        if (window.__tram) window.__tram();
+        e.preventDefault(); return;
+      }
+      if (e.code === "KeyC") {
+        state.tram.out = !state.tram.out;
+        state.yaw = state.tram.out ? 0.35 : 0; state.pitch = state.tram.out ? -0.1 : -0.05;
+        e.preventDefault(); return;
+      }
+      if (e.code === "KeyW") {
+        state.tram.manual = true;
+        state.tram.throttle = Math.min(1.0, (state.tram.throttle || 0) + 0.25);
+        state.tram.brake = 0;
+        e.preventDefault(); return;
+      }
+      if (e.code === "KeyS") {
+        state.tram.manual = true;
+        state.tram.brake = Math.min(1.0, (state.tram.brake || 0) + 0.25);
+        state.tram.throttle = 0;
+        e.preventDefault(); return;
+      }
+      if (e.code === "Space") {
+        state.paused = !state.paused;
+        state.messages = state.messages || [];
+        state.messages.push({
+          text: state.paused ? (state.lang === "hu" ? "SZÜNET (Pause)" : "PAUSED") : (state.lang === "hu" ? "FOLYTATÁS (Resume)" : "RESUMED"),
+          t: 1.8, tone: "info"
+        });
+        e.preventDefault(); return;
+      }
+      if (e.code === "KeyB") {
+        state.tram.manual = true;
+        state.tram.throttle = 0;
+        state.tram.brake = 1.0;
+        e.preventDefault(); return;
+      }
+      if (e.code === "KeyE" || e.code === "KeyD") {
+        if ((state.tram.v || 0) < 0.4) {
+          state.tram.doors = !state.tram.doors;
+          if (state.tram.doors) { state.tram.throttle = 0; state.tram.brake = 1.0; }
+        }
+        e.preventDefault(); return;
+      }
+      if (e.code === "KeyM") {
+        state.tram.manual = !state.tram.manual;
+        e.preventDefault(); return;
+      }
+      if (["Space", "KeyW", "KeyS", "KeyA", "KeyD", "KeyQ", "KeyE", "KeyR", "KeyF", "KeyX",
+           "KeyJ", "KeyM", "KeyB", "KeyV", "KeyI", "KeyY", "ArrowUp", "ArrowDown", "ArrowLeft",
+           "ArrowRight", "Backspace"].includes(e.code)) {
+        e.preventDefault(); return;
+      }
+    }
     // Esc from any flying camera, or the sightseeing director, goes straight
     // back to the train
     if (e.code === "Escape" && ((state.plane && state.plane.active) || state.fly || state.tour)) {
-      if (state.plane) state.plane.active = false;
-      state.tour = null; state.passenger = null; state.follow = false;
-      state.fly = null; state.yaw = 0; state.pitch = -0.02; state.zoom = 1;
+      backToCab();
       e.preventDefault(); return;
     }
     if (state.plane && state.plane.active) {
@@ -169,7 +317,7 @@ export function installInput(ctx) {
     if (state.manual && e.code === "Backspace") {
       driver.emergency = true; driver.setLever(-8); driver.emergency = true;
     }
-    if (e.code === "KeyL") state.labels = !state.labels;
+    if (e.code === "KeyL" && !e.shiftKey) state.labels = !state.labels;
     if (e.code === "F3") { state.debugHud = !state.debugHud; e.preventDefault(); }
     if (e.code === "KeyC" && !e.shiftKey) state.follow = !state.follow;
     // shift+C detaches the camera from the train and hands it to you. It
@@ -193,7 +341,7 @@ export function installInput(ctx) {
     // off / slow / fast, the three positions a real wiper switch has
     if (e.code === "KeyX") { state.wiperAuto = false; state.wiper = (state.wiper + 1) % 3; }
     if (e.code === "KeyE") driver.acknowledge();
-    if (e.code === "KeyJ") driver.sand = !driver.sand;
+    if (e.code === "KeyJ" && !state.dark) driver.sand = !driver.sand;
     // Comma and full stop jump to the previous or next stop. Sixty-three
     // kilometres is a long way to drive to look at one bridge.
     if (e.code === "Comma" || e.code === "Period") {
@@ -219,9 +367,12 @@ export function installInput(ctx) {
     if (e.code === "Digit3") state.speedMul = 16;
     if (e.code === "KeyT" && e.shiftKey) { if (state.tram) window.__tram(); else if (window.__tramBar) window.__tramBar(); }
     if (e.code === "KeyN" && e.shiftKey) { if (window.__skipStop) window.__skipStop(); return; }
-    else if (e.code === "KeyT") state.show.terrain = !state.show.terrain;
+    // (⇧T used to fall through to this and switch the ground off as you
+    // boarded a tram; ⇧O turned the wires off with the orbit camera; in the
+    // dark timeline K and J also switched the sky and the sander)
+    if (e.code === "KeyT" && !e.shiftKey) state.show.terrain = !state.show.terrain;
     if (e.code === "KeyR" && !e.shiftKey) state.show.track = !state.show.track;
-    if (e.code === "KeyK") state.show.sky = !state.show.sky;
+    if (e.code === "KeyK" && !e.shiftKey && !state.dark) state.show.sky = !state.show.sky;
     if (e.code === "KeyB" && !e.shiftKey) {
       if (riverTraffic) {
         const allShips = [...(riverTraffic.ferries || []), ...(riverTraffic.ships || [])];
@@ -242,7 +393,7 @@ export function installInput(ctx) {
       }
     }
     if (e.code === "KeyN") state.show.roads = !state.show.roads;
-    if (e.code === "KeyO") state.show.catenary = !state.show.catenary;
+    if (e.code === "KeyO" && !e.shiftKey) state.show.catenary = !state.show.catenary;
     // everything off: no panel, no read-outs, just the railway
     if (e.code === "KeyU" && window.__setBare) window.__setBare(((state.bareLevel || 0) + 1) % 3);
     if (e.code === "Tab") { state.map = !state.map; e.preventDefault(); }
@@ -281,12 +432,146 @@ export function installInput(ctx) {
       e.preventDefault();
   });
   addEventListener("keyup", e => keys.delete(e.code));
-  let drag = null, panDrag = null;
-  // (no text selection or native drag starting from the picture: that is what
+  let drag = null, panDrag = null, mapDrag = null;
   // dragged "the window away" instead of turning the view)
   cv.addEventListener("dragstart", e => e.preventDefault());
   cv.addEventListener("pointerdown", e => {
     e.preventDefault();
+    if (!state.map && state.mapTransform) {
+      const r = cv.getBoundingClientRect();
+      const px = (e.clientX - r.left) * (hud.width / r.width);
+      const py = (e.clientY - r.top) * (hud.height / r.height);
+      const { mx, my, mw, mh } = state.mapTransform;
+      if (px >= mx && px <= mx + mw && py >= my && py <= my + mh) {
+        state.map = true;
+        state.mapZoom = 2.2;
+        state.mapPanX = 0;
+        state.mapPanY = 0;
+        return;
+      }
+    }
+    if (state.map) {
+      const r = cv.getBoundingClientRect();
+      const px = (e.clientX - r.left) * (hud.width / r.width);
+      const py = (e.clientY - r.top) * (hud.height / r.height);
+
+      // 1. Spawner action buttons inside the dropped pin card
+      if (state.hitMapSpawnBtns && state.hitMapSpawnBtns.length) {
+        for (const btn of state.hitMapSpawnBtns) {
+          if (px >= btn.x && px <= btn.x + btn.w && py >= btn.y && py <= btn.y + btn.h) {
+            if (btn.act === "close_pin") {
+              state.mapPin = null;
+              return;
+            }
+            // Model customization buttons (do not close map)
+            if (btn.act === "char_prev") {
+              state.selectedCharIdx = ((state.selectedCharIdx !== undefined ? state.selectedCharIdx : 0) + 23) % CHAR_MODELS.length;
+              if (state.person) state.person.charIdx = state.selectedCharIdx;
+              return;
+            }
+            if (btn.act === "char_next") {
+              state.selectedCharIdx = ((state.selectedCharIdx !== undefined ? state.selectedCharIdx : 0) + 1) % CHAR_MODELS.length;
+              if (state.person) state.person.charIdx = state.selectedCharIdx;
+              return;
+            }
+            if (btn.act === "char_male") {
+              state.selectedCharIdx = 0;
+              if (state.person) state.person.charIdx = 0;
+              return;
+            }
+            if (btn.act === "char_female") {
+              state.selectedCharIdx = 15;
+              if (state.person) state.person.charIdx = 15;
+              return;
+            }
+            if (btn.act.startsWith("tint_")) {
+              state.selectedCharTint = parseFloat(btn.act.slice(5));
+              if (state.person) state.person.tintScale = state.selectedCharTint;
+              return;
+            }
+
+            const pin = state.mapPin;
+            if (pin) {
+              const gy = (window.SIM && SIM.carSurf) ? SIM.carSurf(pin.x, pin.y, 110).y : 110;
+              const selIdx = state.selectedCharIdx !== undefined ? state.selectedCharIdx : 0;
+              const selTint = state.selectedCharTint !== undefined ? state.selectedCharTint : 1.0;
+              if (btn.act === "hero" || btn.act === "walk") {
+                const isHero = btn.act === "hero";
+                state.person = {
+                  x: pin.x, n: pin.y, y: gy + 0.2,
+                  yaw: 0, pitch: 0, v: [0, 0, 0],
+                  onGround: true, flying: false,
+                  charIdx: selIdx,
+                  height: 1.82,
+                  tintScale: selTint,
+                  heroAbilities: isHero,
+                  walkDist: 0, phase: -1.0,
+                  active: true, firstPerson: false
+                };
+                if (state.car) state.car.active = false;
+                if (state.plane) state.plane.active = false;
+                if (state.drone) state.drone.active = false;
+                state.tram = null; state.tramBar = false; state.fly = null; state.follow = false; state.followIdx = -1; state.tour = null; state.passenger = null; if (state.drone) state.drone.active = false;
+                state.messages = state.messages || [];
+                const m = CHAR_MODELS[selIdx] || CHAR_MODELS[0];
+                state.messages.push({
+                  text: isHero ? `🦸 Hancock Hős aktív · ${m.name}` : `🚶 Városi Séta aktív · ${m.name}`,
+                  t: 3.5, tone: "good"
+                });
+              } else if (btn.act === "car") {
+                state.car = makeCar(pin.x, pin.y, 0, gy);
+                if (state.person) state.person.active = false;
+                if (state.plane) state.plane.active = false;
+                if (state.drone) state.drone.active = false;
+                state.tram = null; state.tramBar = false; state.fly = null; state.follow = false; state.followIdx = -1; state.tour = null; state.passenger = null; if (state.drone) state.drone.active = false;
+              } else if (btn.act === "tram") {
+                if (window.__tramNear) window.__tramNear(pin.x, pin.y);
+              } else if (btn.act === "plane") {
+                state.plane = makePlane([pin.x, gy + 320, -pin.y], 0, "cessna");
+                if (state.person) state.person.active = false;
+                if (state.car) state.car.active = false;
+                state.tram = null; state.tramBar = false; state.fly = null; state.follow = false; state.followIdx = -1; state.tour = null; state.passenger = null; if (state.drone) state.drone.active = false;
+              }
+            }
+            state.map = false;
+            state.mapPin = null;
+            return;
+          }
+        }
+      }
+
+      // a click on the pin's card that misses its buttons does nothing (it
+      // used to drop a new pin under the card, which looked like a lost click)
+      const pc = state.mapPinCard;
+      if (state.mapPin && pc && px >= pc.x && px <= pc.x + pc.w && py >= pc.y && py <= pc.y + pc.h) return;
+
+      // 2. Interactive Map HUD buttons: [+] [-] [Reset] [🎯]
+      if (state.hitMapControls && state.hitMapControls.length) {
+        for (const ctl of state.hitMapControls) {
+          if (px >= ctl.x && px <= ctl.x + ctl.w && py >= ctl.y && py <= ctl.y + ctl.h) {
+            if (ctl.act === "zoom_in") state.mapZoom = Math.min(6.0, (state.mapZoom || 2.2) * 1.35);
+            if (ctl.act === "zoom_out") state.mapZoom = Math.max(1.0, (state.mapZoom || 2.2) / 1.35);
+            if (ctl.act === "reset") { state.mapZoom = 2.2; state.mapPanX = 0; state.mapPanY = 0; }
+            if (ctl.act === "center") { state.mapPanX = 0; state.mapPanY = 0; }
+            return;
+          }
+        }
+      }
+
+      // 3. Initiate map panning drag (clicks without movement trigger pin/boarding on release)
+      mapDrag = {
+        startX: e.clientX,
+        startY: e.clientY,
+        lastX: e.clientX,
+        lastY: e.clientY,
+        initPanX: state.mapPanX || 0,
+        initPanY: state.mapPanY || 0,
+        moved: false,
+        px, py
+      };
+      cv.setPointerCapture(e.pointerId);
+      return;
+    }
     if (state.panel && state.hit) {
       const r = cv.getBoundingClientRect();
       const px = (e.clientX - r.left) * (hud.width / r.width);
@@ -371,7 +656,60 @@ export function installInput(ctx) {
   });
   // A drag ends however it ends — a release outside the window, a lost
   // capture, the tab switching — or it stayed "stuck" until the next click
-  const endDrag = () => { drag = null; panDrag = null; };
+  const endDrag = () => {
+    if (mapDrag) {
+      if (!mapDrag.moved && state.map) {
+        const px = mapDrag.px, py = mapDrag.py;
+        // 1. Click on a live tram badge or signboard on the map
+        if (state.hitMapTrams && state.hitMapTrams.length) {
+          for (const ht of state.hitMapTrams) {
+            const inBox = (ht.bx !== undefined)
+              ? (px >= ht.bx && px <= ht.bx + ht.w && py >= ht.by && py <= ht.by + ht.h)
+              : (Math.hypot(px - ht.x, py - ht.y) <= ht.r);
+            if (inBox || Math.hypot(px - ht.x, py - ht.y) <= ht.r) {
+              if (window.__boardTram) window.__boardTram(ht.ri, ht.dep, true);
+              mapDrag = null;
+              return;
+            }
+          }
+        }
+
+        // 2. Click on a live train badge or signboard on the map
+        if (state.hitMapTrains && state.hitMapTrains.length) {
+          for (const ht of state.hitMapTrains) {
+            const inBox = (ht.bx !== undefined)
+              ? (px >= ht.bx && px <= ht.bx + ht.w && py >= ht.by && py <= ht.by + ht.h)
+              : (Math.hypot(px - ht.x, py - ht.y) <= ht.r);
+            if (inBox || Math.hypot(px - ht.x, py - ht.y) <= ht.r) {
+              if (traffic.trains.includes(ht.train) && window.__takeOver) {
+                state.map = false; state.mapPin = null;
+                window.__takeOver(ht.train);
+                mapDrag = null;
+                return;
+              }
+            }
+          }
+        }
+
+        // 3. Drop pin anywhere on the map
+        if (state.mapTransform && state.mapTransform.full && state.mapTransform.fromMap) {
+          const { mx, my, mw, mh } = state.mapTransform;
+          if (px >= mx && px <= mx + mw && py >= my && py <= my + mh) {
+            const [wx, wy] = state.mapTransform.fromMap(px, py);
+            let bestPlace = null, bestDist = 650;
+            for (const p of routeData.places || []) {
+              if (!p.xy) continue;
+              const d = Math.hypot(p.xy[0] - wx, p.xy[1] - wy);
+              if (d < bestDist) { bestDist = d; bestPlace = p.name; }
+            }
+            state.mapPin = { x: wx, y: wy, name: bestPlace || (wy < 5000 ? "Budaörs / Dél-Buda" : "Budapest") };
+          }
+        }
+      }
+      mapDrag = null;
+    }
+    drag = null; panDrag = null;
+  };
   cv.addEventListener("pointerup", endDrag);
   cv.addEventListener("pointercancel", endDrag);
   cv.addEventListener("lostpointercapture", endDrag);
@@ -402,6 +740,12 @@ export function installInput(ctx) {
   cv.addEventListener("pointercancel", lift);
   cv.addEventListener("wheel", e => {
     e.preventDefault();
+    if (state.map) {
+      const zoomSpeed = 1.18;
+      const curZoom = state.mapZoom || 1.0;
+      state.mapZoom = Math.max(1.0, Math.min(6.0, curZoom * (e.deltaY < 0 ? zoomSpeed : 1 / zoomSpeed)));
+      return;
+    }
     if (state.panel) {
       const v = state.panelView;
       v.zoom = Math.max(1, Math.min(14, v.zoom * (e.deltaY < 0 ? 1.18 : 1 / 1.18)));
@@ -412,6 +756,20 @@ export function installInput(ctx) {
     state.zoom = Math.max(0.35, Math.min(6.0, state.zoom * k));
   }, { passive: false });
   cv.addEventListener("pointermove", e => {
+    if (mapDrag) {
+      const dx = e.clientX - mapDrag.startX;
+      const dy = e.clientY - mapDrag.startY;
+      if (Math.hypot(dx, dy) > 4) {
+        mapDrag.moved = true;
+      }
+      // by steps from the last position (drawMap holds the pan to the map's
+      // edges each frame, so there is no dead zone to drag back through)
+      const k = hud.width / cv.getBoundingClientRect().width;
+      state.mapPanX = (state.mapPanX || 0) + (e.clientX - mapDrag.lastX) * k;
+      state.mapPanY = (state.mapPanY || 0) + (e.clientY - mapDrag.lastY) * k;
+      mapDrag.lastX = e.clientX; mapDrag.lastY = e.clientY;
+      return;
+    }
     if (panDrag) {
       const v = state.panelView;
       const td = routeData.track_down;
@@ -422,6 +780,7 @@ export function installInput(ctx) {
     }
     if (!drag) return;
     if (e.buttons === 0) { drag = null; return; }       // released where we did not hear it
+    state.wreckCam = null;                               // (you take the camera from the wreck's)
     state.yaw += (e.clientX - drag[0]) * 0.004;
     state.pitch = Math.max(-1.1, Math.min(1.1, state.pitch - (e.clientY - drag[1]) * 0.003));
     drag = [e.clientX, e.clientY];

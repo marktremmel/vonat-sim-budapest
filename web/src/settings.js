@@ -1,4 +1,6 @@
 import { tt, LANG } from "./i18n.js";
+import { makeCar } from "./car.js";
+import { makePlane } from "./aircraft.js";
 export function bindSettings(state, {
   onWeatherChange,
   onStartRun,
@@ -89,7 +91,7 @@ export function bindSettings(state, {
   }]);
   // graphics switches (Beállítás): remembered like the sliders
   state.gfx = state.gfx || {};
-  for (const [id, key] of [["gfxDof", "dof"], ["gfxMotion", "motion"], ["gfxAO", "ao"], ["gfxFps", "fps"]]) {
+  for (const [id, key] of [["gfxDof", "dof"], ["gfxMotion", "motion"], ["gfxAO", "ao"], ["gfxFps", "fps"], ["gfxHeavy", "heavy"]]) {
     const el = document.getElementById(id); if (!el) continue;
     const p0 = loadPrefs();
     if (p0.gfx && p0.gfx[key] != null) el.checked = !!p0.gfx[key];
@@ -103,7 +105,9 @@ export function bindSettings(state, {
   for (const [id, key] of [["gfxDofAmt", "dofAmt"], ["gfxMotionAmt", "motionAmt"], ["gfxAOAmt", "aoAmt"]]) {
     const el = document.getElementById(id); if (!el) continue;
     const p0 = loadPrefs();
-    if (p0.gfx && p0.gfx[key] != null) el.value = p0.gfx[key];
+    // (0.35, the old default for the DOF, is taken as "never set": the owner
+    // wanted it barely there at the start, so it moves to the new default)
+    if (p0.gfx && p0.gfx[key] != null && !(key === "dofAmt" && p0.gfx[key] === 0.35)) el.value = p0.gfx[key];
     state.gfx[key] = +el.value;
     el.addEventListener("input", () => {
       state.gfx[key] = +el.value;
@@ -294,6 +298,89 @@ export function bindSettings(state, {
     if (selMode) selMode.value = "auto";
     start(1, stopsUp[0].km, "auto", quickScenario, "custom", quickHour());
     if (window.__intro) window.__intro();
+  });
+
+  // Game Hub Cards (Train, Tram, Map & Spawner, Hero, Car, Plane)
+  const hubCards = document.querySelectorAll(".mHubCard");
+  const setHubCardOn = (id) => {
+    hubCards.forEach(c => c.classList.toggle("on", c.id === id));
+  };
+  const hubTrain = document.getElementById("hubTrain");
+  if (hubTrain) hubTrain.addEventListener("click", () => {
+    setHubCardOn("hubTrain");
+    const mLines = document.getElementById("mLines");
+    if (mLines) mLines.scrollIntoView({ behavior: "smooth" });
+  });
+
+  const hubTram = document.getElementById("hubTram");
+  if (hubTram) hubTram.addEventListener("click", () => {
+    setHubCardOn("hubTram");
+    if (window.__toggleMenu) window.__toggleMenu(false);
+    if (window.SIM && SIM.trams) {
+      const trm = SIM.trams();
+      const nx = trm ? trm.nearest(state.hour * 3600, 1500, 1200) : null;
+      if (nx) state.tram = { ri: nx.ri, dep: nx.dep, out: true };
+    }
+    state.car = null; state.plane = null; state.drone = null;
+    if (state.person) state.person.active = false;
+  });
+
+  const hubMap = document.getElementById("hubMap");
+  if (hubMap) hubMap.addEventListener("click", () => {
+    setHubCardOn("hubMap");
+    if (window.__toggleMenu) window.__toggleMenu(false);
+    state.map = true;
+  });
+
+  const hubHero = document.getElementById("hubHero");
+  if (hubHero) hubHero.addEventListener("click", () => {
+    setHubCardOn("hubHero");
+    if (window.__toggleMenu) window.__toggleMenu(false);
+    const pinX = 21205, pinN = 6040; // Nyugati tér / Nagykörút plaza
+    const gy = (window.SIM && SIM.carSurf) ? SIM.carSurf(pinX, pinN, 110).y : 110;
+    state.person = {
+      x: pinX, n: pinN, y: gy + 0.2,
+      yaw: 0, pitch: 0, v: [0, 0, 0],
+      onGround: true, flying: false,
+      charIdx: state.selectedCharIdx || 0,
+      height: 1.82,
+      tintScale: 1.0,
+      heroAbilities: true,
+      walkDist: 0, phase: -1.0,
+      active: true, firstPerson: false
+    };
+    state.car = null; state.plane = null; state.tram = null; state.drone = null;
+    state.cab = false; state.follow = false; state.followIdx = -1; state.fly = null; state.passenger = null;
+    state.messages = state.messages || [];
+    state.messages.push({
+      text: tt("🦸 Hancock Hős aktív · Space repülés · E robbanás · C süllyedés · V karakter",
+               "🦸 Hancock Hero active · Space fly · E blast · C dive · V character"),
+      t: 4.0, tone: "good"
+    });
+  });
+
+  const hubCar = document.getElementById("hubCar");
+  if (hubCar) hubCar.addEventListener("click", () => {
+    setHubCardOn("hubCar");
+    if (window.__toggleMenu) window.__toggleMenu(false);
+    const pinX = 21205, pinN = 6040;
+    const gy = (window.SIM && SIM.carSurf) ? SIM.carSurf(pinX, pinN, 110).y : 110;
+    state.car = makeCar(pinX, pinN, 0, gy);
+    state.plane = null; state.tram = null; state.drone = null;
+    state.cab = false; state.follow = false; state.followIdx = -1;
+    if (state.person) state.person.active = false;
+  });
+
+  const hubPlane = document.getElementById("hubPlane");
+  if (hubPlane) hubPlane.addEventListener("click", () => {
+    setHubCardOn("hubPlane");
+    if (window.__toggleMenu) window.__toggleMenu(false);
+    const pinX = 21205, pinN = 6040;
+    const gy = (window.SIM && SIM.carSurf) ? SIM.carSurf(pinX, pinN, 110).y : 110;
+    state.plane = makePlane([pinX, gy + 320, -pinN], 0.2, "gripen");
+    state.car = null; state.tram = null; state.drone = null;
+    state.cab = false; state.follow = false; state.followIdx = -1;
+    if (state.person) state.person.active = false;
   });
 
   // Auto-start if URL parameters exist

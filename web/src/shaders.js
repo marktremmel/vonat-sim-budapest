@@ -363,45 +363,84 @@ vec3 facade(inout vec3 base, float u, float relH, float H, int kind, float seed,
   float fx = fract(u / bayW);
   float bay = floor(u / bayW);
 
-  if (kind == 2 && variant == 1 && up >= 0.0 && !topZone) {
-    // a tenement with balconies: an iron railing in front of every other
-    // bay on alternate floors, French windows behind them
+  if (kind == 2 && variant == 0 && up >= 0.0 && !topZone) {
+    // Hungarian Secessionist (szecessziós, Lechner style): undulating window mouldings,
+    // and a decorative glazed Zsolnay ceramic tile frieze band under the eaves
+    bool piano = (storey == 0.0);
+    float archH = piano ? 0.84 : 0.80;
+    float archClip = piano ? step(length(vec2((fx - 0.5) * 1.8, max(0.0, fy - 0.64) * 2.4)), 0.38) : 1.0;
+    float pane = step(0.24, fx) * step(fx, 0.76) * step(0.18, fy) * step(fy, archH) * archClip;
+    float surround = step(0.18, fx) * step(fx, 0.82) * step(0.12, fy) * step(fy, 0.88);
+    // Zsolnay ceramic frieze: emerald green / turquoise and golden ochre tiles
+    bool topStorey = relH > H - storeyH - 1.2;
+    float ceramicBand = topStorey ? step(0.80, fy) * step(fy, 0.98) : 0.0;
+    vec3 tileCol = fract(seed * 7.1) < 0.5 ? vec3(0.08, 0.58, 0.44) : vec3(0.86, 0.65, 0.18);
+    mullion = step(0.485, fx) * step(fx, 0.515);
+    base = mix(base, base * 1.15 + 0.04, surround * detail * 0.7);
+    base = mix(base, tileCol, ceramicBand * detail * 0.95);
+    base = mix(base, vec3(0.10, 0.12, 0.16), pane * (1.0 - mullion) * detail * 0.85);
+    glass = pane; litShare = 0.45;
+  } else if (kind == 2 && variant == 1 && up >= 0.0 && !topZone) {
+    // Budapest tenement with wrought-iron balconies: stone slab, filigree railing,
+    // and classical console corbels under the balcony
     bool balc = mod(bay + storey, 2.0) < 1.0 && storey >= 0.0;
     float pane = step(0.26, fx) * step(fx, 0.74) * step(balc ? 0.06 : 0.18, fy) * step(fy, 0.80);
     float slab = balc ? step(0.08, fx) * step(fx, 0.92) * step(fy, 0.07) : 0.0;
-    float rail = balc ? step(0.08, fx) * step(fx, 0.92) * step(0.07, fy) * step(fy, 0.36) * step(0.5, fract(u * 3.0)) : 0.0;
+    // Wrought-iron railing pattern with vertical spindles and top rail
+    float rail = balc ? step(0.08, fx) * step(fx, 0.92) * step(0.07, fy) * step(fy, 0.38)
+                      * (step(0.45, fract(u * 3.5)) + step(0.35, fy)) : 0.0;
+    // Support corbels (konzolok) carved under the balcony floor
+    float corbel = balc ? (step(0.12, fx) * step(fx, 0.22) + step(0.78, fx) * step(fx, 0.88)) * step(fy, 0.0) * step(-0.16, fy) : 0.0;
     mullion = step(0.48, fx) * step(fx, 0.52);
     base = mix(base, vec3(0.10, 0.12, 0.16), pane * (1.0 - mullion) * detail * 0.85);
     base = mix(base, base * 0.7, slab * detail);
-    base = mix(base, vec3(0.16, 0.16, 0.17), rail * detail * 0.9);
+    base = mix(base, base * 0.78, corbel * detail);
+    base = mix(base, vec3(0.16, 0.16, 0.17), rail * detail * 0.92);
     glass = pane; litShare = 0.45;
   } else if (kind == 2 && variant == 2 && up >= 0.0 && !topZone) {
-    // pilasters between the bays and a cornice at every floor (eclectic)
+    // Grand Eclectic / Neo-Renaissance: pilasters between bays, piano nobile arched windows,
+    // and classical triangular/segmental pediments
     float pil = step(fx, 0.12) + step(0.88, fx);
     float cor = step(0.90, fy);
-    float pane = step(0.30, fx) * step(fx, 0.70) * step(0.20, fy) * step(fy, 0.76);
-    float pedi = step(0.26, fx) * step(fx, 0.74) * step(0.78, fy) * step(fy, 0.86) * step(abs(fx - 0.5) * 2.0, (0.86 - fy) * 12.0);
-    base = mix(base, base * 1.14 + 0.05, clamp(pil + cor + pedi, 0.0, 1.0) * detail * 0.75);
+    bool piano = (storey == 0.0);
+    float archClip = piano ? step(length(vec2((fx - 0.5) * 1.8, max(0.0, fy - 0.62) * 2.5)), 0.38) : 1.0;
+    float pane = step(0.28, fx) * step(fx, 0.72) * step(0.18, fy) * step(fy, 0.78) * archClip;
+    // Classical pediment over upper windows
+    float pedi = !piano ? step(0.22, fx) * step(fx, 0.78) * step(0.80, fy) * step(fy, 0.92) * step(abs(fx - 0.5) * 2.0, (0.92 - fy) * 9.0) : 0.0;
+    base = mix(base, base * 1.18 + 0.07, clamp(pil + cor + pedi, 0.0, 1.0) * detail * 0.80);
     base = mix(base, vec3(0.10, 0.12, 0.16), pane * detail * 0.85);
     glass = pane; litShare = 0.45;
   } else if (kind == 2 && variant == 3 && up >= 0.0 && !topZone) {
-    // renovated: plain render, bigger plastic windows, no surrounds
-    float pane = step(0.18, fx) * step(fx, 0.82) * step(0.22, fy) * step(fy, 0.80);
-    float frame = step(0.16, fx) * step(fx, 0.84) * step(0.20, fy) * step(fy, 0.82) - pane;
+    // Renovated historicist: crisp stucco mouldings, contrasting window surrounds
+    float pane = step(0.20, fx) * step(fx, 0.80) * step(0.22, fy) * step(fy, 0.80);
+    float frame = step(0.16, fx) * step(fx, 0.84) * step(0.18, fy) * step(fy, 0.84) - pane;
     mullion = step(0.49, fx) * step(fx, 0.51);
-    base = mix(base, vec3(0.94, 0.94, 0.93), frame * detail * 0.8);
+    base = mix(base, vec3(0.95, 0.95, 0.93), frame * detail * 0.85);
     base = mix(base, vec3(0.12, 0.15, 0.19), pane * (1.0 - mullion) * detail * 0.85);
     glass = pane; litShare = 0.5;
   } else if (kind == 2) {
     if (up < 0.0) {
-      float plinth = step(relH, 0.6);
-      float shop = step(0.08, fx) * step(fx, 0.92) * step(0.14, fy) * step(fy, 0.86);
-      base = mix(base, base * 0.72, 0.55);
-      base = mix(base, vec3(0.30, 0.28, 0.26), plinth);
+      // Ground floor and mezzanine: heavy Budapest horizontal rustication (sávos kváderkövezés)
+      float plinth = step(relH, 0.65);
+      float rust = step(0.14, fract(relH * 1.6)) * 0.18;
+      bool portal = mod(bay, 4.0) < 1.0;
+      float shop = portal ? 0.0 : step(0.08, fx) * step(fx, 0.92) * step(0.14, fy) * step(fy, 0.86);
+      float arch = portal ? step(0.20, fx) * step(fx, 0.80) * step(0.0, fy) * step(fy, 0.90) : 0.0;
+      base = mix(base * 0.80, base, rust);
+      base = mix(base, vec3(0.28, 0.27, 0.25), plinth);
       base = mix(base, vec3(0.10, 0.12, 0.15), shop * detail * 0.85);
+      base = mix(base, vec3(0.20, 0.15, 0.10), arch * detail * 0.90);
       glass = shop; litShare = 0.70;
     } else if (topZone) {
-      base *= 0.78;
+      // Grand Budapest roofline cornice with console brackets (konzolos főpárkány) & mansard attic dormers
+      float cornice = step(H - 0.55, relH);
+      float bracket = step(H - 1.15, relH) * step(relH, H - 0.55) * step(fract(u * 1.25), 0.32);
+      // Mansard attic dormer windows (tetőtéri manzárdablakok)
+      float dormer = step(0.32, fx) * step(fx, 0.68) * step(H - 1.35, relH) * step(relH, H - 0.65);
+      base = mix(base * 0.74, base * 1.20 + 0.06, cornice * detail);
+      base = mix(base, base * 1.26 + 0.08, bracket * detail);
+      base = mix(base, vec3(0.12, 0.14, 0.18), dormer * detail * 0.80);
+      if (dormer > 0.5) { glass = 1.0; litShare = 0.35; }
     } else {
       float surround = step(0.20, fx) * step(fx, 0.80) * step(0.12, fy) * step(fy, 0.86);
       float pane = step(0.26, fx) * step(fx, 0.74) * step(0.18, fy) * step(fy, 0.78);
@@ -777,6 +816,14 @@ float sampleC(vec2 w){
   if (nuv.x < 0.0 || nuv.x > 1.0 || nuv.y < 0.0 || nuv.y > 1.0) return 0.0;
   return texture(uCover, vec2(nuv.x, 1.0 - nuv.y)).r * 255.0;
 }
+// a lake's own level (main.js lakeLevels: one per connected water body that
+// is not the river), 0 where there is none
+uniform highp sampler2D uLake;
+float lakeAt(vec2 w){
+  vec2 nuv = vec2(w.x, -w.y) / (uNearSize * uNearStep);
+  if (nuv.x < 0.0 || nuv.x > 1.0 || nuv.y < 0.0 || nuv.y > 1.0) return 0.0;
+  return texture(uLake, vec2(nuv.x, 1.0 - nuv.y)).r;
+}
 void main(){
   vec2 w = uOrigin + aGrid.xy * uHalf;
   float h = sampleH(w) - aGrid.z * 90.0;
@@ -794,7 +841,13 @@ void main(){
     // surface standing above the mirror plane and the reflection breaks)
     // (the allowance grows with the slider BOTH ways: raised more than 6 m,
     // the river stayed at its old level under the white flood plane)
-    if (abs(h - wl) < 6.0 + abs(uDanube)) h = wl;
+    float lk = lakeAt(w);
+    // a lake: flat at its one level; ground well above it (a 25 m cover
+    // texel reaching onto the bank) keeps its own height, and TERRAIN_FS
+    // draws it as land, so the waterline follows the ground's contour
+    if (lk > 0.0) h = h > lk + 0.8 ? h : lk;
+    else if (lk < -0.5) h = wl;     // a body at river level: all of it on the river plane
+    else if (abs(h - wl) < 6.0 + abs(uDanube)) h = wl;
     else {
       // A lake at its own level (Dunakeszi tó): the surface model is lumpy
       // over water, so take the lowest ground round about as the lake's
@@ -837,6 +890,7 @@ uniform vec4 uLamp; uniform vec3 uLampDir;
 ${STREETLIGHT_GLSL}
 ${CRATER_GLSL}
 uniform sampler2D uCover, uReflect;
+uniform highp sampler2D uLake;
 uniform vec2 uNearSize, uNearStep, uViewport;
 uniform vec2 uWaterAB; uniform float uClipBelow; uniform float uDanube;
 
@@ -889,8 +943,9 @@ vec3 coverColour(float c){
   if (c < 11.5) return vec3(0.34,0.42,0.33);   // wetland
   if (c < 12.5) return vec3(0.36,0.33,0.30);   // railway formation
   if (c < 13.5) return vec3(0.30,0.45,0.24);   // park: mown, and greener
-  if (c < 14.5) return vec3(0.72,0.68,0.55);   // sand
-  return vec3(0.92,0.76,0.44);                 // Naszály limestone quarry: rich golden ochre / cut rock face
+  if (c < 14.5) return vec3(0.72,0.68,0.55);   // sand, beach
+  if (c < 15.5) return vec3(0.92,0.76,0.44);   // Naszály limestone quarry: rich golden ochre / cut rock face
+  return vec3(0.68,0.67,0.65);                 // 16: paved square (bake_world.py; no cover raster has it yet)
 }
 float bayer(vec2 p){
   int x = int(mod(p.x,4.0)), y = int(mod(p.y,4.0)); int i = y*4+x;
@@ -959,6 +1014,10 @@ void main(){
       if (ISW(c11) < 0.5 && w11 > best) { best = w11; vCover = c11; }
     }
     #undef ISW
+    // a lake's bank: water texels where the ground stands above the lake's
+    // level are land (grass), so the shore is the contour, not a 25 m step
+    float lk = texture(uLake, vec2(nuv.x, 1.0 - nuv.y)).r;
+    if (lk > 0.0 && vCover > 8.5 && vCover < 9.5 && vWorld.y > lk + 0.35) vCover = 3.0;
   }
   // anything the ground has been pulled up to the water plane is water now,
   // whatever the land cover said it was
@@ -1821,6 +1880,10 @@ uniform vec2 uNF;
 // sharp and still (the cab, drawn with its own projection)
 uniform vec3 uFx;
 uniform mat4 uInvVP, uPrevVP;
+// Heavy weather: water on the lens of an outside camera. x how wet the lens
+// is (0 dry, 1 soaked), y a clock (s), z how fast the camera moves (0..1),
+// w the picture's aspect ratio
+uniform vec4 uLens;
 
 float linDepth(vec2 uv){
   float z = texture(uDepth, uv).r * 2.0 - 1.0;
@@ -1846,6 +1909,71 @@ vec3 hueShift(vec3 c, float a){
   return c * ca + cross(k, c) * sin(a) + k * dot(k, c) * (1.0 - ca);
 }
 
+// Drops on the lens. Each cell of two grids (big drops, small ones) may hold
+// one drop, more of them the wetter the lens. A drop lands, sits, and late in
+// its life slides off: down when the camera is still, out toward the edges
+// when it moves forward, leaving a thin wet trail. What the drop does to the
+// picture is what a real one does: a small upside-down lens, so the image
+// inside it is the scene from the other side of the drop, rimmed dark with a
+// glint at the top. Worked out per game pixel, so it stays in the low-res look.
+vec2 lh22(vec2 p){
+  vec3 q = fract(vec3(p.xyx) * vec3(443.897, 441.423, 437.195));
+  q += dot(q, q.yzx + 19.19);
+  return fract(vec2((q.x + q.y) * q.z, (q.x + q.z) * q.y));
+}
+// returns the uv offset; rim (dark edge), hl (glint) and wetA (inside a drop
+// or trail, 0..1) come back through the out parameters
+vec2 lensDrops(vec2 uv, out float rim, out float hl, out float wetA){
+  rim = 0.0; hl = 0.0; wetA = 0.0;
+  vec2 off = vec2(0.0);
+  float wet = uLens.x, t = uLens.y, spd = uLens.z, asp = uLens.w;
+  for (int L = 0; L < 2; L++) {
+    float sc = L == 0 ? 7.0 : 15.0;
+    vec2 g = vec2(uv.x * asp, uv.y) * sc;
+    vec2 gc = floor(g), gf = fract(g);
+    vec2 h = lh22(gc + float(L) * 17.3);
+    vec2 h2 = lh22(gc * 1.7 + 5.1 + float(L) * 3.0);
+    if (h.x > wet * (L == 0 ? 0.55 : 0.80)) continue;
+    // its life: T seconds, landing at a random phase
+    float T = 3.5 + h2.x * 6.0 - spd * 2.0;
+    float cyc = (t + h.y * 37.0) / T;
+    float age = fract(cyc);
+    vec2 jit = lh22(gc + floor(cyc) * 7.13 + float(L)) ;   // a new place each life
+    float r = (L == 0 ? 0.22 : 0.17) * (0.55 + 0.45 * h2.y) * smoothstep(0.0, 0.04, age);
+    vec2 c = 0.30 + jit * 0.40;
+    // sliding: down when still, outward (from the picture's middle) when moving
+    vec2 mid = (gc + 0.5) / sc; mid.x /= asp;
+    vec2 out_ = mid - 0.5; out_ = length(out_) > 1e-3 ? normalize(out_) : vec2(0.0, -1.0);
+    vec2 dir = normalize(mix(vec2(0.0, -1.0), out_, clamp(spd * 1.4, 0.0, 1.0)));
+    float slide = smoothstep(0.55, 1.0, age);
+    vec2 c0 = c;
+    c += dir * slide * slide * 0.55;
+    r *= 1.0 - 0.45 * slide;
+    float fade = 1.0 - smoothstep(0.88, 1.0, age);
+    vec2 d = gf - c;
+    float dl = length(d * vec2(1.0, 1.12));
+    if (dl < r) {
+      vec2 n = d / r;
+      float z = sqrt(max(0.0, 1.0 - dot(n, n)));
+      // an upside-down little lens: sample from the far side of the drop
+      off += -n * (r / sc) * (0.9 + 0.6 * z) * vec2(1.0 / asp, 1.0) * fade;
+      rim = max(rim, smoothstep(0.55, 1.0, dl / r) * fade);
+      hl = max(hl, smoothstep(0.14, 0.0, length(n - vec2(-0.30, 0.50))) * fade);
+      wetA = max(wetA, fade);
+    } else if (slide > 0.0) {
+      // the trail the slide left behind it: a thin smear
+      vec2 ab = c - c0; float abl = max(length(ab), 1e-4);
+      float s_ = clamp(dot(gf - c0, ab) / (abl * abl), 0.0, 1.0);
+      float dt_ = length(gf - c0 - ab * s_);
+      float tw = r * 0.28;
+      float tr = smoothstep(tw, tw * 0.3, dt_) * fade * 0.6;
+      off += (gf - c0 - ab * s_) / max(dt_, 1e-4) * tr * (0.010 / sc) * vec2(1.0 / asp, 1.0);
+      wetA = max(wetA, tr * 0.5);
+    }
+  }
+  return off;
+}
+
 // Narkowicz's fit to the ACES curve: keeps saturation in the highlights
 vec3 aces(vec3 x){
   return clamp((x*(2.51*x+0.03)) / (x*(2.43*x+0.59)+0.14), 0.0, 1.0);
@@ -1856,18 +1984,23 @@ void main(){
 
   // 1. Adjustable Chromatic Aberration
   vec2 caOff = d * (0.0085 * uChroma * (0.4 + dist2 * 2.5));   // (0.0055 was under a game pixel)
-  vec3 c;
-  c.r = texture(uTex, vUv + caOff).r;
-  c.g = texture(uTex, vUv).g;
-  c.b = texture(uTex, vUv - caOff).b;
-
-  // 2. Subtle optical lens softness toward screen corners
   vec2 px = 1.0 / vec2(textureSize(uTex, 0));
-  vec3 soft = (texture(uTex, vUv + vec2(px.x, 0.0)).rgb +
-               texture(uTex, vUv - vec2(px.x, 0.0)).rgb +
-               texture(uTex, vUv + vec2(0.0, px.y)).rgb +
-               texture(uTex, vUv - vec2(0.0, px.y)).rgb) * 0.25;
-  c = mix(c, soft, smoothstep(0.15, 0.55, dist2) * 0.30 * uChroma);
+  // 1a. Heavy weather: drops on the lens bend the picture
+  vec2 uv = vUv;
+  float lRim = 0.0, lHl = 0.0, lWet = 0.0;
+  if (uLens.x > 0.002) uv += lensDrops((floor(vUv / px) + 0.5) * px, lRim, lHl, lWet);
+  vec3 c;
+  c.r = texture(uTex, uv + caOff).r;
+  c.g = texture(uTex, uv).g;
+  c.b = texture(uTex, uv - caOff).b;
+
+  // 2. Subtle optical lens softness toward screen corners (and inside a drop,
+  // which is far nearer than anything the lens is focused on)
+  vec3 soft = (texture(uTex, uv + vec2(px.x, 0.0) * (1.0 + lWet * 2.0)).rgb +
+               texture(uTex, uv - vec2(px.x, 0.0) * (1.0 + lWet * 2.0)).rgb +
+               texture(uTex, uv + vec2(0.0, px.y) * (1.0 + lWet * 2.0)).rgb +
+               texture(uTex, uv - vec2(0.0, px.y) * (1.0 + lWet * 2.0)).rgb) * 0.25;
+  c = mix(c, soft, max(smoothstep(0.15, 0.55, dist2) * 0.30 * uChroma, lWet * 0.6));
 
   // 2b. Photo mode: depth of field / tilt-shift. A gather blur over a golden
   // spiral; each tap counts only if it is itself blurred that far, so a
@@ -1938,6 +2071,8 @@ void main(){
   c = (c - 0.5) * uGrade.z + 0.5;
   c *= vec3(1.0 + 0.10 * uGrade.w, 1.0 + 0.02 * uGrade.w, 1.0 - 0.12 * uGrade.w);
   c = clamp(c, 0.0, 1.0);
+  // the drop's dark rim and its glint
+  if (lWet > 0.0) c = c * (1.0 - lRim * 0.22) + vec3(0.85, 0.88, 0.92) * lHl * 0.22;
 
   // 4. Adjustable Dynamic 35mm analogue film grain
   // per game pixel, not per screen pixel: on a 2K screen a screen-pixel grain
@@ -2629,6 +2764,59 @@ void main(){
   fc = vec4(mix(col, uFogCol, clamp(fg, 0.0, 1.0)), 1.0);
 }`;
 
+// People (tools/bake_people.py): textured figures whose vertices come from a
+// texture, one row per animation frame, so every instance can be at its own
+// point of the walk. aInst = x, y, z, yaw; aInst2 = height, model pick (not
+// used here), walk phase 0..1 or -1 standing, shade.
+export const PEOPLE_VS = `#version 300 es
+precision highp float; precision highp isampler2D;
+layout(location = 0) in float aVid; layout(location = 2) in vec2 aUv;
+layout(location = 3) in vec4 aInst; layout(location = 4) in vec4 aInst2;
+uniform mat4 uVP; uniform vec3 uEye; uniform vec2 uGrid;
+uniform float uRow0, uFrames, uCell, uPull;
+uniform isampler2D uAnim;
+out vec2 vUv; out vec3 vWorld; out float vDist; out float vShade;
+vec3 frameAt(float f) { return vec3(texelFetch(uAnim, ivec2(int(aVid), int(uRow0 + f)), 0).xyz) / 16000.0; }
+void main(){
+  vec3 p;
+  float ph = aInst2.z;
+  if (ph < 0.0) p = frameAt(uFrames);
+  else {
+    float f = fract(ph) * uFrames, fa = floor(f);
+    p = mix(frameAt(fa), frameAt(mod(fa + 1.0, uFrames)), f - fa);
+  }
+  p *= aInst2.x;
+  float pit = aInst2.y;
+  if (abs(pit) > 0.01) {
+    float cp = cos(pit), sp = sin(pit);
+    p = vec3(p.x, p.y * cp - p.z * sp, p.y * sp + p.z * cp);
+  }
+  float c = cos(aInst.w), s = sin(aInst.w);
+  vec3 fw = vec3(s, 0.0, -c), l = vec3(-c, 0.0, -s);
+  vec3 w = aInst.xyz + l * p.x + vec3(0.0, p.y, 0.0) + fw * p.z;
+  vec2 cr = vec2(mod(uCell, uGrid.x), floor(uCell / uGrid.x));
+  vUv = (cr + aUv) / uGrid;
+  vWorld = w; vDist = length(w - uEye); vShade = aInst2.w;
+  w += (uEye - w) * uPull;
+  gl_Position = uVP * vec4(w, 1.0);
+}`;
+export const PEOPLE_FS = `#version 300 es
+precision highp float;
+in vec2 vUv; in vec3 vWorld; in float vDist; in float vShade;
+out vec4 fc;
+uniform sampler2D uTex;
+uniform vec3 uSunDir, uSunCol, uSkyCol, uFogCol;
+uniform float uFogDensity, uLift;
+void main(){
+  vec3 base = texture(uTex, vUv).rgb * vShade;
+  base = pow(base, vec3(0.92)) * 1.12;       // the pack's textures are dark
+  vec3 n = normalize(cross(dFdx(vWorld), dFdy(vWorld)));
+  float lam = max(dot(n, uSunDir) * 0.7 + 0.3, 0.0);
+  vec3 col = base * (uSunCol * lam * 0.85 + uSkyCol * (0.55 + uLift * 0.38) + 0.07 + uLift * 0.085);
+  float fg = 1.0 - exp(-vDist * uFogDensity);
+  fc = vec4(mix(col, uFogCol, clamp(fg, 0.0, 1.0)), 1.0);
+}`;
+
 // Graffiti (main.js): flat textured quads on walls and wagons, cut out by the
 // sheet's alpha. The paint is matt: sun and sky, no shine.
 export const DECAL_VS = `#version 300 es
@@ -2673,15 +2861,20 @@ void main(){
   vec3 wp = aPosSize.xyz; float size = aPosSize.w; vec3 vel = aVelLife.xyz;
   // a far bird is a dot: never smaller than ~0.4% of its distance, or a
   // murmuration at half a kilometre drops below a pixel and thins out
-  if (aParams.x > 4.5) size = max(size, length(wp - uEye) * 0.004);
+  if (aParams.x > 4.5 && aParams.x < 5.5) size = max(size, length(wp - uEye) * 0.004);
   vec3 off;
-  if ((aParams.x > 1.5 && aParams.x < 2.5) || aParams.x > 4.5) {
+  if ((aParams.x > 1.5 && aParams.x < 2.5) || (aParams.x > 4.5 && aParams.x < 5.5)) {
     // a spark: a streak along its motion
     vec3 toEye = normalize(uEye - wp);
     float sp = length(vel);
     vec3 dir = sp > 0.1 ? vel / sp : uCamUp;
     vec3 side = normalize(cross(toEye, dir));
     off = side * aCorner.x * size * 0.5 + dir * aCorner.y * size * clamp(sp * 0.06, 1.0, 6.0) * 0.5;
+  } else if (aParams.x > 6.5) {
+    // a splash stands upright on the ground, facing the camera, never spun
+    vec3 toEye = uEye - wp; toEye.y = 0.0;
+    vec3 side = length(toEye) > 1e-3 ? normalize(cross(vec3(0.0, 1.0, 0.0), toEye)) : uCamRight;
+    off = side * aCorner.x * size + vec3(0.0, 1.0, 0.0) * (aCorner.y + 0.4) * size;
   } else {
     float c = cos(aParams.y), s = sin(aParams.y);
     vec2 r = vec2(aCorner.x * c - aCorner.y * s, aCorner.x * s + aCorner.y * c);
@@ -2715,8 +2908,10 @@ void main(){
     float lit = clamp(dot(normalize(vec3(c.x, 0.8, c.y)), uSunDir) * 0.4 + 0.6, 0.0, 1.0);
     // burning fuel smokes black; it greys and thins as it rises and spreads
     vec3 base = mix(vec3(0.05, 0.05, 0.055), vec3(0.22, 0.22, 0.23), lit) * mix(0.8, 1.9, life);
+    // (a negative temperature is dust thrown up by a wreck: ballast and earth)
+    if (temp < 0.0) base = mix(vec3(0.30, 0.26, 0.20), vec3(0.66, 0.58, 0.46), lit) * mix(0.9, 1.25, life);
     col = base * (uSunCol * 0.6 + uSkyCol * 0.35);
-    a = body * (1.0 - life * life) * 0.95;
+    a = body * (1.0 - life * life) * (temp < 0.0 ? 0.55 : 0.95);
   } else if (type < 1.5) {                    // flame
     vec2 q = vUv + (n2(vUv * 6.0 - vec2(0.0, life * 3.0)) - 0.5) * 0.22;
     float d = length(q - 0.5);
@@ -2734,6 +2929,24 @@ void main(){
     float k = mix(4500.0, 600.0, pow(life, 0.45));
     col = mix(blackbody(k) * (k > 2500.0 ? 2.6 : 1.3), vec3(0.08, 0.07, 0.07), smoothstep(0.3, 0.8, life));
     a = smoothstep(0.1, 0.6, core) * (1.0 - life * 0.8);
+  } else if (type > 6.5) {                    // a splash: a little crown of water
+    // a ring of beads thrown up and out round where the drop hit (the
+    // ground is at c.y = -0.2), and a short column in the middle
+    vec2 q = vec2(c.x, c.y + 0.2);
+    if (q.y < 0.0) discard;
+    float ang = atan(q.x, q.y);
+    float rr = length(q);
+    float beads = step(0.45, fract(ang * 1.9 + seed * 5.0));
+    float crown = smoothstep(0.05, 0.0, abs(rr - (0.08 + life * 0.22))) * beads;
+    float stem = smoothstep(0.035, 0.0, abs(q.x)) * step(q.y, 0.24 * sin(life * 3.1416));
+    col = vec3(0.95, 0.97, 1.0) * (uSunCol * 0.40 + uSkyCol * 1.0);
+    a = max(crown, stem * 0.9) * (1.0 - life * 0.7);
+  } else if (type > 5.5) {                    // spray: a grey wet mist behind wheels
+    float n = n2(vUv * 3.5 + vec2(life * 0.8, seed * 9.0));
+    float body = smoothstep(0.30, 0.85, (1.0 - sqrt(r2) * 2.0) * (0.55 + 0.45 * n));
+    // lighter than the wet road under it: the mist scatters the sky's light
+    col = mix(vec3(0.92, 0.94, 0.97), uFogCol, 0.30) * (uSunCol * 0.35 + uSkyCol * 0.95);
+    a = body * (1.0 - life) * (1.0 - life * 0.6) * 0.70;
   } else if (type > 4.5) {                    // a starling: a small dark swept shape
     if (vDist < 120.0 && abs(c.y) > 0.12 + (0.5 - abs(c.x)) * 0.25) discard;   // wings only up close
     col = vec3(0.06, 0.06, 0.07);

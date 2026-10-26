@@ -53,6 +53,13 @@ All of it is filed in OWNER_BACKLOG "Feedback 11–12 Oct".
 - **Lakes "just blue texture"**: reproduced, not fixed (`WHERE_NEXT.md`).
 - **Docs:** `ASSET_GUIDE.md` (what to get, in what form) and `WHERE_NEXT.md` (engine options and a five-step plan). Pack names and the open data sources in them were not checked online.
 
+## After the push (not committed)
+
+- **itch.io kit** in `itch/` (git-ignored): the HTML5 zip, a 630×500 cover, `PAGE.md`. The owner judged the game not ready for a page yet.
+- **Wreck in traffic:** `cars.json` and `bake_models.py`: Car 06 (a rusted-wreck skin only) is kind `wreck`, never picked; Car 05 stands for sports cars; the US mail-van skin is out. `cars.json` was edited in place, not rebaked.
+- **Player car:** drawn as the Car 03 model (red) through the traffic's instance list; the box remains only until the models load. Seen.
+- **Keys** (`input.js`): ⇧T no longer hides the terrain, ⇧O the wires, ⇧L the labels; `state.dark` keeps K and J for the weapons. Checked ⇧T only.
+
 ## Not done
 
 - Station buildings and the winged wheel, Dorog, the lakes.
@@ -60,4 +67,4 @@ All of it is filed in OWNER_BACKLOG "Feedback 11–12 Oct".
 
 ## Where this session stopped
 
-Not committed (the owner reviews first). Tests 28/28.
+Pushed as `771c512` on the owner's word. Tests 28/28.

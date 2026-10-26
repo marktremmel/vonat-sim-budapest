@@ -18,16 +18,20 @@ import base64, glob, json, math, os, struct
 from PIL import Image
 
 SRC = os.path.expanduser("~/Downloads/Textures and PSX models/PSX_Style_Cars_by_GGBot_(August2023)")
-# (folder, obj, kinds it may stand for, skins in the order they are packed)
+# (name, folder_path, obj, kinds it may stand for, skins in the order they are packed)
 CARS = [
-    ("Car 01", "Car.obj", ["car"], ["car", "car_blue", "car_gray", "car_red"]),
-    ("Car 02", "Car2.obj", ["car", "suv"], ["car2", "car2_black", "car2_red"]),
-    ("Car 03", "Car3.obj", ["hatchback", "small"], ["car3", "car3_red", "car3_yellow"]),
-    ("Car 04", "Car4.obj", ["suv"], ["car4", "car4_grey", "car4_lightgrey", "car4_lightorange"]),
-    ("Car 05", "Car5.obj", ["car"], ["car5", "car5_green", "car5_grey", "car5_taxi"]),
-    ("Car 06", "Car6.obj", ["sports"], ["car6"]),
-    ("Car 07", "Car7.obj", ["van", "small"], ["car7", "car7_black", "car7_brown", "car7_green", "car7_grey", "car7_red"]),
-    ("Car 08", "Car8.obj", ["van"], ["Car8", "Car8_grey", "Car8_mail", "Car8_purple"]),
+    ("Car 01", os.path.join(SRC, "Car 01"), "Car.obj", ["car"], ["car", "car_blue", "car_gray", "car_red"]),
+    ("Car 02", os.path.join(SRC, "Car 02"), "Car2.obj", ["car", "suv"], ["car2", "car2_black", "car2_red"]),
+    ("Car 03", os.path.join(SRC, "Car 03"), "Car3.obj", ["hatchback", "small"], ["car3", "car3_red", "car3_yellow"]),
+    ("Car 04", os.path.join(SRC, "Car 04"), "Car4.obj", ["suv"], ["car4", "car4_grey", "car4_lightgrey", "car4_lightorange"]),
+    ("Car 05", os.path.join(SRC, "Car 05"), "Car5.obj", ["car", "sports"], ["car5", "car5_green", "car5_grey", "car5_taxi"]),
+    # Car 06 has only a rusted-wreck skin: it drove round in traffic as the
+    # "sports car" (owner, Oct 2026: "a burnt-out model car driving"). Kept in
+    # the atlas as a wreck, never picked for traffic.
+    ("Car 06", os.path.join(SRC, "Car 06"), "Car6.obj", ["wreck"], ["car6"]),
+    ("Car 07", os.path.join(SRC, "Car 07"), "Car7.obj", ["van", "small"], ["car7", "car7_black", "car7_brown", "car7_green", "car7_grey", "car7_red"]),
+    ("Car 08", os.path.join(SRC, "Car 08"), "Car8.obj", ["van"], ["Car8", "Car8_grey", "Car8_purple"]),
+    ("Bus 01", "data/raw/models_cache/bus", "bus.obj", ["bus"], ["bus_bkk", "bus_volan", "bus_white"]),
 ]
 CELL, COLS = 128, 8
 
@@ -45,8 +49,8 @@ def load_obj(path):
     return V, T, F
 
 cells, models = [], []
-for folder, obj, kinds, skins in CARS:
-    V, T, F = load_obj(os.path.join(SRC, folder, obj))
+for name, folder, obj, kinds, skins in CARS:
+    V, T, F = load_obj(os.path.join(folder, obj))
     xs = [v[0] for v in V]; ys = [v[1] for v in V]; zs = [v[2] for v in V]
     cx, cz, y0 = (min(xs) + max(xs)) / 2, (min(zs) + max(zs)) / 2, min(ys)
     L = max(zs) - min(zs)
@@ -65,13 +69,13 @@ for folder, obj, kinds, skins in CARS:
     first = len(cells)
     snow = []
     for s in skins:
-        cells.append(os.path.join(SRC, folder, s + ".png"))
+        cells.append(os.path.join(folder, s + ".png"))
     # the snowed-on skins where the pack has them (Car 01)
     for s in skins:
-        sp = os.path.join(SRC, folder, s.replace("car", "car_snow", 1) + ".png")
-        if s.startswith("car") and "_snow" not in s and os.path.exists(sp) and folder == "Car 01":
+        sp = os.path.join(folder, s.replace("car", "car_snow", 1) + ".png")
+        if s.startswith("car") and "_snow" not in s and os.path.exists(sp) and name == "Car 01":
             snow.append(len(cells)); cells.append(sp)
-    models.append({"name": folder, "kinds": kinds, "w": round((max(xs) - min(xs)) / L, 3),
+    models.append({"name": name, "kinds": kinds, "w": round((max(xs) - min(xs)) / L, 3),
                    "h": round((max(ys) - y0) / L, 3), "skins": list(range(first, first + len(skins))),
                    "snow": snow, "count": len(pos) // 3,
                    "pos": base64.b64encode(struct.pack(f"<{len(pos)}f", *pos)).decode(),

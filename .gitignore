@@ -7,3 +7,6 @@ web/data/city_all.json
 .DS_Store
 __pycache__/
 *.pyc
+itch/
+# raw model packs and experiments (licences forbid redistributing the originals)
+scratch/

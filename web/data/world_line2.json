@@ -7,7 +7,9 @@
   "north": 47.832014519078506,
   "west": 18.632957079128964,
   "east": 19.18113222087104,
-  "encoding": "decimetres_asl_16bit_RG"
+  "encoding": "decimetres_asl_16bit_RG",
+  "height_source": "ddm25",
+  "ddm25_offset": -0.95
  },
  "far": {
   "w": 790,
@@ -17,7 +19,9 @@
   "north": 48.011898249340206,
   "west": 18.366890009558844,
   "east": 19.44719929044116,
-  "encoding": "decimetres_asl_16bit_RG"
+  "encoding": "decimetres_asl_16bit_RG",
+  "height_source": "ddm25",
+  "ddm25_offset": -0.95
  },
  "cover": {
   "w": 1604,

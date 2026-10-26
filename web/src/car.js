@@ -9,8 +9,8 @@
 // reverse, a handbrake. World frame as everywhere: x east, y up, z SOUTH;
 // yaw 0 faces north, forward is [sin yaw, 0, −cos yaw].
 
-export function makeCar(x, north, yaw) {
-  return { x, n: north, y: 0, yaw, v: 0, steer: 0, active: true, cockpit: false,
+export function makeCar(x, north, yaw, initialY = 0) {
+  return { x, n: north, y: initialY, yaw, v: 0, steer: 0, active: true, cockpit: false,
            pitch: 0, roll: 0, wheel: 0, onBridge: false, bump: 0 };
 }
 

@@ -36,6 +36,25 @@ PROFILE_FILE = "data/profile.json" if LINE == "line70" else f"data/profile_{LINE
 if LINE != "line70" and "SZOB_KM" not in _os.environ:
     KM_FROM, KM_TO = 0.0, 999.0
 
+# Ground heights from Lechner's DDM25 (tools/ddm25.py) wherever it has data,
+# the terrarium tiles outside Hungary. Every line but 71, whose alignment is
+# broken (DDM25=0 turns it off, DDM25=1 on).
+USE_DDM = _os.environ.get("DDM25", "0" if LINE == "line71" else "1") == "1"
+# DDM25's Danube stands 1.2 m above the water plane fitted to the terrarium
+# tiles (world.json water, median over the river texels). The rail profile,
+# the water fit and the bridge decks (water + 8.5 m) were all tuned on that
+# datum, and the vertex shader pulls every river texel onto the water plane:
+# left as it is, each water texel's edge became a 1.2 m bank face, the 25 m
+# steps fixed before (shaders.js "Shorelines"). Shift DDM25 down to meet it.
+# Every line has its own plane (S21's is set by hand), so the other lines
+# measure theirs ("auto", HEIGHTS_ONLY only): see measure_offset.
+DDM_OFFSET = _os.environ.get("DDM25_OFFSET", "-1.2" if LINE == "line70" else "auto")
+DDM_OFFSET = None if DDM_OFFSET == "auto" else float(DDM_OFFSET)
+# HEIGHTS_ONLY=1 rebakes height_near/height_far on the grid world.json already
+# has and leaves the cover raster (which later bakes write into: the
+# kisvasút's cleared trees) and the water fit alone.
+HEIGHTS_ONLY = _os.environ.get("HEIGHTS_ONLY") == "1"
+
 def line_tracks():
     tr = json.load(open(ALIGN_FILE, encoding="utf-8"))["tracks"]
     mine = [t for t in tr if t["id"].startswith(LINE + "_") or t["id"] in ("down", "up")]
@@ -79,6 +98,8 @@ CLASS_OF = {
     "pitch": 13, "golf_course": 13, "sports_centre": 13, "stadium": 13,
     "nature_reserve": 1,
     "sand": 14, "beach": 14,
+    # urban pedestrian squares & paved plazas (Széll Kálmán tér, Blaha Lujza tér, etc.)
+    "pedestrian": 16, "square": 16, "plaza": 16,
 }
 
 def png(width, height, rows, colour_type, bitdepth=8):
@@ -170,6 +191,22 @@ def bake_height(terr, reg, step_m, name, carve=False):
         for i in range(w):
             lon = reg["west"] + (i + 0.5) / w * (reg["east"] - reg["west"])
             heights[j * w + i] = terr.height(lat, lon)
+    source = "terrarium"
+    if USE_DDM:
+        import ddm25, numpy as np
+        if not ddm25.available():
+            sys.exit("DDM25 sheets missing: see tools/ddm25.py for the download "
+                     "(or DDM25=0 to bake from terrarium alone)")
+        sub = max(1, round(step_m / ddm25.CELL))
+        if DDM_OFFSET is None:
+            sys.exit("DDM25_OFFSET=auto needs HEIGHTS_ONLY=1 (the water plane and "
+                     "cover of a finished bake); give a number for a full bake")
+        ddm = ddm25.grid(reg, w, h, sub) + DDM_OFFSET
+        both, valid = ddm25.blend(np.array(heights).reshape(h, w), ddm,
+                                  feather_px=max(2, round(200 / step_m)))
+        heights = both.ravel().tolist()
+        source = "ddm25"
+        print(f"    DDM25 covers {valid.mean() * 100:.1f}% of {name}; terrarium elsewhere")
     if carve:
         n = carve_corridor(reg, step_m, w, h, heights)
         print(f"    carved {n} pixels onto the railway")
@@ -185,10 +222,119 @@ def bake_height(terr, reg, step_m, name, carve=False):
     # destroy the low byte of the height
     data = png(w, h, rows, colour_type=2)
     open(f"{OUT}/{name}.png", "wb").write(data)
+    try:    # PIL's row filters make it ~40% smaller (3.8 -> 2.3 MB for line 70)
+        from PIL import Image
+        Image.open(f"{OUT}/{name}.png").save(f"{OUT}/{name}.png", optimize=True)
+        data = open(f"{OUT}/{name}.png", "rb").read()
+    except ImportError:
+        pass
     print(f"  {name}: {w}x{h} at {step_m:.1f} m/px, "
           f"{lo:.0f}–{hi:.0f} m, {len(data)/1e6:.2f} MB")
     return {"w": w, "h": h, "step_m": step_m, **{k: v for k, v in reg.items() if k != "_h"},
-            "encoding": "decimetres_asl_16bit_RG"}
+            "encoding": "decimetres_asl_16bit_RG", "height_source": source}
+
+def lift_banks(suffix, water):
+    """Land the cover raster calls land, lying just under the Danube plane, is
+    lifted 0.3 m over it. TERRAIN_VS floods any ground below the plane, and
+    DDM25's bare floodplain (the Szentendre island, the Göd and Vác banks:
+    riverside forest, 0.2-0.7 m under) came out as 2,300 px of new water; the
+    terrarium tiles had stood it on the trees. Deeper hollows are left alone,
+    and the Duna slider still floods all of it."""
+    import numpy as np
+    from PIL import Image
+    path = f"{OUT}/height_near{suffix}.png"
+    meta = json.load(open(f"{OUT}/world{suffix}.json", encoding="utf-8"))["near"]
+    rgb = np.array(Image.open(path).convert("RGB")).astype(np.int32)
+    h = (rgb[..., 0] * 256 + rgb[..., 1]) / 10.0
+    cls = np.array(Image.open(f"{OUT}/cover_near{suffix}.png").convert("RGB"))[..., 0]
+    rows = h.shape[0]
+    north = (rows - np.arange(rows) - 0.5)[:, None] * meta["step_m"]
+    wl = water["a"] + water["b"] * north
+    m = (cls != 9) & (h < wl + 0.3) & (h > wl - 1.5)
+    h = np.where(m, wl + 0.3, h)
+    v = np.clip(np.round(h * 10), 0, 65535).astype(np.int32)
+    rgb[..., 0] = v >> 8; rgb[..., 1] = v & 0xFF; rgb[..., 2] = 0
+    Image.fromarray(rgb.astype(np.uint8), "RGB").save(path, optimize=True)
+    print(f"  lifted {m.sum()} land px from under the water plane")
+
+def measure_offset(meta, suffix):
+    """How far DDM25's river stands over this line's water plane: the median
+    over the water texels that sit within 3 m of the plane (the river, not a
+    lake at its own level). The bake shifts DDM25 by minus that."""
+    import ddm25, numpy as np
+    from PIL import Image
+    nr = meta["near"]
+    reg = {k: nr[k] for k in ("south", "north", "west", "east")}
+    ddm = ddm25.grid(reg, nr["w"], nr["h"])
+    cls = np.array(Image.open(f"{OUT}/cover_near{suffix}.png").convert("RGB"))[..., 0]
+    north = (nr["h"] - np.arange(nr["h"]) - 0.5)[:, None] * nr["step_m"]
+    d = ddm - (meta["water"]["a"] + meta["water"]["b"] * north)
+    river = (cls == 9) & (np.abs(d) < 3.0)
+    if river.sum() < 500:
+        sys.exit(f"only {river.sum()} river texels near the plane; set DDM25_OFFSET by hand")
+    off = -float(np.median(d[river]))
+    print(f"  DDM25 river stands {-off:+.2f} m over the water plane "
+          f"({river.sum()} texels): offset {off:+.2f} m")
+    return round(off, 2)
+
+def refit_water(meta, suffix):
+    """A sloping river plane through DDM25's own water (as fit_water: the
+    lowest sixth of each 2 km band, least squares). For S21, whose plane was a
+    flat 96.5 m set by hand: the Danube falls 3 m between Budapest and Csepel's
+    tip, and the flat plane stood over the Kiskunság plain (94-96 m), which
+    TERRAIN_VS then flooded, a fifth of the near ring."""
+    import ddm25, numpy as np
+    from PIL import Image
+    nr = meta["near"]
+    reg = {k: nr[k] for k in ("south", "north", "west", "east")}
+    ddm = ddm25.grid(reg, nr["w"], nr["h"]) + DDM_OFFSET
+    cls = np.array(Image.open(f"{OUT}/cover_near{suffix}.png").convert("RGB"))[..., 0]
+    north = (nr["h"] - np.arange(nr["h"]) - 0.5)[:, None] * nr["step_m"] * np.ones((1, nr["w"]))
+    pts = []
+    for k in range(int(north.max() // 2000) + 1):
+        sel = (cls == 9) & (north >= k * 2000) & (north < k * 2000 + 2000) & ~np.isnan(ddm)
+        if sel.sum() >= 40:
+            pts.append((k * 2000 + 1000.0, float(np.percentile(ddm[sel], 100 / 6))))
+    x = np.array([p[0] for p in pts]); y = np.array([p[1] for p in pts])
+    b, a = np.polyfit(x, y, 1)
+    meta["water"] = {"a": round(float(a), 3), "b": round(float(b), 9),
+                     "note": "fitted to DDM25's river (bake_world refit_water)"}
+    print(f"  water plane refitted to DDM25: {a:.2f} m at the south edge, "
+          f"{b * 1e6:.0f} mm per km, {a + b * x.max():.2f} m at {x.max() / 1000:.0f} km north")
+
+def heights_only(terr, suffix):
+    """Rebake the two heightmaps on world.json's own grids, nothing else."""
+    global FRAME_LAT, DDM_OFFSET
+    name = f"{OUT}/world{suffix}.json"
+    meta = json.load(open(name, encoding="utf-8"))
+    if USE_DDM and DDM_OFFSET is None:
+        DDM_OFFSET = measure_offset(meta, suffix)
+    if USE_DDM and _os.environ.get("DDM25_WATER") == "fit":
+        refit_water(meta, suffix)
+    for ring, carve in (("near", True), ("far", False)):
+        old = meta[ring]
+        reg = {k: old[k] for k in ("south", "north", "west", "east")}
+        reg["_h"] = old["h"]
+        # NEAR_NORTH_M pins the frame for both rings; otherwise each ring was
+        # laid out from its own middle. Take whichever reproduces the width.
+        for FRAME_LAT in (meta["near"].get("frame_lat"), None):
+            mlat, mlon = fr(reg)
+            w = int((reg["east"] - reg["west"]) * mlon / old["step_m"])
+            if w == old["w"]:
+                break
+        else:
+            sys.exit(f"{ring}: cannot reproduce world.json's width {old['w']}; not overwriting")
+        new = bake_height(terr, reg, old["step_m"], f"height_{ring}{suffix}", carve=carve)
+        for k in ("w", "h", "step_m", "south", "north", "west", "east"):
+            assert new[k] == old[k], (ring, k, new[k], old[k])
+        old["height_source"] = new["height_source"]
+        if USE_DDM:
+            old["ddm25_offset"] = DDM_OFFSET
+    json.dump(meta, open(name, "w", encoding="utf-8"), indent=1)
+    if USE_DDM:
+        lift_banks(suffix, meta["water"])
+    print(f"wrote {name} (grids unchanged; cover untouched; water "
+          f"{'refitted' if _os.environ.get('DDM25_WATER') == 'fit' else 'untouched'})")
 
 def bake_cover(reg, step_m, name):
     """Scanline-rasterise the land cover polygons into a class index raster."""
@@ -210,7 +356,7 @@ def bake_cover(reg, step_m, name):
     for e in landcover_elements():
         t = e.get("tags", {})
         cls = CLASS_OF.get(t.get("landuse") or t.get("natural")
-                           or t.get("leisure"))
+                           or t.get("leisure") or t.get("highway") or t.get("place"))
         if not cls:
             continue
         if e["type"] == "way":
@@ -451,6 +597,9 @@ def main():
         print("Warning: KM_FROM and KM_TO filtered out all points, using entire track")
         
     terr = Terrain(12)
+    if HEIGHTS_ONLY:
+        print(f"rebaking the heightmaps of {LINE}")
+        return heights_only(terr, f"_{LINE}" if LINE != "line70" else "")
     print(f"baking world for {LINE} km %.0f–%.0f" % (KM_FROM, KM_TO))
     near_reg = region(seg, NEAR_PAD_M)
     far_reg = region(seg, FAR_PAD_M)
@@ -487,6 +636,10 @@ def main():
     out_name = f"{OUT}/world{suffix}.json"
     json.dump(meta, open(out_name, "w", encoding="utf-8"), indent=1)
     print(f"wrote {out_name}")
+    if USE_DDM:
+        # (line 70: restore the old water fit first, as the NOTE above says,
+        # then HEIGHTS_ONLY=1 to lift the banks to the right plane)
+        lift_banks(suffix, meta["water"])
 
 if __name__ == "__main__":
     main()

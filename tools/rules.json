@@ -1,0 +1,93 @@
+{
+  "description": "Unified World Compiler Rules for Dunakanyar & Budapest Simulation",
+  "version": "1.0.0",
+  "buildings": {
+    "classes": {
+      "residential": 1,
+      "house": 1,
+      "detached": 1,
+      "semidetached_house": 1,
+      "terrace": 1,
+      "bungalow": 1,
+      "tenement": 2,
+      "apartments": 2,
+      "panel": 7,
+      "panelhaz": 7,
+      "industrial": 3,
+      "warehouse": 3,
+      "manufacture": 3,
+      "depot": 3,
+      "engine_shed": 3,
+      "church": 1,
+      "chapel": 1,
+      "cathedral": 1,
+      "office": 5,
+      "commercial": 5,
+      "retail": 5,
+      "supermarket": 5,
+      "hotel": 5,
+      "garage": 6,
+      "garages": 6,
+      "shed": 6,
+      "hut": 6,
+      "roof": 6,
+      "train_station": 2,
+      "station": 2,
+      "civic": 8,
+      "public": 8,
+      "school": 8,
+      "kindergarten": 8,
+      "university": 8,
+      "hospital": 8
+    },
+    "default_levels": {
+      "house": 1.5,
+      "tenement": 4.5,
+      "panel": 10.0,
+      "industrial": 2.5,
+      "church": 4.0,
+      "office": 5.0,
+      "retail": 1.5,
+      "shed": 1.0,
+      "civic": 3.5
+    },
+    "level_height": 3.1
+  },
+  "props": {
+    "amenity=bench": { "kind": "bench", "model": "bench" },
+    "amenity=waste_basket": { "kind": "bin", "model": "budapest_bin" },
+    "amenity=vending_machine": { "kind": "vending", "model": "vending_machine" },
+    "amenity=recycling": { "kind": "container", "model": "bin_container" },
+    "amenity=clock": { "kind": "clock", "model": "wall_clock" },
+    "highway=bus_stop": { "kind": "shelter", "model": "waiting_chairs" },
+    "railway=halt": { "kind": "platform_furniture", "model": "waiting_chairs" },
+    "barrier=fence": { "kind": "fence", "model": "fence_low" },
+    "barrier=wall": { "kind": "wall", "height": 1.8 }
+  },
+  "vegetation": {
+    "natural=tree_row": { "type": "tree_row", "spacing": 8.0, "radius": 4.5 },
+    "natural=tree": { "type": "isolated_tree", "radius": 5.0 },
+    "landuse=forest": { "type": "canopy_block", "density": 0.7 },
+    "natural=wood": { "type": "canopy_block", "density": 0.75 },
+    "landuse=orchard": { "type": "orchard", "spacing": 6.0 }
+  },
+  "roads": {
+    "motorway": { "cls": 0, "lanes": 4, "width": 14.0 },
+    "trunk": { "cls": 0, "lanes": 4, "width": 14.0 },
+    "primary": { "cls": 1, "lanes": 2, "width": 8.5 },
+    "secondary": { "cls": 2, "lanes": 2, "width": 7.5 },
+    "tertiary": { "cls": 3, "lanes": 2, "width": 6.5 },
+    "residential": { "cls": 4, "lanes": 2, "width": 5.5 },
+    "living_street": { "cls": 5, "lanes": 1, "width": 4.5 },
+    "service": { "cls": 6, "lanes": 1, "width": 3.8 },
+    "track": { "cls": 7, "lanes": 1, "width": 3.0 }
+  },
+  "railways": {
+    "rail": { "cls": 0, "gauge": 1.435 },
+    "narrow_gauge": { "cls": 1, "gauge": 0.76 },
+    "tram": { "cls": 2, "gauge": 1.435 },
+    "subway": { "cls": 3, "gauge": 1.435 },
+    "abandoned": { "cls": 4, "gauge": 1.435 },
+    "disused": { "cls": 5, "gauge": 1.435 }
+  }
+}

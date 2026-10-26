@@ -63,7 +63,8 @@ and commit the new `index.html` with the change.
 ## Data
 
 Map data © OpenStreetMap contributors, under the ODbL
-(https://www.openstreetmap.org/copyright). Terrain: Mapzen/AWS Terrain Tiles.
+(https://www.openstreetmap.org/copyright). Terrain: Lechner Knowledge Center
+DDM25 (CC BY 4.0) on lines 70, 2 and S21, Mapzen/AWS Terrain Tiles outside Hungary.
 
 The baked runtime data is in `web/data/`. The raw downloads (`data/raw/`,
 ~660 MB) are not in the repository; `tools/` fetches and bakes them again
@@ -198,10 +199,21 @@ Per-line patches and extras, after the line's route and context exist:
   heights and crown sizes are per species (see "The city's trees").
   We have not found a published licence for this data. It is used with
   credit, and the owner should confirm it before anything more than a hobby release.
-- Elevation: AWS terrarium tiles, SRTM-derived, public domain.
+- Elevation, lines 70, 2 and S21: based on geospatial data provided by Lechner Knowledge
+  Center (DDM25, https://inspire.lechnerkozpont.hu), modified by Márk Tremmel
+  for Dunakanyar Szimulátor (resampled to the sim's grid, blended into the
+  terrarium tiles at the border, shifted to each line's water level,
+  lowered onto the railway).
+  Licensed under **CC BY 4.0** (https://creativecommons.org/licenses/by/4.0/).
+- Elevation outside Hungary, and line 71: AWS terrarium tiles,
+  SRTM-derived, public domain.
 - Route length, sectional speeds, timetable: Hungarian Wikipedia, **CC BY-SA 4.0**.
 - M41 model by roliflow, Bzmot by newvoxel, both Sketchfab **CC-BY-4.0** —
   attribution required if either ships in the game.
+
+The people on platforms and pavements are baked from the "PSX Characters" pack bought by the owner on itch.io (`tools/bake_people.py`; 24 of its characters, at half texture size; the author's name is to be added).
+
+Benches, bins and vending machines: "PSX Soviet Block Kit Free" by heyheythere (https://heyheythere.itch.io/psx-soviet-block-kit-free, CC BY 4.0) and heyheythere's "PSX School Kit" (bought by the owner), baked by `tools/bake_props.py`.
 
 Sound and music from the owner's asset library: ambience recordings by **FilmCow** (FilmCow Recorded SFX, free with credit); menu music **"Contemplative" by Clement Panchout** (free with credit).
 

@@ -414,6 +414,35 @@ mistake each one represents. Check these before believing anything.
     700 MB and phones reloaded the page in a loop. Use `FBuf` (engine.js) in
     any builder; check `window.__bootMem` after adding data to a line; keep
     far-away detail out of the boot on touch devices (`state.lite`).
+18. **Line 70's ground is DDM25, 1.2 m below its own datum** (26 Oct 2026,
+    `tools/ddm25.py`, `bake_world.py`). Lechner's bare-ground model replaced
+    the terrarium surface model wherever it has data (99.4% of the near ring;
+    the Slovak bank stays terrarium, feathered over 200 m). Four things to know:
+    - Its GeoTIFF tie point is a pixel corner; the `.tfw` files say centre and
+      are 12.5 m off.
+    - It is shifted down 1.2 m (`DDM25_OFFSET`) so the Danube meets the water
+      plane fitted on terrarium. Unshifted, every river texel was pulled 1.2 m
+      down by TERRAIN_VS and the shores came back as 25 m steps. The rail
+      profile, water fit and bridge decks are all on the terrarium datum; move
+      them together or not at all.
+    - `lift_banks` puts land 0–1.5 m under the plane at 0.3 m over it (3,681 px
+      of floodplain forest the old model had stood on its trees).
+    - `ground_filter.py` refuses a DDM25 heightmap (`height_source` in
+      world.json). Running it used to put the old surface model back.
+    Rebake the heights alone with `HEIGHTS_ONLY=1 python3 tools/bake_world.py`;
+    a full bake also rewrites the cover raster the kisvasút bake writes into.
+    The old heightmaps are in `data/raw/pre_ddm25_backup/`.
+    **Lines 2 and S21 (same day)** are on DDM25 too. Each measures its own
+    shift against its own plane (`DDM25_OFFSET=auto`, stored as
+    `ddm25_offset` in world json): line 2 −0.95 m, S21 −0.89 m.
+    - S21's hand-set flat 96.5 m plane stood over the Kiskunság plain
+      (94–96 m), and TERRAIN_VS flooded 1.1 million land px into a sea west of
+      Ócsa. That was there before DDM25 (checked A/B in the preview).
+      `DDM25_WATER=fit` (in `build_s21.sh`) now fits a sloping plane to DDM25's
+      river: 97.6 m at Budapest, falling 139 mm/km. Flooded land: 2 px.
+    - The build scripts bake cover and water from terrarium (`DDM25=0`), then
+      the heights with `HEIGHTS_ONLY=1`; "auto" needs the finished cover.
+    - Line 71 stays on terrarium (its alignment is broken).
 
 ## Twelfth pass — the wire, the platforms, and Nyugati
 - **The overhead line.** A 25 kV railway with no catenary anywhere on it now

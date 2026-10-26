@@ -19,6 +19,245 @@ function project(vp, w) {
   return [x / z, y / z];
 }
 
+export function isAuthenticStreetOrSquare(name) {
+  if (!name || typeof name !== "string") return false;
+  const n = name.trim();
+  if (n.length < 3) return false;
+  // Reject statues, memorials, cemeteries, persons without street suffixes, shops, etc.
+  if (/szobor|emlékmű|emléktábla|temető|parkoló|játszótér|óvoda|iskola|étterem|kávézó|gyógyszertár|orvosi|rendelő/i.test(n)) return false;
+  // BKK stops / stations
+  if (/[MH]$/.test(n) || /pályaudvar|vasútállomás|állomás|megálló/i.test(n)) return true;
+  // Authentic street/square suffix
+  // (\b is ASCII-only in JS: it never matched before "út", so every
+  // Andrássy út and Váci út was rejected. Letters are tested with \p{L}.)
+  return /(?<!\p{L})(utca|út|útja|körút|krt\.?|tér|tere|rakpart|rkp\.?|híd|fasor|sétány|sor|köz|árok|dűlő|lejtő|központ)(?!\p{L})/iu.test(n);
+}
+
+function drawStreetSign(c, W, H, s, streetName) {
+  if (!streetName || state.bareLevel >= 1 || state.panel || !isAuthenticStreetOrSquare(streetName)) return;
+  c.save();
+  const padX = 14 * s, padY = 7 * s;
+  c.font = `700 ${Math.round(13.5 * s)}px "IBM Plex Sans", system-ui, sans-serif`;
+  const text = streetName.toUpperCase();
+  const tw = c.measureText(text).width;
+  const pw = tw + padX * 2, ph = 26 * s;
+  // Positioned elegantly at top-centre, directly below the mode bar, completely free of the settings panel
+  const px = Math.round((W - pw) * 0.5), py = Math.round(48 * s);
+
+  // Subtle drop shadow for realism
+  c.shadowColor = "rgba(0, 0, 0, 0.40)";
+  c.shadowBlur = 8 * s;
+  c.shadowOffsetX = 0;
+  c.shadowOffsetY = 3 * s;
+
+  // Authentic Budapest enamel street plate: White gloss body, crisp black border, hairline inner line
+  c.fillStyle = "rgba(248, 250, 252, 0.98)";
+  c.beginPath();
+  if (c.roundRect) c.roundRect(px, py, pw, ph, 4.5 * s);
+  else c.rect(px, py, pw, ph);
+  c.fill();
+
+  // Reset shadow for crisp stroke and text
+  c.shadowColor = "transparent";
+  c.shadowBlur = 0;
+  c.shadowOffsetX = 0;
+  c.shadowOffsetY = 0;
+
+  c.strokeStyle = "#12161a";
+  c.lineWidth = 2.2 * s;
+  c.stroke();
+
+  // Inner hairline border
+  c.strokeStyle = "rgba(18, 22, 26, 0.55)";
+  c.lineWidth = 0.9 * s;
+  c.strokeRect(px + 2.8 * s, py + 2.8 * s, pw - 5.6 * s, ph - 5.6 * s);
+
+  // Black sharp text
+  c.fillStyle = "#12161a";
+  c.textAlign = "center";
+  c.fillText(text, px + pw * 0.5, py + ph - 8 * s);
+  c.restore();
+}
+
+function drawTramHud(c, W, H, s, st, world) {
+  const T = state.tram;
+  const trams = window.__trams;
+  if (!T || !trams) return;
+  const r = trams.routes[T.ri];
+  if (!r) return;
+  const kmh = (T.v != null ? T.v : (T.manual ? (T.manualV || 0) : 9.0)) * 3.6;
+  const bh = 82 * s;
+  const g = c.createLinearGradient(0, H - bh, 0, H);
+  g.addColorStop(0, "rgba(6,12,16,0)"); g.addColorStop(1, "rgba(6,12,16,.90)");
+  c.fillStyle = g; c.fillRect(0, H - bh, W, bh);
+
+  // Left card: Tram line badge + destination
+  const badgeW = 48 * s, badgeH = 40 * s;
+  const badgeX = 20 * s, badgeY = H - 68 * s;
+  c.fillStyle = "rgba(245, 196, 20, 0.98)"; // BKK Tram Yellow
+  c.beginPath();
+  if (c.roundRect) c.roundRect(badgeX, badgeY, badgeW, badgeH, 6 * s);
+  else c.fillRect(badgeX, badgeY, badgeW, badgeH);
+  c.fill();
+  c.fillStyle = "#111417";
+  c.font = `800 ${Math.round(23 * s)}px "Archivo", system-ui, sans-serif`;
+  c.textAlign = "center";
+  c.fillText(r.ref, badgeX + badgeW * 0.5, badgeY + badgeH * 0.72);
+  c.textAlign = "left";
+
+  // Line destination and vehicle type
+  c.fillStyle = "rgba(240,248,252,.98)";
+  c.font = `700 ${Math.round(15 * s)}px "IBM Plex Sans", system-ui, sans-serif`;
+  c.fillText(`${r.to ? "→ " + r.to : tt("Budapest villamos", "Budapest tram")}`, badgeX + badgeW + 12 * s, badgeY + 16 * s);
+  c.fillStyle = "rgba(150,180,196,.88)";
+  c.font = `500 ${Math.round(11 * s)}px "IBM Plex Mono", monospace`;
+  if (state.paused) {
+    c.fillStyle = "rgba(243,196,82,.98)";
+    c.font = `700 ${Math.round(12 * s)}px "IBM Plex Sans", system-ui, sans-serif`;
+    c.fillText(tt("⏸ SZÜNET (Space: folytatás)", "⏸ PAUSED (Space: resume)"), badgeX + badgeW + 12 * s, badgeY - 5 * s);
+  }
+  const mdlName = r.ref === "4" || r.ref === "6" ? "Combino Supra (54 m)" : r.ref === "1" ? "CAF Urbos 3 (56 m)" : "Tatra T5C5 / Ganz CSMG";
+  c.fillText(`${mdlName} · ${kmh.toFixed(0)} km/h (max 50)`, badgeX + badgeW + 12 * s, badgeY + 34 * s);
+
+  // Center card: Next stop and distance
+  const nextStop = T.nextStop;
+  if (nextStop) {
+    const cx = Math.max(badgeX + badgeW + 280 * s, W * 0.40);
+    c.fillStyle = "rgba(8,16,22,.72)";
+    c.fillRect(cx - 10 * s, H - 70 * s, 260 * s, 46 * s);
+    c.fillStyle = "rgba(63,203,210,.98)";
+    c.font = `600 ${Math.round(14 * s)}px "IBM Plex Sans", system-ui, sans-serif`;
+    c.fillText(nextStop.name || tt("Következő megálló", "Next stop"), cx, H - 48 * s);
+    c.fillStyle = "rgba(200,220,230,.92)";
+    c.font = `500 ${Math.round(11 * s)}px "IBM Plex Mono", monospace`;
+    const atStop = nextStop.dist <= 18;
+    const distText = atStop
+      ? (T.doors ? tt(`MEGÁLLÓBAN — AJTÓK NYITVA (${T.boarding || 12} utas)`, `AT STOP — DOORS OPEN (${T.boarding || 12} pax)`)
+                 : tt("MEGÁLLÓBAN · E/D: ajtónyitás", "AT STOP · E/D: open doors"))
+      : `${Math.round(nextStop.dist)} m · ${tt("következő", "next")}`;
+    c.fillText(distText, cx, H - 30 * s);
+  }
+
+  // Right card: Controls & Driving Mode
+  const rx = W - 290 * s;
+  c.fillStyle = T.manual ? "rgba(69,217,131,.98)" : "rgba(243,196,82,.98)";
+  c.font = `700 ${Math.round(12 * s)}px "IBM Plex Mono", monospace`;
+  c.fillText(T.manual ? tt("VEZETŐI MÓD (KÉZI)", "DRIVER MODE (MANUAL)") : tt("MENETRENDI MÓD (AUTO)", "TIMETABLE MODE (AUTO)"), rx, H - 50 * s);
+
+  if (T.manual) {
+    const bw = 70 * s;
+    const thr = T.throttle || 0, brk = T.brake || 0;
+    c.fillStyle = "rgba(255,255,255,.14)"; c.fillRect(rx, H - 42 * s, bw, 6 * s);
+    c.fillStyle = "rgba(69,217,131,.95)"; c.fillRect(rx, H - 42 * s, bw * thr, 6 * s);
+    c.fillStyle = "rgba(255,255,255,.14)"; c.fillRect(rx + bw + 10 * s, H - 42 * s, bw, 6 * s);
+    c.fillStyle = "rgba(255,114,100,.95)"; c.fillRect(rx + bw + 10 * s, H - 42 * s, bw * brk, 6 * s);
+    c.font = `500 ${Math.round(9 * s)}px "IBM Plex Mono", monospace`;
+    c.fillStyle = "rgba(150,180,196,.85)";
+    c.fillText("GÁZ", rx, H - 28 * s);
+    c.fillText("FÉK", rx + bw + 10 * s, H - 28 * s);
+  } else {
+    c.font = `400 ${Math.round(10.5 * s)}px "IBM Plex Mono", monospace`;
+    c.fillStyle = "rgba(150,180,196,.85)";
+    c.fillText(tt("W/S: kézi vezetés átvétele", "W/S: take manual control"), rx, H - 32 * s);
+  }
+
+  // Keybindings hint bar
+  c.fillStyle = "rgba(150,180,196,.85)";
+  c.font = `400 ${Math.round(10.5 * s)}px "IBM Plex Mono", monospace`;
+  c.fillText(
+    tt("W gáz · S fék · Space megállás · E ajtók · M módváltás · C fülke/külső · Esc vissza a vonathoz",
+       "W throttle · S brake · Space stop · E doors · M mode · C cab/outside · Esc back to train"),
+    20 * s, H - 14 * s
+  );
+}
+
+export const CHAR_MODELS = [
+  { id: 0, gender: "m", name: "Férfi #1 (Dzseki)", en: "Male #1 (Jacket)" },
+  { id: 1, gender: "m", name: "Férfi #2 (Kabát)", en: "Male #2 (Coat)" },
+  { id: 2, gender: "m", name: "Férfi #3 (Sportos)", en: "Male #3 (Casual)" },
+  { id: 3, gender: "m", name: "Férfi #4 (Városi)", en: "Male #4 (Urban)" },
+  { id: 4, gender: "m", name: "Férfi #5 (Klasszikus)", en: "Male #5 (Classic)" },
+  { id: 5, gender: "m", name: "Férfi #6 (Elegáns)", en: "Male #6 (Smart)" },
+  { id: 6, gender: "m", name: "Férfi #7 (Fiatal)", en: "Male #7 (Young)" },
+  { id: 7, gender: "m", name: "Férfi #8 (Téli kabát)", en: "Male #8 (Winter Coat)" },
+  { id: 8, gender: "m", name: "Férfi #9 (Üzletember)", en: "Male #9 (Business)" },
+  { id: 9, gender: "m", name: "Férfi #10 (Kék ing)", en: "Male #10 (Shirt)" },
+  { id: 10, gender: "m", name: "Férfi #11 (Kapucnis)", en: "Male #11 (Hoodie)" },
+  { id: 11, gender: "m", name: "Férfi #12 (Modern)", en: "Male #12 (Modern)" },
+  { id: 12, gender: "m", name: "Férfi #13 (Utazó)", en: "Male #13 (Traveler)" },
+  { id: 13, gender: "m", name: "Férfi #14 (Inges)", en: "Male #14 (Casual)" },
+  { id: 14, gender: "m", name: "Férfi #15 (Sportos)", en: "Male #15 (Athletic)" },
+  { id: 15, gender: "f", name: "Nő #1 (Elegáns kabát)", en: "Female #1 (Elegant Coat)" },
+  { id: 16, gender: "f", name: "Nő #2 (Tavaszi ruha)", en: "Female #2 (Spring Outfit)" },
+  { id: 17, gender: "f", name: "Nő #3 (Városi szett)", en: "Female #3 (Urban Casual)" },
+  { id: 18, gender: "f", name: "Nő #4 (Blézer)", en: "Female #4 (Blazer)" },
+  { id: 19, gender: "f", name: "Nő #5 (Kosztüm)", en: "Female #5 (Smart Suit)" },
+  { id: 20, gender: "f", name: "Nő #6 (Divatos)", en: "Female #6 (Fashion)" },
+  { id: 21, gender: "f", name: "Nő #7 (Fiatalos)", en: "Female #7 (Young)" },
+  { id: 22, gender: "f", name: "Nő #8 (Sál / Kabát)", en: "Female #8 (Scarf/Coat)" },
+  { id: 23, gender: "f", name: "Nő #9 (Modern)", en: "Female #9 (Modern)" }
+];
+
+function drawHeroHud(c, W, H, s) {
+  const p = state.person;
+  if (!p) return;
+  const vx = p.v ? p.v[0] : 0, vy = p.v ? p.v[1] : 0, vz = p.v ? p.v[2] : 0;
+  const kmh = Math.hypot(vx, vz, vy) * 3.6;
+  const demG = (window.SIM && SIM.demAt) ? SIM.demAt(p.x, p.n) : 105;
+  const alt = Math.max(0, Math.round(p.y - demG));
+  const isHero = p.heroAbilities !== false;
+  const curModel = CHAR_MODELS[p.charIdx || 0] || CHAR_MODELS[0];
+
+  // Speed and state HUD card
+  c.fillStyle = "rgba(10, 18, 24, 0.88)";
+  c.beginPath();
+  if (c.roundRect) c.roundRect(16 * s, H - 132 * s, 250 * s, 76 * s, 6 * s);
+  else c.fillRect(16 * s, H - 132 * s, 250 * s, 76 * s);
+  c.fill();
+  c.strokeStyle = isHero ? "rgba(63, 203, 210, 0.5)" : "rgba(120, 226, 160, 0.5)";
+  c.lineWidth = 1 * s;
+  c.stroke();
+
+  c.fillStyle = isHero ? "rgba(63, 203, 210, 0.98)" : "rgba(120, 226, 160, 0.98)";
+  c.font = `800 ${Math.round(32 * s)}px "Archivo", sans-serif`;
+  c.fillText(Math.round(kmh), 28 * s, H - 84 * s);
+
+  c.fillStyle = "rgba(150, 180, 196, 0.9)";
+  c.font = `600 ${Math.round(11 * s)}px "IBM Plex Mono", monospace`;
+  c.fillText("km/h", 100 * s, H - 84 * s);
+
+  c.fillStyle = "rgba(240, 248, 252, 0.95)";
+  c.font = `700 ${Math.round(11.5 * s)}px "IBM Plex Sans", sans-serif`;
+  const isHovering = p.flying && kmh < 6;
+  const modeText = isHovering
+    ? tt("🦸 Hancock Lebegés (Hover — E: robbanás)", "🦸 Hancock Hover (Airborne idle — E: blast)")
+    : p.flying
+    ? tt("🦸 Hancock Repülés (W előre, C süllyedés, E robbanás)", "🦸 Hancock Flight (W fly, C dive, E blast)")
+    : (isHero ? tt("🦸 Hancock Hős (Földön — E: robbanás)", "🦸 Hancock Hero (Ground — E: blast)") : tt("🚶 Városi Séta (Gyalogos)", "🚶 City Stroll (Pedestrian)"));
+  c.fillText(modeText, 28 * s, H - 114 * s);
+
+  c.fillStyle = "rgba(180, 205, 220, 0.88)";
+  c.font = `500 ${Math.round(10 * s)}px "IBM Plex Mono", monospace`;
+  const charLabel = `${curModel.gender === "m" ? "👨" : "👩"} ${tt(curModel.name, curModel.en)}`;
+  c.fillText(`${tt("Magasság", "Alt")}: ${alt} m · ${charLabel}`, 28 * s, H - 65 * s);
+
+  // Bottom prompt & controls
+  c.fillStyle = "rgba(63, 203, 210, 0.98)";
+  c.font = `700 ${Math.round(13 * s)}px "IBM Plex Sans", sans-serif`;
+  c.fillText(tt("Esc — menü / vissza a vonathoz", "Esc — menu / back to train"), 16 * s, H - 34 * s);
+  c.fillStyle = "rgba(180, 205, 220, 0.85)";
+  c.font = `500 ${Math.round(10.5 * s)}px "IBM Plex Mono", monospace`;
+  const controlsHint = p.flying
+    ? tt("WASD repülés 3D irányba · E szupererő robbanás · Space emelkedés · C / Ctrl süllyedés · V karakter · F nézet",
+         "WASD 3D flight · E shockwave blast · Space ascend · C / Ctrl dive · V avatar · F camera")
+    : (isHero
+        ? tt("WASD mozgás · E szupererő robbanás / autók repítése · Space repülés · C süllyedés · Shift turbó · V karakter",
+             "WASD move · E shockwave blast / blow up cars · Space fly · C dive · Shift turbo · V avatar")
+        : tt("WASD séta · Space ugrás · Shift futás · V karakter (1-24) · F nézet",
+             "WASD walk · Space jump · Shift run · V avatar (1-24) · F camera"));
+  c.fillText(controlsHint, 16 * s, H - 18 * s);
+}
+
 function drawCarHud(c, W, H, s) {
   const car = state.car;
   const kmh = Math.abs(car.v) * 3.6;
@@ -83,6 +322,7 @@ function drawMap(c, W, H, s, st, world) {
   const { imgMap, routeData, mapMeta } = world;
   {
     const full = state.map;
+    if (!full || !state.mapPin) state.mapPinCard = null;
     // The opened map has to fit the window in BOTH directions. Sized on width
     // alone it runs off the top and bottom of a tall window — the map here is
     // portrait, being sixty kilometres of river, so on any window taller than
@@ -92,41 +332,431 @@ function drawMap(c, W, H, s, st, world) {
     if (full && mh > H * 0.88) { mh = H * 0.88; mw = mh * imgMap.width / imgMap.height; }
     const mx = full ? (W - mw) / 2 : W - mw - 16 * s;
     const my = full ? (H - mh) / 2 : 16 * s;
-    c.globalAlpha = full ? 0.97 : 0.82;
-    c.fillStyle = "rgba(8,14,18,.9)";
-    c.fillRect(mx - 5*s, my - 5*s, mw + 10*s, mh + 10*s);
-    c.drawImage(imgMap, mx, my, mw, mh);
-    c.strokeStyle = "rgba(150,180,196,.5)"; c.lineWidth = 1*s;
-    c.strokeRect(mx - 5*s, my - 5*s, mw + 10*s, mh + 10*s);
-    const toMap = (wx, wy) => [
-      mx + wx / mapMeta.metres_per_px / imgMap.width * mw,
-      my + (1 - wy / (mapMeta.metres_per_px * imgMap.height)) * mh,
-    ];
+
+    // Current player / focus position in world space
+    const pWorldX = (state.person && state.person.active) ? state.person.x
+                  : (state.car && state.car.active) ? state.car.x
+                  : (state.plane && state.plane.active) ? state.plane.p[0]
+                  : (state.tram && window.__trams && window.__trams.routes[state.tram.ri]) ? (window.__trams.at(window.__trams.routes[state.tram.ri], state.tram.s || 0).x)
+                  : (st.camEye ? st.camEye[0] : 21205);
+
+    const pWorldN = (state.person && state.person.active) ? state.person.n
+                  : (state.car && state.car.active) ? state.car.n
+                  : (state.plane && state.plane.active) ? -state.plane.p[2]
+                  : (state.tram && window.__trams && window.__trams.routes[state.tram.ri]) ? (window.__trams.at(window.__trams.routes[state.tram.ri], state.tram.s || 0).n)
+                  : (st.camEye ? -st.camEye[2] : 6040);
+
+    const pImgX = pWorldX / mapMeta.metres_per_px;
+    const pImgY = imgMap.height - pWorldN / mapMeta.metres_per_px;
+
+    let zoom, srcX, srcY, viewW, viewH;
     if (full) {
-      c.font = `600 ${Math.round(10.5*s)}px "IBM Plex Sans", system-ui, sans-serif`;
+      zoom = Math.max(1.0, Math.min(6.0, state.mapZoom || 1.0));
+      viewW = imgMap.width / zoom;
+      viewH = imgMap.height / zoom;
+      // 1:1 pixel-accurate map panning centered directly around player's position
+      const panX = state.mapPanX || 0;
+      const panY = state.mapPanY || 0;
+      const centerX = pImgX - (panX / mw) * viewW;
+      const centerY = pImgY - (panY / mh) * viewH;
+      srcX = Math.max(0, Math.min(imgMap.width - viewW, centerX - viewW * 0.5));
+      srcY = Math.max(0, Math.min(imgMap.height - viewH, centerY - viewH * 0.5));
+      // the pan, held to what the map can show: dragging past an edge used
+      // to pile up pan that had to be dragged back before anything moved
+      state.mapPanX = (pImgX - (srcX + viewW * 0.5)) / viewW * mw;
+      state.mapPanY = (pImgY - (srcY + viewH * 0.5)) / viewH * mh;
+    } else {
+      // Inset minimap: crisp, high-detail overview framing player position!
+      zoom = 1.4;
+      viewW = imgMap.width / zoom;
+      viewH = imgMap.height / zoom;
+      srcX = Math.max(0, Math.min(imgMap.width - viewW, pImgX - viewW * 0.5));
+      srcY = Math.max(0, Math.min(imgMap.height - viewH, pImgY - viewH * 0.5));
+    }
+
+    c.globalAlpha = full ? 0.98 : 0.88;
+    c.fillStyle = "rgba(8,14,18,.92)";
+    c.fillRect(mx - 4 * s, my - 4 * s, mw + 8 * s, mh + 8 * s);
+
+    c.save();
+    c.beginPath();
+    if (c.roundRect) c.roundRect(mx, my, mw, mh, 4 * s);
+    else c.rect(mx, my, mw, mh);
+    c.clip();
+
+    c.imageSmoothingEnabled = true;
+    c.imageSmoothingQuality = "high";
+    c.drawImage(imgMap, srcX, srcY, viewW, viewH, mx, my, mw, mh);
+
+    const toMap = (wx, wy) => [
+      mx + ((wx / mapMeta.metres_per_px) - srcX) / viewW * mw,
+      my + ((imgMap.height - wy / mapMeta.metres_per_px) - srcY) / viewH * mh
+    ];
+    const fromMap = (cx, cy) => [
+      (srcX + (cx - mx) / mw * viewW) * mapMeta.metres_per_px,
+      (imgMap.height - (srcY + (cy - my) / mh * viewH)) * mapMeta.metres_per_px
+    ];
+    state.mapTransform = { mx, my, mw, mh, toMap, fromMap, full, srcX, srcY, viewW, viewH };
+    // Dynamic label and POI scale factor based on zoom
+    const labelScale = Math.max(0.65, Math.min(1.15, 0.55 + 0.35 * Math.min(zoom, 3.0)));
+
+    if (full) {
+      const stopFontPx = Math.max(7, Math.min(11, 8.5 * s * labelScale));
+      c.font = `600 ${stopFontPx.toFixed(1)}px "IBM Plex Sans", system-ui, sans-serif`;
       c.textAlign = "left"; c.fillStyle = "rgba(240,248,252,.95)";
+      const MAJOR_STOPS = new Set(["Budapest-Nyugati", "Vác", "Nagymaros", "Verőce", "Szob", "Pilisvörösvár", "Esztergom", "Kőbánya-Kispest", "Lajosmizse"]);
       for (const stp of routeData.stops) {
+        const isMajor = MAJOR_STOPS.has(stp.name);
+        if (zoom < 1.35 && !isMajor) continue;
         const [px_, py_] = toMap(stp.xy[0], stp.xy[1]);
-        c.fillText(stp.name, px_ + 7*s, py_ + 3.5*s);
+        if (px_ >= mx + 6 * s && px_ <= mx + mw - 6 * s && py_ >= my + 6 * s && py_ <= my + mh - 6 * s) {
+          c.fillText(stp.name, px_ + 6 * s * labelScale, py_ + 3 * s * labelScale);
+        }
       }
     }
-    // every other service on the line, so they can actually be found
+    // Live trains on the line with interactive callout signboards
+    state.hitMapTrains = [];
+    const showFullTrainBox = full && zoom >= 1.45;
     for (const tr of st.traffic.trains) {
       if (tr.svc.id === "player") continue;
       const pts = tr.dir > 0 ? routeData.track_down : routeData.track_up;
       const f = (tr.m - pts[0][3]) / 10;
       const i = Math.max(0, Math.min(pts.length - 1, Math.round(f)));
       const [tx, ty] = toMap(pts[i][0], pts[i][1]);
+
+      const trW = showFullTrainBox ? 112 * s * labelScale : (full ? 34 * s : 0);
+      const trH = showFullTrainBox ? 22 * s * labelScale : (full ? 15 * s : 0);
+      const trX = tx - trW * 0.5, trY = ty - (showFullTrainBox ? 28 : 20) * s * labelScale;
+      state.hitMapTrains.push({ x: tx, y: ty, r: 16 * s, w: trW, h: trH, bx: trX, by: trY, train: tr });
+
       c.fillStyle = tr.stock === "FREIGHT" ? "rgba(214,150,96,.95)"
                   : tr.stock === "EC" ? "rgba(176,170,226,.95)"
                   : "rgba(120,226,206,.95)";
-      c.beginPath(); c.arc(tx, ty, (full ? 3.6 : 2.6) * s, 0, 7); c.fill();
+      c.beginPath(); c.arc(tx, ty, (full ? 3.8 : 2.4) * s * labelScale, 0, Math.PI * 2); c.fill();
+
       if (full) {
-        c.font = `500 ${Math.round(9*s)}px "IBM Plex Mono", monospace`;
-        c.fillText(tr.name, tx + 6*s, ty + 3*s);
+        if (showFullTrainBox) {
+          // Pointer down to track point
+          c.fillStyle = "rgba(63, 203, 210, 0.95)";
+          c.beginPath();
+          c.moveTo(tx, ty - 3 * s);
+          c.lineTo(tx - 3 * s, trY + trH);
+          c.lineTo(tx + 3 * s, trY + trH);
+          c.closePath();
+          c.fill();
+
+          // Signboard container
+          c.fillStyle = "rgba(10, 16, 22, 0.94)";
+          c.beginPath();
+          if (c.roundRect) c.roundRect(trX, trY, trW, trH, 3.5 * s);
+          else c.fillRect(trX, trY, trW, trH);
+          c.fill();
+          c.strokeStyle = "rgba(63, 203, 210, 0.85)";
+          c.lineWidth = 1.0 * s;
+          c.stroke();
+
+          // Train icon tag
+          const tagW = 18 * s * labelScale;
+          c.fillStyle = "rgba(63, 203, 210, 0.95)";
+          c.fillRect(trX + 2.5 * s, trY + 2.5 * s, tagW, trH - 5 * s);
+          c.fillStyle = "#0c141a";
+          c.font = `800 ${Math.round(7.5 * s * labelScale)}px "Archivo", sans-serif`;
+          c.textAlign = "center";
+          c.fillText("🚆", trX + 2.5 * s + tagW * 0.5, trY + trH * 0.68);
+
+          // Train name and boarding prompt
+          c.textAlign = "left";
+          c.fillStyle = "rgba(240, 248, 252, 0.95)";
+          c.font = `700 ${Math.round(7.5 * s * labelScale)}px "IBM Plex Sans", sans-serif`;
+          c.fillText(tr.name.slice(0, 14), trX + tagW + 6 * s, trY + trH * 0.44);
+
+          c.fillStyle = "rgba(120, 226, 206, 0.92)";
+          c.font = `500 ${Math.round(6.5 * s * labelScale)}px "IBM Plex Mono", monospace`;
+          const trDest = tr.dir > 0 ? tt("Szob felé", "to Szob") : tt("Nyugati felé", "to Nyugati");
+          c.fillText(`${trDest} [${tt("Felszállás", "Board")}]`, trX + tagW + 6 * s, trY + trH * 0.85);
+        } else {
+          // Compact badge when zoomed out
+          c.fillStyle = "rgba(10, 16, 22, 0.88)";
+          c.beginPath();
+          if (c.roundRect) c.roundRect(trX, trY, trW, trH, 3 * s);
+          else c.fillRect(trX, trY, trW, trH);
+          c.fill();
+          c.strokeStyle = "rgba(63, 203, 210, 0.7)";
+          c.lineWidth = 0.8 * s;
+          c.stroke();
+          c.fillStyle = "rgba(240, 248, 252, 0.95)";
+          c.font = `700 ${Math.round(7.5 * s)}px "Archivo", sans-serif`;
+          c.textAlign = "center";
+          c.fillText("🚆 " + tr.name.slice(0, 4), trX + trW * 0.5, trY + trH * 0.74);
+        }
       }
     }
-    const [px_, py_] = toMap(st.camEye[0], -st.camEye[2]);
+
+
+    // Live Tram badges on the map for all operating city lines
+    state.hitMapTrams = [];
+    const usedTramBoxes = [];
+    const showFullTramBox = full && zoom >= 1.5;
+    const trams = window.__trams;
+    if (trams && trams.routes) {
+      const tNow = state.hour * 3600;
+      trams.routes.forEach((r, ri) => {
+        for (let k = 0; ; k++) {
+          const age = ((tNow - 4.5 * 3600 - r.phase) % r.head + r.head) % r.head + k * r.head;
+          if (age > r.run) break;
+          const pos = trams.at(r, trams.sAt(r, age));
+          const [tx, ty] = toMap(pos.x, pos.n);
+
+          const tmW = showFullTramBox ? 104 * s * labelScale : (full ? 22 * s : 0);
+          const tmH = showFullTramBox ? 22 * s * labelScale : (full ? 14 * s : 0);
+          const tmX = tx - tmW * 0.5, tmY = ty - (showFullTramBox ? 28 : 18) * s * labelScale;
+          state.hitMapTrams.push({ x: tx, y: ty, r: 16 * s, w: tmW, h: tmH, bx: tmX, by: tmY, route: r, ri, dep: tNow - age });
+
+          // Crisp circular vehicle marker with line number
+          c.fillStyle = "rgba(245, 196, 20, 0.98)"; // BKK Tram Yellow
+          c.beginPath(); c.arc(tx, ty, (full ? 4.5 : 2.5) * s, 0, Math.PI * 2); c.fill();
+          c.strokeStyle = "#12161a"; c.lineWidth = 1 * s; c.stroke();
+
+          if (full) {
+            c.fillStyle = "#111417";
+            c.font = `800 ${Math.round(8 * s)}px "Archivo", sans-serif`;
+            c.textAlign = "center";
+            c.fillText(r.ref, tx, ty + 2.8 * s);
+
+            if (showFullTramBox) {
+              // Declutter callout signboards: draw if not overlapping another nearby tram signboard
+              const overlaps = usedTramBoxes.some(([ux, uy]) => Math.hypot(ux - tx, uy - ty) < 70 * s * labelScale);
+              if (!overlaps) {
+                usedTramBoxes.push([tx, ty]);
+                // Pointer down to vehicle dot
+                c.fillStyle = "rgba(245, 196, 20, 0.95)";
+                c.beginPath();
+                c.moveTo(tx, ty - 4 * s);
+                c.lineTo(tx - 3 * s, tmY + tmH);
+                c.lineTo(tx + 3 * s, tmY + tmH);
+                c.closePath();
+                c.fill();
+
+                // Tram callout box
+                c.fillStyle = "rgba(16, 20, 24, 0.94)";
+                c.beginPath();
+                if (c.roundRect) c.roundRect(tmX, tmY, tmW, tmH, 3.5 * s);
+                else c.fillRect(tmX, tmY, tmW, tmH);
+                c.fill();
+                c.strokeStyle = "rgba(245, 196, 20, 0.9)";
+                c.lineWidth = 1.0 * s;
+                c.stroke();
+
+                // Yellow line number pill
+                const pillW = 20 * s * labelScale;
+                c.fillStyle = "rgba(245, 196, 20, 0.98)";
+                c.fillRect(tmX + 2.5 * s, tmY + 2.5 * s, pillW, tmH - 5 * s);
+                c.fillStyle = "#111417";
+                c.font = `800 ${Math.round(8 * s * labelScale)}px "Archivo", sans-serif`;
+                c.textAlign = "center";
+                c.fillText(r.ref, tmX + 2.5 * s + pillW * 0.5, tmY + tmH * 0.68);
+
+                // Tram destination & boarding prompt
+                c.textAlign = "left";
+                c.fillStyle = "rgba(245, 248, 252, 0.95)";
+                c.font = `700 ${Math.round(7.2 * s * labelScale)}px "IBM Plex Sans", sans-serif`;
+                const destStr = (r.to || (r.model ? r.model.name : "Villamos")).slice(0, 14);
+                c.fillText(destStr, tmX + pillW + 5 * s, tmY + tmH * 0.44);
+
+                c.fillStyle = "rgba(245, 196, 20, 0.92)";
+                c.font = `500 ${Math.round(6.2 * s * labelScale)}px "IBM Plex Mono", monospace`;
+                c.fillText(`[${tt("Felszállás", "Board")}]`, tmX + pillW + 5 * s, tmY + tmH * 0.85);
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Interactive Map Pin & Tactical Spawner Card
+    state.hitMapSpawnBtns = [];
+    if (state.mapPin && full) {
+      const [px, py] = toMap(state.mapPin.x, state.mapPin.y);
+      // Glowing Map Pin
+      c.fillStyle = "rgba(255, 60, 80, 0.98)";
+      c.beginPath(); c.arc(px, py - 14 * s, 7 * s, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.moveTo(px - 6 * s, py - 12 * s); c.lineTo(px, py); c.lineTo(px + 6 * s, py - 12 * s); c.fill();
+      c.fillStyle = "#ffffff";
+      c.beginPath(); c.arc(px, py - 14 * s, 2.5 * s, 0, Math.PI * 2); c.fill();
+
+      // Sleek popup spawner card with character picker and spawn actions
+      const cw = 250 * s, ch = 210 * s;
+      let cx = px + 14 * s, cy = py - 95 * s;
+      if (cx + cw > mx + mw - 10 * s) cx = px - cw - 14 * s;
+      if (cx < mx + 10 * s) cx = mx + 10 * s;
+      if (cy + ch > my + mh - 10 * s) cy = my + mh - ch - 10 * s;
+      if (cy < my + 10 * s) cy = my + 10 * s;
+
+      state.mapPinCard = { x: cx, y: cy, w: cw, h: ch };   // (input.js: a click on it is not a new pin)
+      c.fillStyle = "rgba(10, 16, 22, 0.96)";
+      c.beginPath();
+      if (c.roundRect) c.roundRect(cx, cy, cw, ch, 8 * s);
+      else c.fillRect(cx, cy, cw, ch);
+      c.fill();
+      c.strokeStyle = "rgba(63, 203, 210, 0.7)";
+      c.lineWidth = 1.5 * s;
+      c.stroke();
+
+      // Location / street title
+      c.font = `800 ${Math.round(11 * s)}px "Archivo", sans-serif`;
+      c.fillStyle = "rgba(240, 248, 252, 0.98)";
+      const locTitle = (state.mapPin.name || tt("Kijelölt helyszín", "Marked Location")).toUpperCase();
+      c.fillText(`📍 ${locTitle.slice(0, 22)}`, cx + 12 * s, cy + 18 * s);
+
+      // Close button [✕]
+      const closeW = 20 * s, closeH = 18 * s;
+      const closeX = cx + cw - closeW - 8 * s, closeY = cy + 4 * s;
+      c.fillStyle = "rgba(255, 255, 255, 0.12)";
+      c.fillRect(closeX, closeY, closeW, closeH);
+      c.fillStyle = "rgba(240, 248, 255, 0.85)";
+      c.font = `700 ${Math.round(10 * s)}px "IBM Plex Sans", sans-serif`;
+      c.textAlign = "center";
+      c.fillText("✕", closeX + closeW * 0.5, closeY + closeH * 0.72);
+      state.hitMapSpawnBtns.push({ x: closeX, y: closeY, w: closeW, h: closeH, act: "close_pin" });
+
+      // Character Selector Sub-Card
+      const selIdx = state.selectedCharIdx !== undefined ? state.selectedCharIdx : (state.person ? (state.person.charIdx || 0) : 0);
+      const curModel = CHAR_MODELS[selIdx] || CHAR_MODELS[0];
+      const isMale = curModel.gender === "m";
+
+      c.fillStyle = "rgba(255, 255, 255, 0.05)";
+      c.fillRect(cx + 8 * s, cy + 24 * s, cw - 16 * s, 54 * s);
+      c.strokeStyle = "rgba(255, 255, 255, 0.12)";
+      c.strokeRect(cx + 8 * s, cy + 24 * s, cw - 16 * s, 54 * s);
+
+      // Row 1: Left arrow, Model name / index, Right arrow
+      const arrW = 24 * s, arrH = 22 * s;
+      // [ < ] Prev
+      c.fillStyle = "rgba(63, 203, 210, 0.2)";
+      c.fillRect(cx + 12 * s, cy + 28 * s, arrW, arrH);
+      c.fillStyle = "rgba(63, 203, 210, 0.95)";
+      c.font = `700 ${Math.round(11 * s)}px "IBM Plex Sans", sans-serif`;
+      c.textAlign = "center";
+      c.fillText("◀", cx + 12 * s + arrW * 0.5, cy + 43 * s);
+      state.hitMapSpawnBtns.push({ x: cx + 12 * s, y: cy + 28 * s, w: arrW, h: arrH, act: "char_prev" });
+
+      // Model label
+      c.fillStyle = "rgba(240, 248, 252, 0.95)";
+      c.font = `700 ${Math.round(9.5 * s)}px "IBM Plex Sans", sans-serif`;
+      const modelDisp = `${selIdx + 1}/24 · ${curModel.gender === "m" ? "👨" : "👩"} ${tt(curModel.name, curModel.en)}`;
+      c.fillText(modelDisp, cx + cw * 0.5, cy + 42 * s);
+
+      // [ > ] Next
+      c.fillStyle = "rgba(63, 203, 210, 0.2)";
+      c.fillRect(cx + cw - 12 * s - arrW, cy + 28 * s, arrW, arrH);
+      c.fillStyle = "rgba(63, 203, 210, 0.95)";
+      c.fillText("▶", cx + cw - 12 * s - arrW * 0.5, cy + 43 * s);
+      state.hitMapSpawnBtns.push({ x: cx + cw - 12 * s - arrW, y: cy + 28 * s, w: arrW, h: arrH, act: "char_next" });
+
+      // Row 2: Gender pills [👨 Férfi] [👩 Nő] and Tint Swatches
+      c.textAlign = "left";
+      // Male pill
+      const gW = 54 * s, gH = 18 * s;
+      c.fillStyle = isMale ? "rgba(63, 203, 210, 0.35)" : "rgba(255, 255, 255, 0.08)";
+      c.fillRect(cx + 12 * s, cy + 54 * s, gW, gH);
+      c.fillStyle = isMale ? "#3fcbd2" : "rgba(180, 200, 210, 0.7)";
+      c.font = `600 ${Math.round(8.5 * s)}px "IBM Plex Sans", sans-serif`;
+      c.fillText("👨 Férfi", cx + 18 * s, cy + 66.5 * s);
+      state.hitMapSpawnBtns.push({ x: cx + 12 * s, y: cy + 54 * s, w: gW, h: gH, act: "char_male" });
+
+      // Female pill
+      c.fillStyle = !isMale ? "rgba(240, 90, 160, 0.35)" : "rgba(255, 255, 255, 0.08)";
+      c.fillRect(cx + 70 * s, cy + 54 * s, gW, gH);
+      c.fillStyle = !isMale ? "#f05aa0" : "rgba(180, 200, 210, 0.7)";
+      c.fillText("👩 Nő", cx + 78 * s, cy + 66.5 * s);
+      state.hitMapSpawnBtns.push({ x: cx + 70 * s, y: cy + 54 * s, w: gW, h: gH, act: "char_female" });
+
+      // Tint Swatches: 5 circular shade options
+      const tints = [
+        { v: 1.0, col: "#3fcbd2" },
+        { v: 1.18, col: "#f05050" },
+        { v: 0.92, col: "#40d070" },
+        { v: 0.75, col: "#606875" },
+        { v: 1.25, col: "#f5c414" }
+      ];
+      const curTint = state.selectedCharTint !== undefined ? state.selectedCharTint : 1.0;
+      tints.forEach((t, ti) => {
+        const dotX = cx + 138 * s + ti * 18 * s;
+        const dotY = cy + 63 * s;
+        c.fillStyle = t.col;
+        c.beginPath(); c.arc(dotX, dotY, 6 * s, 0, Math.PI * 2); c.fill();
+        if (Math.abs(curTint - t.v) < 0.05) {
+          c.strokeStyle = "#ffffff"; c.lineWidth = 1.5 * s; c.stroke();
+        }
+        state.hitMapSpawnBtns.push({ x: dotX - 8 * s, y: dotY - 8 * s, w: 16 * s, h: 16 * s, act: `tint_${t.v}` });
+      });
+
+      // Spawn Action Buttons (5 options)
+      const btnH = 21 * s;
+      const btns = [
+        { id: "hero", label: tt("🦸 Hancock Hős (Repülés & Szupererő)", "🦸 Hancock Hero (Flight & Powers)"), col: "rgba(63,203,210,.95)" },
+        { id: "walk", label: tt("🚶 Városi Séta (Karakter séta)", "🚶 City Stroll (Pedestrian walk)"), col: "rgba(120,226,160,.95)" },
+        { id: "car", label: tt("🚗 Autó vezetése", "🚗 Drive a Car"), col: "rgba(243,196,82,.95)" },
+        { id: "tram", label: tt("🚊 Legközelebbi villamos", "🚊 Nearest Tram"), col: "rgba(245,196,20,.95)" },
+        { id: "plane", label: tt("✈️ Repülőgéppel ide", "✈️ Fly Aircraft here"), col: "rgba(180,180,240,.95)" },
+      ];
+      btns.forEach((b, bi) => {
+        const by = cy + 82 * s + bi * (btnH + 4 * s);
+        c.fillStyle = "rgba(255, 255, 255, 0.08)";
+        c.fillRect(cx + 8 * s, by, cw - 16 * s, btnH);
+        c.fillStyle = b.col;
+        c.font = `600 ${Math.round(9.5 * s)}px "IBM Plex Sans", sans-serif`;
+        c.fillText(b.label, cx + 14 * s, by + 14.5 * s);
+        state.hitMapSpawnBtns.push({ x: cx + 8 * s, y: by, w: cw - 16 * s, h: btnH, act: b.id });
+      });
+    }
+
+    // Budapest city landmarks for enhanced spatial awareness (full map mode)
+    if (full) {
+      // (These were typed in line 70's metres and stood 200-775 m off: the
+      // castle in Pest. Now lat/lon, placed in whichever line is loaded.)
+      const landmarks = [
+        { name: tt("Országház", "Parliament"), ll: [47.50705, 19.04573], icon: "🏛️", prio: 1 },
+        { name: tt("Budavári Palota", "Buda Castle"), ll: [47.49620, 19.03960], icon: "🏰", prio: 1 },
+        { name: tt("Gellért-hegy", "Gellért Hill"), ll: [47.48700, 19.04670], icon: "⛰️", prio: 1 },
+        { name: tt("Margitsziget", "Margaret Island"), ll: [47.52700, 19.04800], icon: "🌳", prio: 2 },
+        { name: tt("Hősök tere", "Heroes' Sq."), ll: [47.51500, 19.07780], icon: "🌿", prio: 2 },
+        { name: tt("Hűvösvölgy", "Hűvösvölgy"), ll: [47.54170, 18.96270], icon: "🚊", prio: 2 },
+        { name: tt("Kelenföld", "Kelenföld"), ll: [47.46440, 19.02040], icon: "🏢", prio: 2 }
+      ].map(lm => { const [x, n] = world.geo ? world.geo(lm.ll[0], lm.ll[1]) : [NaN, NaN]; return { ...lm, x, n }; })
+       .filter(lm => isFinite(lm.x));
+      const poiFontPx = Math.max(6.5, Math.min(10, 7.5 * s * labelScale));
+      c.font = `600 ${poiFontPx.toFixed(1)}px "IBM Plex Sans", sans-serif`;
+      const placedPois = [];
+      for (const lm of landmarks) {
+        if (zoom < 1.25 && lm.prio > 1) continue; // declutter lower-priority POIs when zoomed out
+        const [lx, ly] = toMap(lm.x, lm.n);
+        if (lx >= mx + 10 * s && lx <= mx + mw - 10 * s && ly >= my + 10 * s && ly <= my + mh - 10 * s) {
+          const tag = (zoom >= 1.35) ? `${lm.icon} ${lm.name}` : lm.icon;
+          const textW = c.measureText(tag).width;
+          const boxW = textW + (zoom >= 1.35 ? 6 : 4) * s * labelScale;
+          const boxH = (zoom >= 1.35 ? 12 : 11) * s * labelScale;
+          // Collision avoidance: skip if overlapping another already placed POI
+          const collides = placedPois.some(([px, py, pw, ph]) => Math.abs(px - lx) < (pw + boxW) * 0.5 && Math.abs(py - ly) < (ph + boxH) * 0.5);
+          if (collides) continue;
+          placedPois.push([lx, ly, boxW, boxH]);
+
+          c.fillStyle = "rgba(10, 16, 22, 0.88)";
+          c.fillRect(lx - boxW * 0.5, ly - boxH * 0.5, boxW, boxH);
+          c.strokeStyle = "rgba(120, 200, 220, 0.4)";
+          c.strokeRect(lx - boxW * 0.5, ly - boxH * 0.5, boxW, boxH);
+          c.fillStyle = "rgba(240, 248, 255, 0.95)";
+          c.textAlign = "center";
+          c.fillText(tag, lx, ly + boxH * 0.32);
+        }
+      }
+    }
+
+    const [rawPx, rawPy] = toMap(st.camEye[0], -st.camEye[2]);
+    const isOffScreen = rawPx < mx + 4 * s || rawPx > mx + mw - 4 * s || rawPy < my + 4 * s || rawPy > my + mh - 4 * s;
+    const px_ = Math.max(mx + 12 * s, Math.min(mx + mw - 12 * s, rawPx));
+    const py_ = Math.max(my + 12 * s, Math.min(my + mh - 12 * s, rawPy));
+
     const fwdV = st.fwd || [0, 0, -1];
     const fwdLen = Math.hypot(fwdV[0], fwdV[2]) || 1;
     // fwd[0] is East (+x), fwd[2] is South (+z, so -fwd[2] is North)
@@ -139,16 +769,26 @@ function drawMap(c, W, H, s, st, world) {
     const angle = Math.atan2(-vy, vx);
     c.rotate(angle);
 
-    // Semi-transparent field-of-view vision cone
-    c.fillStyle = "rgba(63, 203, 210, 0.22)";
-    c.beginPath();
-    c.moveTo(0, 0);
-    c.arc(0, 0, 26 * s, -0.42, 0.42);
-    c.closePath();
-    c.fill();
+    if (isOffScreen) {
+      // Pulsing radar ping for off-screen position (e.g. South Buda)
+      const pulse = (Math.sin(performance.now() * 0.005) + 1) * 0.5;
+      c.strokeStyle = `rgba(245, 196, 20, ${0.4 + pulse * 0.5})`;
+      c.lineWidth = 1.5 * s;
+      c.beginPath();
+      c.arc(0, 0, (14 + pulse * 6) * s, 0, Math.PI * 2);
+      c.stroke();
+    } else {
+      // Semi-transparent field-of-view vision cone
+      c.fillStyle = "rgba(63, 203, 210, 0.22)";
+      c.beginPath();
+      c.moveTo(0, 0);
+      c.arc(0, 0, 26 * s, -0.42, 0.42);
+      c.closePath();
+      c.fill();
+    }
 
     // Sharp glowing directional player arrow with border
-    c.fillStyle = "rgba(63, 203, 210, 1.0)";
+    c.fillStyle = isOffScreen ? "rgba(245, 196, 20, 1.0)" : "rgba(63, 203, 210, 1.0)";
     c.strokeStyle = "rgba(8, 16, 24, 0.95)";
     c.lineWidth = 1.4 * s;
     c.beginPath();
@@ -159,7 +799,76 @@ function drawMap(c, W, H, s, st, world) {
     c.closePath();
     c.fill();
     c.stroke();
+    c.restore(); // restore player arrow transform
+
+    // Restore unclipped context for outer frame and HUD controls
     c.restore();
+
+    // Map Border
+    c.strokeStyle = "rgba(150, 180, 196, 0.6)";
+    c.lineWidth = 1.5 * s;
+    c.strokeRect(mx - 0.5, my - 0.5, mw + 1, mh + 1);
+
+    if (full) {
+      // Interactive Zoom and Pan control buttons on the map
+      state.hitMapControls = [];
+      const btnW = 32 * s, btnH = 26 * s;
+      const ctlX = mx + mw - btnW - 14 * s;
+      let ctlY = my + 14 * s;
+      const ctlDefs = [
+        { id: "zoom_in", label: "+", title: "Nagyítás / Zoom in" },
+        { id: "reset", label: `${zoom.toFixed(1)}x`, title: "Alaphelyzet / Reset" },
+        { id: "zoom_out", label: "−", title: "Kicsinyítés / Zoom out" },
+        { id: "center", label: "🎯", title: "Középre / Center" },
+      ];
+      for (const d of ctlDefs) {
+        c.fillStyle = "rgba(10, 16, 22, 0.92)";
+        c.beginPath();
+        if (c.roundRect) c.roundRect(ctlX, ctlY, btnW, btnH, 4 * s);
+        else c.fillRect(ctlX, ctlY, btnW, btnH);
+        c.fill();
+        c.strokeStyle = "rgba(63, 203, 210, 0.75)";
+        c.lineWidth = 1 * s;
+        c.stroke();
+        c.fillStyle = "#ffffff";
+        c.font = `700 ${Math.round(11 * s)}px "IBM Plex Sans", sans-serif`;
+        c.textAlign = "center";
+        c.fillText(d.label, ctlX + btnW * 0.5, ctlY + btnH * 0.68);
+        state.hitMapControls.push({ x: ctlX, y: ctlY, w: btnW, h: btnH, act: d.id });
+        ctlY += btnH + 5 * s;
+      }
+
+      // Bottom guidance bar for dragging, zooming, and dropping pins
+      c.fillStyle = "rgba(10, 16, 22, 0.92)";
+      c.fillRect(mx, my + mh - 26 * s, mw, 26 * s);
+      c.strokeStyle = "rgba(63, 203, 210, 0.4)";
+      c.lineWidth = 1 * s;
+      c.strokeRect(mx, my + mh - 26 * s, mw, 26 * s);
+      c.fillStyle = "rgba(220, 240, 250, 0.92)";
+      c.font = `600 ${Math.round(10 * s)}px "IBM Plex Sans", sans-serif`;
+      c.textAlign = "center";
+      c.fillText(tt("🖱️ Húzás: térkép mozgatása · Görgő: nagyítás · Kattintás: jelölő / beszállás · Tab: bezárás",
+                    "🖱️ Drag: pan map · Wheel: zoom · Click: drop pin / board · Tab: close map"), mx + mw * 0.5, my + mh - 9 * s);
+    } else {
+      // Inset minimap: clean location & pan indicator pill
+      const locName = pWorldN < 4000 ? tt("DÉL-BUDA / BUDAÖRS", "SOUTH BUDA / BUDAÖRS")
+                    : pWorldN < 11000 ? tt("BUDAPEST", "BUDAPEST")
+                    : pWorldN < 26000 ? tt("DUNAKESZI / GÖD", "DUNAKESZI / GÖD")
+                    : pWorldN < 36000 ? tt("VÁC", "VÁC")
+                    : tt("DUNAKANYAR", "DANUBE BEND");
+      c.fillStyle = "rgba(10, 16, 22, 0.88)";
+      c.beginPath();
+      if (c.roundRect) c.roundRect(mx + 6 * s, my + mh - 22 * s, 175 * s, 17 * s, 3 * s);
+      else c.fillRect(mx + 6 * s, my + mh - 22 * s, 175 * s, 17 * s);
+      c.fill();
+      c.strokeStyle = "rgba(63, 203, 210, 0.6)";
+      c.lineWidth = 1 * s;
+      c.stroke();
+      c.fillStyle = "rgba(63, 203, 210, 0.98)";
+      c.font = `700 ${Math.round(8.2 * s)}px "IBM Plex Sans", sans-serif`;
+      c.textAlign = "left";
+      c.fillText(`🗺️ ${locName} · [Tab]`, mx + 10 * s, my + mh - 10.5 * s);
+    }
 
     c.globalAlpha = 1;
     c.textAlign = "left";
@@ -239,8 +948,11 @@ export function drawHud(c, canvas, st, world) {
   if (state.bareLevel === 1) return;
   // in the plane and the car the names were never drawn at all (the Pilis
   // from the air had no hill on it); now they are, under their own read-outs
-  if (state.plane && state.plane.active) { drawPlaneHud(c, W, H, s); drawMap(c, W, H, s, st, world); return; }
-  if (state.car && state.car.active) { drawCarHud(c, W, H, s); drawMap(c, W, H, s, st, world); return; }
+  if (state.person && state.person.active) { drawHeroHud(c, W, H, s); drawStreetSign(c, W, H, s, state.currentStreet); drawMap(c, W, H, s, st, world); return; }
+  if (state.plane && state.plane.active) { drawPlaneHud(c, W, H, s); drawStreetSign(c, W, H, s, state.currentStreet); drawMap(c, W, H, s, st, world); return; }
+  if (state.car && state.car.active) { drawCarHud(c, W, H, s); drawStreetSign(c, W, H, s, state.currentStreet); drawMap(c, W, H, s, st, world); return; }
+  if (state.tram) { drawTramHud(c, W, H, s, st, world); drawStreetSign(c, W, H, s, state.currentStreet); drawMap(c, W, H, s, st, world); return; }
+  drawStreetSign(c, W, H, s, state.currentStreet);
   drawMap(c, W, H, s, st, world);
 
   // station banner — the stop was happening but was easy to miss

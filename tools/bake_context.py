@@ -761,8 +761,8 @@ def main():
                 rtype = 6                      # a row of low vaults, not one hangar
             if cls == 13:
                 rtype = 5                      # no roof: open to the sky
-            elif kind in ("train_station", "station") and area > 1200 and not t.get("building:levels"):
-                rtype = 3                      # a trainshed is a barrel vault
+            elif kind in ("train_station", "station") and area > 1200 and not t.get("building:levels") and "déli" not in (t.get("name") or "").lower():
+                rtype = 3                      # a trainshed is a barrel vault (Nyugati, Keleti; Déli is flat concourse)
             elif rail_shed and area > 600:
                 rtype = 3                      # so is an engine shed
             rh = 0.0

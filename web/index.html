@@ -151,9 +151,17 @@
   #loader .tip{margin-top:10px;font-size:12.5px;color:#8ea9b8;text-align:center;min-height:1.4em}
   #loader .tip b{color:#ffe08a;font-weight:600}
   #loader .fail{color:#ff8a7a;text-transform:none;letter-spacing:0}
-  #menu{padding:0;overflow:hidden;width:min(430px,92vw);min-width:0;max-height:92vh;overflow-y:auto}
-  #menu #mBanner{display:block;width:100%;height:132px;object-fit:cover;object-position:50% 12%}
-  #menu .mbody{padding:16px 24px 18px}
+  #menu{padding:0;overflow:hidden;width:min(490px,94vw);min-width:0;max-height:92vh;overflow-y:auto;border-radius:8px;box-shadow:0 16px 50px rgba(0,0,0,.75)}
+  #menu #mBanner{display:block;width:100%;height:124px;object-fit:cover;object-position:50% 12%}
+  #menu .mbody{padding:14px 20px 18px}
+  #mHubGrid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:8px 0 12px}
+  .mHubCard{display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.05);border:1px solid rgba(120,160,180,.22);border-radius:5px;padding:8px 10px;cursor:pointer;color:#dff3f5;text-align:left;transition:all .16s ease}
+  .mHubCard:hover{background:rgba(63,203,210,.14);border-color:#3fcbd2;transform:translateY(-1px);box-shadow:0 3px 12px rgba(63,203,210,.25)}
+  .mHubCard .icon{font-size:22px;line-height:1;flex-shrink:0}
+  .mHubCard .meta{display:flex;flex-direction:column;gap:1px;min-width:0}
+  .mHubCard .meta b{font:700 12.5px "Archivo",sans-serif;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mHubCard .meta span{font:10px "IBM Plex Sans",sans-serif;color:#8ea9b8;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mHubCard.on{background:#12414a;border-color:#3fcbd2}
   #mLines{display:flex;gap:6px;margin:4px 0 12px}
   #mLines button{flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:1px;
     background:rgba(255,255,255,.05);border:1px solid rgba(120,160,180,.22);color:#b7cad6;
@@ -465,8 +473,9 @@
     <label class="chk"><input id="gfxDof" type="checkbox" checked> <span data-en="Depth of field (outside views)">Mélységélesség (külső nézetek)</span></label>
     <label class="chk"><input id="gfxMotion" type="checkbox"> <span data-en="Motion blur">Mozgási elmosás</span></label>
     <label class="chk"><input id="gfxAO" type="checkbox" checked> <span data-en="Shading in corners (AO)">Árnyék a zugokban (AO)</span></label>
+    <label class="chk" title="Esőcseppek a kamera lencséjén, permet a kerekek mögött, csobbanások a földön (külső nézetek)" data-en-title="Raindrops on the camera lens, spray behind wheels, splashes on the ground (outside views)"><input id="gfxHeavy" type="checkbox"> <span data-en="Heavy weather (drops, spray)">Erős időjárás (cseppek, permet)</span></label>
     <label class="chk"><input id="gfxFps" type="checkbox"> <span data-en="Show frames per second">Képkocka/mp kijelzése (fps)</span></label>
-    <label><span data-en="Depth of field amount">Mélységélesség mértéke</span> <input id="gfxDofAmt" type="range" min="0.1" max="1.2" step="0.02" value="0.35"></label>
+    <label><span data-en="Depth of field amount">Mélységélesség mértéke</span> <input id="gfxDofAmt" type="range" min="0.04" max="1.2" step="0.02" value="0.12"></label>
     <label><span data-en="Motion blur amount">Elmosás mértéke</span> <input id="gfxMotionAmt" type="range" min="0.2" max="2.5" step="0.05" value="1"></label>
     <label><span data-en="Corner shading amount">Zugárnyék mértéke</span> <input id="gfxAOAmt" type="range" min="0.2" max="2" step="0.05" value="1"></label>
     <label><span data-en="Volume">Hangerő</span> <input id="volSlider" type="range" min="0" max="1" step="0.02" value="0.7"></label>
@@ -495,6 +504,7 @@
     <button data-mode="plane" title="Repülés (⇧P) · Esc vissza" data-en-title="Fly (⇧P) · Esc back" data-en="Fly">Repülő</button>
     <button data-mode="drone" title="FPV drón (⇧D)" data-en-title="FPV drone (⇧D)" data-en="Drone">Drón</button>
     <button data-mode="tram" title="Szállj fel a legközelebbi villamosra (⇧T), aztán válassz vonalat: 1, 2, 3, 4, 6, 56, 61 · C kívülről · Esc vissza" data-en-title="Board the nearest tram (⇧T), then pick a line: 1, 2, 3, 4, 6, 56, 61 · C from outside · Esc back" data-en="Tram">Villamos</button>
+    <button data-mode="hero" title="Hancock szuperhős / gyalogos (⇧H) · Space szuperugrás / repülés · V ruha · Esc vissza" data-en-title="Hancock superhero / on foot (⇧H) · Space superjump / fly · V outfit · Esc back" data-en="Hero">🦸 Hős</button>
     <button data-mode="car" title="Vezess autót (⇧A) · Esc vissza" data-en-title="Drive a car (⇧A) · Esc back" data-en="Car">Autó</button>
     <span class="sep"></span>
     <button data-act="manual" title="Kézi vezetés (M): W/S kontroller, Backspace vészfék" data-en-title="Drive by hand (M): W/S controller, Backspace emergency brake" data-en="Manual">Kézi</button>
@@ -585,13 +595,57 @@
   </div></div>
   <div id="intro"><div class="n" id="iN"></div><div id="iText"></div>
     <div class="ib"><button id="iSkip" data-en="Skip">Kihagyom</button><button id="iNext">Tovább</button></div></div>
-  <div id="attrib" data-en-html='v0.1 alpha · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a><span class="long"> contributors</span> · <span class="long">terrain: </span>Mapzen/AWS · <span class="long">trees: </span>BP Fatár (FŐKERT)'>v0.1 alpha · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a><span class="long"> közreműködők</span> · <span class="long">domborzat: </span>Mapzen/AWS · <span class="long">fák: </span>BP Fatár (FŐKERT)</div>
+  <div id="attrib" data-en-html='v0.1 alpha · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a><span class="long"> contributors</span> · <span class="long">terrain: </span>Lechner Knowledge Center DDM25 (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>), Mapzen/AWS · <span class="long">trees: </span>BP Fatár (FŐKERT)'>v0.1 alpha · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a><span class="long"> közreműködők</span> · <span class="long">domborzat: </span>Lechner Tudásközpont DDM25 (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>), Mapzen/AWS · <span class="long">fák: </span>BP Fatár (FŐKERT)</div>
   <div id="err"></div>
   <div id="menu">
     <img id="mBanner" alt="">
     <div class="mbody">
     <h2 id="menuTitle">Szob felé</h2><button id="mLang" title="Nyelv / Language">EN</button>
     <p class="lede" id="menuSubtitle">MÁV 70 · Nyugati – Vác – Szob</p>
+    <div id="mHubGrid">
+      <div class="mHubCard on" id="hubTrain" data-mode="train">
+        <span class="icon">🚆</span>
+        <div class="meta">
+          <b data-en="Train Simulator">Vasúti Szimulátor</b>
+          <span data-en="Lines 70, 2, S21 · Kiss, Flirt">70, 2, S21 · Kiss, Flirt</span>
+        </div>
+      </div>
+      <div class="mHubCard" id="hubTram" data-mode="tram">
+        <span class="icon">🚊</span>
+        <div class="meta">
+          <b data-en="BKK Trams">Budapesti Villamosok</b>
+          <span data-en="4/6, 1, 2, 56, 61 · Combino">4/6, 1, 2, 56, 61 · Combino</span>
+        </div>
+      </div>
+      <div class="mHubCard" id="hubMap" data-mode="map">
+        <span class="icon">🗺️</span>
+        <div class="meta">
+          <b data-en="City Map & Spawner">Taktikai Térkép</b>
+          <span data-en="Spawn anywhere in city">Kattints és szállj be bárhol</span>
+        </div>
+      </div>
+      <div class="mHubCard" id="hubHero" data-mode="hero">
+        <span class="icon">🦸</span>
+        <div class="meta">
+          <b data-en="Hancock Hero">Hancock Hős & Séta</b>
+          <span data-en="Flight & 24 3D avatars">Repülés & 24 3D figura</span>
+        </div>
+      </div>
+      <div class="mHubCard" id="hubCar" data-mode="car">
+        <span class="icon">🚗</span>
+        <div class="meta">
+          <b data-en="Car Driving">Autós Vezetés</b>
+          <span data-en="Danube roads & traffic">Duna-parti utak & forgalom</span>
+        </div>
+      </div>
+      <div class="mHubCard" id="hubPlane" data-mode="plane">
+        <span class="icon">✈️</span>
+        <div class="meta">
+          <b data-en="Flight Simulator">Repülőszimulátor</b>
+          <span data-en="JAS 39 Gripen & Cessna">Gripen & Cessna repülés</span>
+        </div>
+      </div>
+    </div>
     <div id="mLines">
       <button data-line="line70"><b>70</b><span>Vác – Szob</span></button>
       <button data-line="line2"><b>2</b><span>Pilis – Esztergom</span></button>
@@ -713,9 +767,12 @@
     if (st.plane) st.plane.active = false;
     if (st.drone) st.drone.active = false;
     if (st.car) st.car.active = false;
+    if (st.person) st.person.active = false;
     st.fly = null; st.follow = false; st.passenger = null; st.followIdx = -1; st.tram = null; st.tramBar = false;
     st.followCarIdx = -1; st.followShipIdx = -1; st.yaw = 0; st.pitch = -0.02; st.zoom = 1;
+    st.cab = true;              // (the hero switched the desk off and nothing put it back)
   };
+  window.__toCab = toCab;       // Esc from every mode comes back here (input.js)
   const act = {
     cab: toCab,
     tour: () => { const st = S(); if (!st) return; if (st.tour) { toCab(); return; }
@@ -726,6 +783,7 @@
     free: () => { const st = S(); if (st && st.fly) return; toCab(); key("KeyC", true); },
     plane: () => { const st = S(); if (st && st.plane && st.plane.active) return; toCab(); key("KeyP", true); },
     drone: () => { const st = S(); if (st && st.drone && st.drone.active) return; toCab(); key("KeyD", true); },
+    hero: () => { const st = S(); if (st && st.person && st.person.active) return; toCab(); key("KeyH", true); },
     car: () => { const st = S(); if (st && st.car && st.car.active) return; toCab(); key("KeyA", true); },
     tram: () => { const st = S(); if (st && st.tram) return; toCab(); if (window.__tramBar) window.__tramBar(); },
     bare: () => key("KeyU"), manual: () => key("KeyM"), map: () => key("Tab"), disp: () => key("KeyQ"),
@@ -794,6 +852,8 @@
     train:  [[["▼\uFE0E\n" + tl("fék", "brake"), "KeyS", 0, "big"], ["▲\uFE0E\n" + tl("menet", "power"), "KeyW", 0, "big"]],
              [["auto", "KeyM"], ["0", "Digit0", 1, "", "Nulla"], [tl("ÉBER", "ALERT"), "KeyE", 0, "gold", ""], [tl("VÉSZ", "EMERG"), "Backspace", 0, "red", ""]]],
     car:    [[["◀\uFE0E", "KeyA"], ["▶\uFE0E", "KeyD"]], [[tl("fék", "brake"), "KeyS", 0, "big"], [tl("gáz", "gas"), "KeyW", 0, "big"], [tl("kézi", "hand"), "Space", 0, "red"]]],
+    hero:   [[["◀\uFE0E", "KeyA"], ["▶\uFE0E", "KeyD"], ["▲\uFE0E", "KeyW"], ["▼\uFE0E", "KeyS"]],
+             [[tl("ugrás/repülés", "jump/fly"), "Space", 0, "big"], [tl("turbó", "boost"), "ShiftLeft"], [tl("ruha", "outfit"), "KeyV"], [tl("nézet", "camera"), "KeyC"]]],
     plane:  [[["◀\uFE0E", "KeyA"], ["▶\uFE0E", "KeyD"], ["▲\uFE0E", "KeyS", 0, "", "Húz"], ["▼\uFE0E", "KeyW", 0, "", "Nyom"]],
              [[tl("gáz+", "thr+"), "KeyR"], [tl("gáz−", "thr−"), "KeyF"], [tl("kabin", "cabin"), "KeyC"], [tl("gép", "craft"), "PlaneCycle", 0, "", "Cessna · Gripen · helikopter"]]],
     drone:  [[["◀\uFE0E", "KeyA"], ["▶\uFE0E", "KeyD"], ["▲\uFE0E", "KeyW"], ["▼\uFE0E", "KeyS"]], [[tl("fel", "up"), "Space", 0, "big"], [tl("le", "down"), "KeyC"]]],
@@ -868,11 +928,11 @@
   setInterval(() => {
     const st = S(); if (!st) return;
     if (touch) {
-      layTouch(st.menu ? null : st.car && st.car.active ? "car" : st.plane && st.plane.active ? "plane"
+      layTouch(st.menu ? null : st.person && st.person.active ? "hero" : st.car && st.car.active ? "car" : st.plane && st.plane.active ? "plane"
              : st.drone && st.drone.active ? "drone" : st.fly ? "free" : st.tour || st.passenger ? null
              : st.manual ? "train" : "auto");
     }
-    const mode = st.tram ? "tram" : st.tour ? "tour" : st.car && st.car.active ? "car" : st.plane && st.plane.active ? "plane" : st.drone && st.drone.active ? "drone"
+    const mode = st.person && st.person.active ? "hero" : st.tram ? "tram" : st.tour ? "tour" : st.car && st.car.active ? "car" : st.plane && st.plane.active ? "plane" : st.drone && st.drone.active ? "drone"
                : st.fly ? "free" : st.passenger ? "passenger" : st.follow ? "chase" : "cab";
     document.querySelectorAll("#modebar button[data-mode]").forEach(b =>
       b.classList.toggle("on", b.dataset.mode === mode));
@@ -914,18 +974,34 @@
       for (const f of files) { want += f.w; got += f.w * Math.min(1, f.len ? f.got / f.len : 0); }
       window.__loadStep && window.__loadStep(null, 0.7 * got / Math.max(1, want));
     };
-    const get = async (url, weight, as, optional) => {
+    const get = async (url, weight, as, optional, retries = 2) => {
       const f = { w: weight, got: 0, len: 0 }; files.push(f);
-      const r = await fetch(url);
-      if (!r.ok) { f.got = f.len = 1; tick(); if (optional) return null; throw new Error(`${url}: ${r.status}`); }
-      f.len = +r.headers.get('content-length') || 0;
-      if (r.headers.get('content-encoding')) f.len *= 3;
-      const parts = [], rd = r.body.getReader();
-      for (;;) { const { done, value } = await rd.read(); if (done) break;
-                 parts.push(value); f.got += value.length; tick(); }
+      let lastErr = null;
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+          const r = await fetch(url);
+          if (!r.ok) {
+            if (optional) { f.got = f.len = 1; tick(); return null; }
+            throw new Error(`${url}: ${r.status}`);
+          }
+          f.len = +r.headers.get('content-length') || 0;
+          if (r.headers.get('content-encoding')) f.len *= 3;
+          const parts = [], rd = r.body.getReader();
+          for (;;) { const { done, value } = await rd.read(); if (done) break;
+                     parts.push(value); f.got += value.length; tick(); }
+          f.got = f.len = 1; tick();
+          const blob = new Blob(parts);
+          return as === 'json' ? JSON.parse(await blob.text()) : URL.createObjectURL(blob);
+        } catch (err) {
+          lastErr = err;
+          if (attempt < retries) {
+            await new Promise(res => setTimeout(res, 250 * (attempt + 1)));
+          }
+        }
+      }
       f.got = f.len = 1; tick();
-      const blob = new Blob(parts);
-      return as === 'json' ? JSON.parse(await blob.text()) : URL.createObjectURL(blob);
+      if (optional) return null;
+      throw lastErr;
     };
     const either = (a, b, w) => get(a, w, 'json', true).then(j => j || get(b, 1, 'json'));
     try {

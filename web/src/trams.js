@@ -29,6 +29,7 @@ const TRAM_V_CRUISE = 9.0, TRAM_DWELL = 20;
 export class Trams {
   /** @param coverIsWater (x, north) → true over the river (the cover raster) */
   constructor(data, near, demAt, waterAt, coverIsWater) {
+    window.__trams = this;
     const [mlat, mlon] = metresPerDegree(near.frame_lat ?? (near.south + near.north) / 2);
     this.routes = [];
     for (const r of data.routes || []) {
@@ -43,10 +44,17 @@ export class Trams {
       const cum = [0];
       for (let i = 1; i < P.length; i++) cum.push(cum[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
       // height: the ground, or over the river a deck (the road bridges'
-      // plateau, water + 8.9 m), ramped at 5% either side
+      // plateau, water + 9.2 m), ramped at 5% either side. Only 1, 4 and 6
+      // cross the Danube; the others must not be lifted over city ponds.
+      // (This used to test boxes typed in line 70's metres, so on line 2
+      // and S21, whose frames differ by kilometres, the trams crossed the
+      // river on its bed.)
+      const crossesDanube = r.ref === "1" || r.ref === "4" || r.ref === "6";
+      this.demAt = demAt;
+      this.waterAt = waterAt;
       const ys = P.map(([x, n]) => {
         const g = demAt(x, n);
-        return coverIsWater(x, n) ? Math.max(g, waterAt(n) + 8.9) : g + 0.3;
+        return crossesDanube && coverIsWater(x, n) ? Math.max(g + 0.7, waterAt(n) + 9.2) : g + 0.7;
       });
       for (let pass = 0; pass < 2; pass++) {
         for (let i = 1; i < ys.length; i++) ys[i] = Math.max(ys[i], ys[i - 1] - 0.25);
@@ -56,6 +64,11 @@ export class Trams {
       const len = cum[cum.length - 1];
       // the run: stops by distance, and the time it reaches and leaves each
       const stops = (r.stops || []).filter(s => s > 5 && s < len - 5);
+      // every stop with its OSM name (tools/bake_trams.py), termini included;
+      // `stops` above, which times the run, leaves out the two ends. (The
+      // names were a typed list matched by index, a stop or two out of step.)
+      const names = r.stop_names || [];
+      const stopList = (r.stops || []).map((sd, i) => ({ s: sd, name: names[i] || r.to || "" }));
       const events = [];                                // [t, s] breakpoints
       let t = 0, s = 0;
       for (const st of stops) {
@@ -64,6 +77,7 @@ export class Trams {
       }
       t += (len - s) / TRAM_V_CRUISE; events.push([t, len]);
       this.routes.push({ ref: r.ref, to: r.to, P, cum, ys, len, run: t, events: [[0, 0], ...events],
+                         stops, stopList,
                          head: TRAM_HEADWAY[r.ref] || 600, model: TRAM_MODEL[r.ref] || TRAM_MODEL["2"],
                          phase: (r.ref.charCodeAt(0) * 37 + r.len) % 600 });
     }
@@ -197,6 +211,62 @@ export class Trams {
         }
       }
     }
+
+    // (A 139 m stone viaduct at a fixed 238 m used to stand here, typed in
+    // line 70's metres. OSM's "Nagyhíd" on the 56/61 is a 3.7 m bridge over
+    // a ditch, ways 1354687146/7: the track stays on the ground.)
+
+    // Danube Tram Bridges (Árpád híd, Rákóczi híd, Margit híd, Petőfi híd):
+    // Realistic elevated bridge deck, cornices, railings, and river piers
+    const bridgeCols = { deck: [0.44, 0.46, 0.48], dark: [0.28, 0.30, 0.32], rail: [0.18, 0.20, 0.22], pier: [0.55, 0.54, 0.50] };
+    const builtBridgeSegments = new Set();
+    for (const r of this.routes) {
+      if (r.ref !== "1" && r.ref !== "4" && r.ref !== "6") continue;
+      const P = r.P, ys = r.ys;
+      for (let i = 1; i < P.length; i++) {
+        const p0 = P[i - 1], p1 = P[i];
+        const mx = (p0[0] + p1[0]) * 0.5, mn = (p0[1] + p1[1]) * 0.5;
+        if (Math.hypot(mx - cx, mn - cn) > reach + 120) continue;
+        const g0 = this.demAt ? this.demAt(p0[0], p0[1]) : 100;
+        const g1 = this.demAt ? this.demAt(p1[0], p1[1]) : 100;
+        const elev0 = ys[i - 1] - g0, elev1 = ys[i] - g1;
+        // On bridge if elevated above ground by >= 2.0m (over river)
+        if (elev0 > 2.0 && elev1 > 2.0) {
+          const segKey = `${Math.round(mx / 8)},${Math.round(mn / 8)}`;
+          if (builtBridgeSegments.has(segKey)) continue;
+          builtBridgeSegments.add(segKey);
+
+          const dx = p1[0] - p0[0], dn = p1[1] - p0[1], L = Math.hypot(dx, dn) || 1;
+          const fx = dx / L, fn = dn / L;
+          const nx = -fn, nn = fx;
+          const w = 2.6;
+          const y0 = ys[i - 1] - 0.20, y1 = ys[i] - 0.20;
+          const q0 = (off, up) => [p0[0] + nx * off, y0 + up, p0[1] + nn * off];
+          const q1 = (off, up) => [p1[0] + nx * off, y1 + up, p1[1] + nn * off];
+
+          // Deck top
+          quad(q0(-w, 0), q1(-w, 0), q1(w, 0), q0(w, 0), bridgeCols.deck);
+          // Deck sides / cornices
+          quad(q0(-w, -1.2), q1(-w, -1.2), q1(-w, 0), q0(-w, 0), bridgeCols.dark);
+          quad(q0(w, 0), q1(w, 0), q1(w, -1.2), q0(w, -1.2), bridgeCols.dark);
+          // Steel safety railings
+          quad(q0(-w - 0.05, 0), q1(-w - 0.05, 0), q1(-w - 0.05, 1.05), q0(-w - 0.05, 1.05), bridgeCols.rail);
+          quad(q0(w + 0.05, 1.05), q1(w + 0.05, 1.05), q1(w + 0.05, 0), q0(w + 0.05, 0), bridgeCols.rail);
+
+          // River piers every ~35 m
+          if (i % 7 === 0) {
+            const riverBed = (this.waterAt ? this.waterAt(mn) - 4.5 : 94);
+            const pw = 1.6, pl = 1.6;
+            const pierPt = (ox, oz, up) => [mx + nx * ox + fx * oz, up, mn + nn * ox + fn * oz];
+            quad(pierPt(-pw, -pl, riverBed), pierPt(pw, -pl, riverBed), pierPt(pw, -pl, y0 - 1.2), pierPt(-pw, -pl, y0 - 1.2), bridgeCols.pier);
+            quad(pierPt(pw, pl, riverBed), pierPt(-pw, pl, riverBed), pierPt(-pw, pl, y0 - 1.2), pierPt(pw, pl, y0 - 1.2), bridgeCols.pier);
+            quad(pierPt(pw, -pl, riverBed), pierPt(pw, pl, riverBed), pierPt(pw, pl, y0 - 1.2), pierPt(pw, -pl, y0 - 1.2), bridgeCols.dark);
+            quad(pierPt(-pw, pl, riverBed), pierPt(-pw, -pl, riverBed), pierPt(-pw, -pl, y0 - 1.2), pierPt(-pw, pl, y0 - 1.2), bridgeCols.dark);
+          }
+        }
+      }
+    }
+
     return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
   }
 }

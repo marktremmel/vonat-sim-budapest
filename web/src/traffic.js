@@ -73,6 +73,29 @@ export class Traffic {
     this.pending = [];
     while (this.cursor < this.services.length
            && this.services[this.cursor].enter_s < seconds - 120) this.cursor++;
+    // Services already under way are put where their timetable has them.
+    // (Only entries after the seek were made, so after a start or a jump in
+    // time the line stood empty for the best part of an hour.)
+    for (let k = 0; k < this.cursor; k++) {
+      const sv = this.services[k], C = sv.calls;
+      if (!C || !C.length || sv.exit_s <= seconds || this.trains.length >= 16) continue;
+      let m = null, callIdx = 0, dwell = 0;
+      for (let i = 0; i < C.length; i++) {
+        if (seconds >= C[i][1] && seconds < C[i][2]) {        // standing at a call
+          m = C[i][0] * 1000; callIdx = i + 1; dwell = C[i][2] - seconds; break;
+        }
+        const nx = C[i + 1];
+        if (nx && seconds >= C[i][2] && seconds < nx[1]) {      // between two calls
+          const u = (seconds - C[i][2]) / Math.max(1, nx[1] - C[i][2]);
+          m = (C[i][0] + (nx[0] - C[i][0]) * u) * 1000; callIdx = i + 1; break;
+        }
+      }
+      if (m == null || this.trains.some(t => Math.abs(t.m - m) < 420)) continue;
+      const t = this.makeTrain(sv, m);
+      t.callIdx = callIdx; t.dwell = dwell;
+      t.v = dwell > 0 ? 0 : Math.min(this.route.limitAt(m) / 3.6, t.stock === "FREIGHT" ? 27 : 36) * 0.8;
+      this.trains.push(t);
+    }
   }
   blockOf(m) {
     let lo = 0, hi = this.sig.length - 1;
@@ -202,10 +225,22 @@ export class Traffic {
     if (idx < 0 || idx >= this.sig.length) return 1e9;
     return Math.abs(this.sig[idx] - train.m);
   }
-  // Services now enter when the timetable says they do, not on a loop.
-  spawn(seconds) {
+  makeTrain(s, m0) {
     const COL = { KISS: [0.05, 0.42, 0.45], FLIRT: [0.10, 0.34, 0.58],
                   EC: [0.20, 0.24, 0.34], FREIGHT: [0.30, 0.25, 0.22] };
+    return {
+      id: s.id, svc: { id: s.name, pattern: "tt" }, name: s.name,
+      dir: s.dir, m: m0, v: 0,
+      length: s.cars * CAR_LEN[s.stock], carLen: CAR_LEN[s.stock],
+      carH: CAR_H[s.stock], cars: s.cars, col: COL[s.stock] || COL.KISS,
+      calls: s.calls, callIdx: 0, dwell: 0, aspect: ASPECT.CLEAR,
+      stock: s.stock, loco: s.loco,
+      // fixed at spawn: a freight's make-up must not change as it moves
+      seed: (Math.random() * 2147483647) | 0,
+    };
+  }
+  // Services now enter when the timetable says they do, not on a loop.
+  spawn(seconds) {
     while (this.cursor < this.services.length
            && this.services[this.cursor].enter_s <= seconds)
       this.pending.push(this.services[this.cursor++]);
@@ -230,16 +265,7 @@ export class Traffic {
           if (other || (c && c.dir !== s.dir && this.trains.includes(c.t))) { still.push(s); continue; }
         }
       }
-      this.trains.push({
-        id: s.id, svc: { id: s.name, pattern: "tt" }, name: s.name,
-        dir: s.dir, m: m0, v: 0,
-        length: s.cars * CAR_LEN[s.stock], carLen: CAR_LEN[s.stock],
-        carH: CAR_H[s.stock], cars: s.cars, col: COL[s.stock] || COL.KISS,
-        calls: s.calls, callIdx: 0, dwell: 0, aspect: ASPECT.CLEAR,
-        stock: s.stock, loco: s.loco,
-        // fixed at spawn: a freight's make-up must not change as it moves
-        seed: (Math.random() * 2147483647) | 0,
-      });
+      this.trains.push(this.makeTrain(s, m0));
       if (this.trains.length > 16) {
         const i = this.trains.findIndex(t => t.svc.id !== "player");
         if (i >= 0) this.trains.splice(i, 1);
@@ -384,7 +410,7 @@ export class RoadTraffic {
     // only roads a vehicle could plausibly be on, and long enough to drive
     for (const w of ways) {
       // (main roads keep their short, two-point pieces: see addWays)
-      if (w.cls > 5 || w.pts.length < (w.cls <= 3 ? 2 : 3)) continue;
+      if (w.cls > 5 || w.tram || (w.src && (w.src.railway === "tram" || w.src.tram === "yes")) || w.pts.length < (w.cls <= 3 ? 2 : 3)) continue;
       const cum = [0];
       for (let i = 1; i < w.pts.length; i++)
         cum.push(cum[i-1] + Math.hypot(w.pts[i][0] - w.pts[i-1][0],
@@ -485,7 +511,7 @@ export class RoadTraffic {
     }
     const first = this.ways.length;
     for (const w of ways) {
-      if (w.cls > 5 || w.pts.length < 2) continue;
+      if (w.cls > 5 || w.tram || (w.src && (w.src.railway === "tram" || w.src.tram === "yes")) || w.pts.length < 2) continue;
       const cum = [0];
       for (let i = 1; i < w.pts.length; i++)
         cum.push(cum[i-1] + Math.hypot(w.pts[i][0] - w.pts[i-1][0], w.pts[i][1] - w.pts[i-1][1]));
@@ -555,7 +581,8 @@ export class RoadTraffic {
       // it faces (up to eight a junction, none within 5 m of another)
       const J = this.lights[li], poles = J.poles || (J.poles = []);
       const add = (x, y, dx, dy, side) => {
-        const L = Math.hypot(dx, dy) || 1, px = x + dy / L * side * (w.hw + 1.1), py = y - dx / L * side * (w.hw + 1.1);
+        const L = Math.hypot(dx, dy) || 1, px = x + dy / L * side * (w.hw + 1.2), py = y - dx / L * side * (w.hw + 1.2);
+        if (typeof window.__onRoadCarriageway === "function" && window.__onRoadCarriageway(px, py, 0.4)) return;
         if (poles.length < 8 && !poles.some(q => Math.hypot(q.x - px, q.n - py) < 5)) poles.push({ x: px, n: py });
       };
       if (sIn > 3) add(ex, ey, hx, hy, 1);
@@ -598,17 +625,36 @@ export class RoadTraffic {
   turnAtEnd(v, atEnd) {
     const w = this.ways[v.wi];
     const opts = w.links[atEnd ? 1 : 0];
+    const choices = [];
     // (the next piece of the same big road is by far the likeliest: a car
     // on Váci út stays on Váci út, it does not dive into a car park)
     const CW = [10, 9, 6, 3, 0.9, 0.08, 0.02];
-    const choices = [];
     for (const [wj, sAt] of opts) {
+      if (wj === v.wi) continue;                   // do not immediately reverse down the same way
       const u = this.ways[wj];
       if (u.dead) continue;                        // its tile has gone
       if (u.cls > v.type.cls) continue;            // a bus does not take a farm track
-      const base = (CW[u.cls] || 0.02) * (u.cls === w.cls ? 2.5 : 1);
-      if (sAt < u.len - 3) choices.push({ wj, s: sAt, dir: 1, w: base });
-      if (sAt > 3 && !u.oneway) choices.push({ wj, s: sAt, dir: -1, w: base });
+      const base = (CW[u.cls] || 0.02) * (u.cls === w.cls ? 3.0 : 1.0);
+      const wPts = w.pts;
+      const wDir = atEnd
+        ? [wPts[wPts.length - 1][0] - wPts[wPts.length - 2][0], wPts[wPts.length - 1][1] - wPts[wPts.length - 2][1]]
+        : [wPts[0][0] - wPts[1][0], wPts[0][1] - wPts[1][1]];
+      const wLen = Math.hypot(wDir[0], wDir[1]) || 1;
+      const wNx = wDir[0] / wLen, wNz = wDir[1] / wLen;
+
+      if (sAt < u.len - 3) {
+        const uDir = [u.pts[1][0] - u.pts[0][0], u.pts[1][1] - u.pts[0][1]];
+        const uLen = Math.hypot(uDir[0], uDir[1]) || 1;
+        const dot = wNx * (uDir[0] / uLen) + wNz * (uDir[1] / uLen);
+        if (dot > -0.5) choices.push({ wj, s: sAt, dir: 1, w: base * (dot + 1.2) });
+      }
+      if (sAt > 3 && !u.oneway) {
+        const uPts = u.pts;
+        const uDir = [uPts[uPts.length - 2][0] - uPts[uPts.length - 1][0], uPts[uPts.length - 2][1] - uPts[uPts.length - 1][1]];
+        const uLen = Math.hypot(uDir[0], uDir[1]) || 1;
+        const dot = wNx * (uDir[0] / uLen) + wNz * (uDir[1] / uLen);
+        if (dot > -0.5) choices.push({ wj, s: sAt, dir: -1, w: base * (dot + 1.2) });
+      }
     }
     if (!choices.length) {                          // dead end
       // Most ends without a junction are not cul-de-sacs: the bake cut the
@@ -702,33 +748,32 @@ export class RoadTraffic {
     const byWay = new Map(near.map(o => [o.wi, o]));
     // drop anything that has wandered out of range or off a way we dropped
     this.vehicles = this.vehicles.filter(v => {
-      if (v.free) return Math.hypot(v.free.x - cx, v.free.z - cz) < radius * 1.2;
-      const o = byWay.get(v.wi);
-      if (!o) return false;
-      return Math.abs(v.s - o.s) < radius * 1.2;
+      if (v.blast) return Math.hypot(v.blast.x - cx, v.blast.z - cz) < radius * 1.5;
+      if (v.free) return Math.hypot(v.free.x - cx, v.free.z - cz) < radius * 1.35;
+      const w = this.ways[v.wi];
+      if (!w || w.dead) return false;
+      const p = this.place(v);
+      return Math.hypot(p.x - cx, p.z - cz) < radius * 1.35;
     });
     // roads with a crossing on them are the interesting ones and there are
     // only a couple, so they get a share out of proportion to their number
-    // How many: what that much road of those classes carries. (It was 90 plus
-    // five per way, which asked for hundreds more than the big roads could
-    // take, and the rest spilled into the side streets.)
     const want = Math.min(this.cap, Math.round(40 + perKm * 3.6));
     let guard = 0;
     while (this.vehicles.length < want && guard++ < 3000) {
       const o = pickWay();
       const w = this.ways[o.wi];
       // within a band around the nearest point, not anywhere on the way
-      // in a band around the point nearest the camera, not the whole way
       const band = Math.min(520, w.len * 0.5);
       const s = o.s + (Math.random() * 2 - 1) * band;
       if (s < 0 || s > w.len) continue;
-      // room for it: a way holds about one vehicle per 16 m of its length,
-      // and nothing is spawned on top of another — overlapping spawns have a
-      // negative gap that neither can open, which is how 69 cars ended up
-      // parked on a 129 m street
+      // When in cab view or outside train, keep the distance; in city foot/car/hero mode allow nearby street traffic
+      const pCand = this.posOnWay(w, s);
+      const minDist = this.closeTraffic ? 16 : 120;
+      if (pCand && Math.hypot(pCand[0] - cx, pCand[1] - cz) < minDist) continue;
+      // room for it: generous gap so cars never spawn on top of each other
       const onWay = this.vehicles.filter(u => u.wi === o.wi);
-      if (onWay.length >= Math.max(1, w.len / 16)) continue;
-      if (onWay.some(u => Math.abs(u.s - s) < 14)) continue;
+      if (onWay.length >= Math.max(1, w.len / 18)) continue;
+      if (onWay.some(u => Math.abs(u.s - s) < 18)) continue;
       const type = pickVehicle(w.cls);
       this.vehicles.push({
         wi: o.wi, s, dir: w.oneway || Math.random() < 0.5 ? 1 : -1,
@@ -737,6 +782,15 @@ export class RoadTraffic {
         want: type.v * (0.75 + Math.random() * 0.45),
       });
     }
+  }
+
+  posOnWay(w, s) {
+    let i = 1;
+    while (i < w.cum.length - 1 && w.cum[i] < s) i++;
+    const s0 = w.cum[i-1], s1 = w.cum[i];
+    const u = s1 > s0 ? (s - s0) / (s1 - s0) : 0;
+    const a = w.pts[i-1], b = w.pts[i];
+    return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
   }
 
   /** closed: a Set of crossing indices whose booms are down.
@@ -798,11 +852,40 @@ export class RoadTraffic {
   }
   step(dt, closed) {
     this.clock = (this.clock || 0) + dt;
+    for (let i = this.vehicles.length - 1; i >= 0; i--) {
+      const v = this.vehicles[i];
+      if (v.blast) {
+        const b = v.blast;
+        b.vy -= 26 * dt;
+        b.x += b.vx * dt;
+        b.z += b.vz * dt;
+        b.y += b.vy * dt;
+        b.rot += b.spin * dt;
+        b.life -= dt;
+        const gy = (this.surfaceAt ? this.surfaceAt(b.x, b.z) : (this.demAt ? this.demAt(b.x, b.z) : 100)) + 0.35
+                 + (this.craterDip ? this.craterDip(b.x, b.z) : 0);
+        if (b.y <= gy) {
+          b.y = gy;
+          b.vy = Math.abs(b.vy) * 0.32;
+          b.vx *= 0.65;
+          b.vz *= 0.65;
+          b.spin *= 0.6;
+          if (b.vy < 1.5) { b.vy = 0; b.landed = true; }
+        }
+        if (b.landed) {                       // skids to a halt and lies there
+          const k = Math.max(0, 1 - dt * 2.5);
+          b.vx *= k; b.vz *= k; b.spin *= k;
+        }
+        // gone once it has lain a while (it used to vanish after 6 s
+        // wherever it was, often in the air)
+        if (b.life <= -20 && b.landed) this.vehicles.splice(i, 1);
+      }
+    }
     const turning = [];
     const byWay = new Map();
-    for (const v of this.vehicles) if (v.free) this.stepFree(v, dt);
+    for (const v of this.vehicles) if (v.free && !v.blast) this.stepFree(v, dt);
     for (const v of this.vehicles) {
-      if (v.free) continue;
+      if (v.free || v.blast) continue;
       if (!byWay.has(v.wi)) byWay.set(v.wi, { up: [], down: [] });
       byWay.get(v.wi)[v.dir > 0 ? "up" : "down"].push(v);
     }
@@ -859,12 +942,18 @@ export class RoadTraffic {
           // a red light ahead: brake to its stop line; amber only if there
           // is room to stop; never for one already past the line
           if (w.tl) for (const g of w.tl) {
-            const d = ((v.dir > 0 ? g.sIn - 2 : g.sOut + 2) - v.s) * v.dir - 3.0;
-            if (d < -4 || d > 120) continue;
-            gateNear = true;
+            const stopDist = (v.dir > 0 ? g.sIn - 1.5 : g.sOut + 1.5);
+            const d = (stopDist - v.s) * v.dir;
+            if (d < -2 || d > 120) continue;
             const st = this.lightState(g.li, g.axis);
-            if (st === 2 || (st === 1 && d < 18)) continue;
-            cap = Math.min(cap, Math.sqrt(Math.max(0, d) * 2 * 1.9));
+            if (st === 2 || (st === 1 && d < 12)) continue;
+            gateNear = true;
+            if (d < 35) gateAhead = true; // Mark gateAhead so anti-stuck timer never violates red lights!
+            if (d <= 0.8) {
+              cap = 0;
+            } else {
+              cap = Math.min(cap, Math.sqrt(Math.max(0, d - 0.8) * 2 * 2.0));
+            }
           }
 
           // decide to pull out
@@ -931,6 +1020,10 @@ export class RoadTraffic {
 
   /** world position and heading of a vehicle */
   place(v) {
+    if (v.blast) {
+      const curYaw = (v.yaw || 0) + v.blast.rot;
+      return { x: v.blast.x, z: v.blast.z, fx: Math.sin(curYaw), fz: -Math.cos(curYaw), i: null, u: 0 };
+    }
     if (v.free) return { x: v.free.x, z: v.free.z, fx: v.free.fx, fz: v.free.fz, i: null, u: 0 };
     const w = this.ways[v.wi];
     let i = 1;
@@ -1022,8 +1115,14 @@ function rtPush(x, y, z, r, g, b) {
   B.c[B.n] = r; B.c[B.n + 1] = g; B.c[B.n + 2] = b;
   B.n += 3;
 }
+// Heavy weather: the cars near the camera that are fast enough to throw
+// spray off a wet road, as [x, y, north, fx, fz, speed, half width, half
+// length] each. Filled by buildRoadTraffic; main.js turns them into particles.
+export const RT_SPRAY = { a: new Float32Array(48 * 8), n: 0 };
+
 export function buildRoadTraffic(rt, camX, camZ, demAt, night, reach, surfaceAt, models, snowy) {
   RT_BUF.n = 0;
+  RT_SPRAY.n = 0;
   // Cars with a textured model (models/cars.json, tools/bake_models.py) are
   // not built here: they go out as instances, one list per model, of
   // [x, y, z, heading, length, atlas cell, 0, 0]. Only their lamps are drawn
@@ -1044,38 +1143,49 @@ export function buildRoadTraffic(rt, camX, camZ, demAt, night, reach, surfaceAt,
     // A car at half a kilometre is three pixels. Simulating it is cheap;
     // rebuilding its geometry every frame is not, so cull before place().
     const w0 = v.free ? {} : rt.ways[v.wi];
-    const p0 = v.free ? [v.free.x, v.free.z] : w0.pts[Math.min(w0.pts.length - 1, (v.s / w0.len * (w0.pts.length - 1)) | 0)];
+    const p0 = v.blast ? [v.blast.x, v.blast.z] : v.free ? [v.free.x, v.free.z] : (w0 ? w0.pts[Math.min(w0.pts.length - 1, (v.s / w0.len * (w0.pts.length - 1)) | 0)] : [0, 0]);
     const R = reach || 560;
     if (Math.abs(p0[0] - camX) > R + 60 || Math.abs(p0[1] - camZ) > R + 60) continue;
     const q = rt.place(v);
     if (Math.hypot(q.x - camX, q.z - camZ) > R) continue;
 
-    // Elevation: on ground roads use demRidge + offset; on bridges ride the elevated deck
-    let y = v.free ? demAt(q.x, q.z) + 0.05
+    // Elevation: on ground roads use demRidge + offset; on bridges ride the elevated deck; on blast follow physics
+    // (a crater dips the ground and the roads on it, not bridge decks)
+    const dip = rt.craterDip && !v.blast && !(w0 && w0.bridge) ? rt.craterDip(q.x, q.z) : 0;
+    let y = v.blast ? v.blast.y
+          : v.free ? demAt(q.x, q.z) + 0.05
           : surfaceAt ? surfaceAt(q.x, q.z) : demRidge(demAt, q.x, q.z) + 0.345;
     // The road mesh is flat between its points; the ground under the car is
     // not. In a dip the car sat under the drawn road and vanished from above,
     // so it rides the higher of the two: the ground, or the road's chord.
-    if (surfaceAt && q.i != null) {
-      const ys = w0.ys || (w0.ys = []);
-      const a = w0.pts[q.i - 1], b = w0.pts[q.i];
-      if (ys[q.i - 1] == null) ys[q.i - 1] = surfaceAt(a[0], a[1]);
-      if (ys[q.i] == null) ys[q.i] = surfaceAt(b[0], b[1]);
-      const chord = ys[q.i - 1] + (ys[q.i] - ys[q.i - 1]) * q.u;
-      if (isFinite(chord)) y = Math.max(y, chord);
+    if (!v.blast) {
+      if (surfaceAt && q.i != null) {
+        const ys = w0.ys || (w0.ys = []);
+        const a = w0.pts[q.i - 1], b = w0.pts[q.i];
+        if (ys[q.i - 1] == null) ys[q.i - 1] = surfaceAt(a[0], a[1]);
+        if (ys[q.i] == null) ys[q.i] = surfaceAt(b[0], b[1]);
+        const chord = ys[q.i - 1] + (ys[q.i] - ys[q.i - 1]) * q.u;
+        if (isFinite(chord)) y = Math.max(y, chord);
+      }
+      if (w0.bridge === 3) {
+        // an underpass: the road is dug below the line (geom.js underpassDip)
+        y = w0.src && w0.src.floorAt ? w0.src.floorAt(q.x, q.z)
+          : demRidge(demAt, q.x, q.z) + 0.345 + (rt.dipAt ? rt.dipAt(q.x, q.z) : 0);
+      } else if (w0.bridge && w0.src && w0.src.deckAt) {
+        // the same deck the bridge mesh was built on (geom.js buildRoads)
+        y = w0.src.deckAt(q.x, q.z) + 0.05;
+      }
     }
-    if (w0.bridge === 3) {
-      // an underpass: the road is dug below the line (geom.js underpassDip)
-      y = w0.src && w0.src.floorAt ? w0.src.floorAt(q.x, q.z)
-        : demRidge(demAt, q.x, q.z) + 0.345 + (rt.dipAt ? rt.dipAt(q.x, q.z) : 0);
-    } else if (w0.bridge && w0.src && w0.src.deckAt) {
-      // the same deck the bridge mesh was built on (geom.js buildRoads)
-      y = w0.src.deckAt(q.x, q.z) + 0.05;
-    }
+    y += dip;
     if (!isFinite(y)) continue;
     const t = v.type;
     const hw = t.wid * 0.5, hl = t.len * 0.5;
     const fx = q.fx, fz = q.fz, rx = -fz, rz = fx;
+    if (!v.blast && v.v > 4 && RT_SPRAY.n < 48 && Math.abs(q.x - camX) < 160 && Math.abs(q.z - camZ) < 160) {
+      const o = RT_SPRAY.n++ * 8, A = RT_SPRAY.a;
+      A[o] = q.x; A[o + 1] = y; A[o + 2] = q.z; A[o + 3] = fx; A[o + 4] = fz;
+      A[o + 5] = v.v; A[o + 6] = hw; A[o + 7] = hl;
+    }
     const P = (along, across, up) => [
       q.x + fx * along + rx * across, y + up, q.z + fz * along + rz * across];
 
@@ -1090,7 +1200,20 @@ export function buildRoadTraffic(rt, camX, camZ, demAt, night, reach, surfaceAt,
         const m = models[v.mdl];
         const pool = snowy && m.snow.length ? m.snow : m.skins;
         const cell = pool[Math.min(pool.length - 1, (v.skinK * pool.length) | 0)];
-        inst[v.mdl].push(q.x, y, -q.z, Math.atan2(fx, fz), t.len, cell, 0, 0);
+        const tgtYaw = Math.atan2(fx, fz);
+        // a thrown car: place() already turned it by blast.rot. (The smoothed
+        // yaw chased that turned heading and had blast.rot added again, so
+        // its spin fed on itself.)
+        if (v.blast) { if (v.yaw == null) v.yaw = tgtYaw - v.blast.rot; }
+        else if (v.yaw == null) v.yaw = tgtYaw;
+        else {
+          let dy = tgtYaw - v.yaw;
+          while (dy > Math.PI) dy -= 2 * Math.PI;
+          while (dy < -Math.PI) dy += 2 * Math.PI;
+          v.yaw += dy * 0.28;
+        }
+        const curYaw = v.blast ? tgtYaw : v.yaw;
+        inst[v.mdl].push(q.x, y, -q.z, curYaw, t.len, cell, 0, 0);
         if (night > 0.05) {
           for (const sg of [-1, 1]) {
             quad(P(hl + 0.02, sg * hw * 0.62 - 0.16, 0.55), P(hl + 0.02, sg * hw * 0.62 + 0.16, 0.55),

@@ -37,6 +37,11 @@ suffix = "" if line == "line70" else f"_{line}"
 out = f"web/data/height_near{suffix}.png"
 orig = f"data/raw/height_near_dsm{suffix}.png"
 cover = f"web/data/cover_near{suffix}.png"
+# A heightmap baked from DDM25 is already bare ground, and running this would
+# put the old surface model (orig) back over it.
+import json
+if json.load(open(f"web/data/world{suffix}.json"))["near"].get("height_source") == "ddm25":
+    sys.exit(f"{line}: height_near{suffix} comes from DDM25 (bare ground); nothing to filter")
 if not os.path.exists(orig):
     shutil.copy(out, orig)
 

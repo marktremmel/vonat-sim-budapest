@@ -24,6 +24,15 @@ sources were found by a web search on that date and have **not** been tried.
 2. **A real ground model (DTM) instead of the surface model.**
    - Sonny's LiDAR DTMs of Europe (<https://sonny.4lima.de/>) are free, derived from national LiDAR where it is open. Check whether the Hungarian coverage is LiDAR-based or only a fill.
    - Hungary's own 5 m DDM (Lechner Tudásközpont, info@lechnerkozpont.hu) is listed on the INSPIRE geoportal; access terms need checking.
+   - **DDM25 (checked 26 Oct 2026; line 70's terrain since then, see NOTES Trap 18):** Lechner's 25 m terrain model, free under **CC BY 4.0** (credit: "Based on geospatial data provided by Lechner Knowledge Center, modified by …"; it is on the in-game credits line and in the README). It is a bare-ground model made from the 1:10,000 contour maps.
+     - Download: <https://inspire.lechnerkozpont.hu/inspire/atom/data/ddm/out_25m.zip>, 372 MB. It unpacks to 292 GeoTIFF sheets (`data/raw/ddm25/tiles/`): float32, EOV (EPSG:23700), 960×640 px each.
+     - The GeoTIFF tie point is the pixel's corner. The `.tfw` files give the same number but call it the centre, which puts them half a pixel (12.5 m) off.
+     - Compared with line 70's near heightmap away from the track (sim minus DDM25):
+       - forest: +4.1 m median, and half the pixels are more than 5 m off (tree canopy);
+       - farmland: −2.0 m;
+       - within 2.5 km of Nyugati: +3.1 m median, p95 +11.7 m (buildings that `ground_filter.py` leaves behind);
+       - along the line, 70 m either side: −0.1 m median, p5/p95 −3.6/+3.3 m.
+     - DDM5 (5 m) and the surface models are free only through a signed education or research request (Lechner 16/2026: 50 km² per product). Otherwise they are sold on geoshop.hu.
    - What it would give: no building "humps", real cuttings and embankments, and correct bridge abutments. Most of the terrain workarounds in this code exist because the current terrain is a surface model.
 3. **More OSM than we ask for.**
    - `railway:signal:*` (signal types and positions), `maxspeed` per track, `railway:track_ref` (platform numbers), `electrified` / `voltage`, `bridge:structure`.

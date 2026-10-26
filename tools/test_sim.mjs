@@ -21,6 +21,8 @@ import { Traffic } from "../web/src/traffic.js";
 import { RunScore } from "../web/src/score.js";
 import { dailyMission, MISSIONS } from "../web/src/missions.js";
 import { Solids } from "../web/src/collide.js";
+import { TrainWreck, trackGround } from "../web/src/wreck.js";
+import { UNIFIED_FRAME, localToUnified, unifiedToLocal, geoToUnified, unifiedToGeo, MultiRoute } from "../web/src/unified.js";
 
 let failed = 0;
 const ok = (cond, what, detail = "") => {
@@ -134,6 +136,59 @@ for (const [line, suffix] of [["line 70", ""], ["line 2", "_line2"], ["S21", "_s
     ok(names.has(m.from) && names.has(m.to), `mission "${m.title}": its stops are on ${m.line}`);
   }
   void lines;
+}
+
+// ----------------------------------------------------------- 7. unified space
+{
+  // 1. Geographic round-trip consistency
+  const orig = [47.5105, 19.0570, 106.8];
+  const u = geoToUnified(orig[0], orig[1], orig[2]);
+  const back = unifiedToGeo(u[0], u[1], u[2]);
+  const errLat = Math.abs(orig[0] - back[0]);
+  const errLon = Math.abs(orig[1] - back[1]);
+  ok(errLat < 1e-6 && errLon < 1e-6, "geographic <-> unified coordinate round-trip precision");
+
+  // 2. Convergence of Line 70, Line 2, and S21 at Nyugati
+  const r70 = load("route.json");
+  const r2  = load("route_line2.json");
+  const rs21 = load("route_s21.json");
+  const p70 = localToUnified("line70", r70.track_down[0][0], r70.track_down[0][2], -r70.track_down[0][1]);
+  const p2  = localToUnified("line2",  r2.track_down[0][0],  r2.track_down[0][2],  -r2.track_down[0][1]);
+  const ps  = localToUnified("s21",    rs21.track_down[0][0], rs21.track_down[0][2], -rs21.track_down[0][1]);
+  const d70_2 = Math.hypot(p70[0] - p2[0], p70[2] - p2[2]);
+  const d70_s = Math.hypot(p70[0] - ps[0], p70[2] - ps[2]);
+  ok(d70_2 < 30.0 && d70_s < 100.0, "three lines converge at Nyugati in unified coordinates", `L70-L2 gap ${d70_2.toFixed(1)} m, L70-S21 gap ${d70_s.toFixed(1)} m`);
+
+  // 3. MultiRoute registration
+  const mr = new MultiRoute();
+  mr.register("line70", new Route(r70));
+  mr.register("line2", new Route(r2));
+  mr.register("s21", new Route(rs21));
+  ok(mr.has("line70") && mr.has("line2") && mr.has("s21"), "MultiRoute holds all regional lines concurrently");
+}
+
+// ---------------------------------------------------------- 8. derailment
+// A KISS at 60% over the limit in the sharpest curve near Nyugati: the cars
+// that go off end up outside the curve, the first on its side, all at rest,
+// and the wreck never blows up (NaN, or a car hundreds of metres away).
+{
+  const route = new Route(load("route.json"));
+  let best = 0, bm = 0;
+  for (let m = route.startM + 2000; m < route.startM + 20000; m += 50) { const k = route.curvatureAt(m); if (k > best) { best = k; bm = m; } }
+  const dir = route.dir, lay = [];
+  for (let k = 0, c = bm; k < 6; k++, c -= dir * 25) lay.push({ c: c - dir * 12.5, half: 12.35, H: 4.6 });
+  const t1 = route.tangent(bm - 25 * dir), t2 = route.tangent(bm + 25 * dir);
+  const tx = t2[0] * dir, ty = t2[1] * dir, left = (t1[0] * t2[1] - t1[1] * t2[0]) * dir > 0;
+  const out = left ? [ty, -tx] : [-ty, tx];
+  const g = trackGround(route, bm, () => route.at(bm)[2] - 3);
+  const w = new TrainWreck(route, dir, lay, route.limitAt(bm) * 1.6 / 3.6, g, { severity: 0.4, outward: out, seed: 7 });
+  for (let i = 0; i < 2400 && !w.settled; i++) w.step(1 / 60);
+  const P0 = route.at(bm), off = w.poses.map(p => (p.x - P0[0]) * out[0] + (p.n - P0[1]) * out[1]);
+  const finite = w.poses.every(p => isFinite(p.x) && isFinite(p.n) && isFinite(p.y));
+  const roll0 = Math.abs(Math.atan2(w.poses[0].sr, w.poses[0].cr)) * 180 / Math.PI;
+  ok(finite && w.settled, "a derailed train comes to rest", `${w.t.toFixed(1)} s`);
+  ok(off[0] > 5 && Math.max(...off.map(Math.abs)) < 200, "the leading car leaves to the outside of the curve", `${off[0].toFixed(1)} m out`);
+  ok(roll0 > 60, "the leading car goes over", `${roll0.toFixed(0)}°`);
 }
 
 console.log(failed ? `\n${failed} FAILED` : "\nall passed");

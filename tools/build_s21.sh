@@ -14,10 +14,12 @@ python3 tools/overpass.py tools/q_s21_landcover.ql  data/raw/landcover_s21.json
 python3 tools/fetch_terrain.py 12                   # bounds reach 46.70 N, 19.98 E
 LINE_ENDS="47.5104535,19.0568814;47.0262,19.5452" python3 tools/line_alignment.py s21
 rm -f data/raw/height_near_dsm_s21.png
-python3 tools/bake_world.py s21
-python3 tools/ground_filter.py s21
+DDM25=0 python3 tools/bake_world.py s21     # land cover (terrarium heights)
 # the water fit leans on the lakes of the plain; the Danube at Budapest is ~96.5 m
 python3 -c "import json; p='web/data/world_s21.json'; w=json.load(open(p)); w['water']={'a':96.5,'b':0.0}; json.dump(w,open(p,'w'))"
+# ground from DDM25, offset to that plane at Budapest; then a sloping plane
+# fitted to DDM25's river (the flat 96.5 flooded the Kiskunság plain)
+DDM25_WATER=fit HEIGHTS_ONLY=1 python3 tools/bake_world.py s21
 python3 tools/bake_route.py s21
 python3 tools/bake_context.py s21
 python3 tools/bake_map.py s21

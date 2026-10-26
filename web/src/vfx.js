@@ -7,7 +7,10 @@
 // Used for: a plane crash (fireball, sparks, a wreck that burns and smokes),
 // the Gripen's afterburner, vapour off the wingtips in a hard pull.
 //
-// Types: 0 smoke, 1 fire, 2 spark, 3 fireball, 4 vapour.
+// Used for: heavy weather too (Settings): spray behind wheels, splashes.
+//
+// Types: 0 smoke, 1 fire, 2 spark, 3 fireball, 4 vapour, 5 starling (packed
+// separately), 6 spray, 7 splash.
 export const VFX_MAX = 3072;
 const VFX_STRIDE = 12;     // pos xyz, size, vel xyz, life 0..1, type, rot, seed, temp
 
@@ -78,7 +81,7 @@ export class Particles {
       const drag = t === 2 ? 0.995 : t === 0 ? 0.993 : 0.96;
       const d = Math.pow(drag, dt * 60);
       P[o + 3] *= d; P[o + 5] *= d; P[o + 4] = P[o + 4] * d + P[o + 15] * dt;
-      if (t === 0 || t === 4) { P[o + 3] += (wind[0] - P[o + 3]) * dt * 0.3; P[o + 5] += (wind[2] - P[o + 5]) * dt * 0.3; }
+      if (t === 0 || t === 4 || t === 6) { P[o + 3] += (wind[0] - P[o + 3]) * dt * 0.3; P[o + 5] += (wind[2] - P[o + 5]) * dt * 0.3; }
       P[o] += P[o + 3] * dt; P[o + 1] += P[o + 4] * dt; P[o + 2] += P[o + 5] * dt;
       P[o + 11] += P[o + 12] * dt;
     }
