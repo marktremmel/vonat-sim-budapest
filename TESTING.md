@@ -70,6 +70,29 @@ By hand, in the running sim:
 | Beállítás → Animáció | the animator | clock, date and sky all drift on their own |
 | Beállítás → Frontok | a moving front | rain on one side of the line, clear on the other |
 
+### Picture tests
+
+29 fixed camera spots on lines 70, 2 and S21 and in Budapest, rendered in
+headless Chrome and compared with `tests/fixtures/pictures/*.raw` (320×180;
+a spot fails when more than 2.5% of its pixels change).
+
+    python3 tools/build_sim.py && node tools/picture_tests.mjs
+    node tools/picture_tests.mjs --record          # after a change you meant
+    node tools/picture_tests.mjs --spot=city_parliament
+
+- They run on a Mac with Chrome only (Metal), not in CI, and baselines from
+  another machine will not match.
+- Only the `.raw` files are committed. `--record` also writes a full-size
+  `.png` of each spot to look at, and a failing spot writes `<id>.diff.png`
+  with the new render; both are gitignored.
+- Frames run at fixed timestamps, so the river's waves come out the same
+  every run, and the harness waits for the Budapest tiles round the camera.
+  Three reruns on 26 Oct: every spot within 2%.
+- If Chrome "fails to connect" from a sandboxed shell, point `TMPDIR` at a
+  folder it can write (the profile lives there).
+- Re-record after anything that moves the world (the DDM25 terrain changed
+  every spot by 7–39%).
+
 ---
 
 ## 3. The console harness

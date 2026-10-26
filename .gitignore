@@ -10,3 +10,5 @@ __pycache__/
 itch/
 # raw model packs and experiments (licences forbid redistributing the originals)
 scratch/
+# picture-test PNGs are for looking at; the test compares the .raw files
+tests/fixtures/pictures/*.png

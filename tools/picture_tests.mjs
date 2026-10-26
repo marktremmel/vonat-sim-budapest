@@ -199,8 +199,9 @@ const SPOTS = [
   {
     id: "city_parliament",
     line: "line70",
-    desc: "Budapest: Parliament & Kossuth tér on Danube bank",
-    coords: { eye: [20500, 155, -4500], target: [20800, 105, -4200] }
+    desc: "Budapest: Parliament across the Danube from the Batthyány tér bank",
+    // (it used to stand 1.1 km south looking up the river, and showed water)
+    coords: { eye: [20121, 122, -5416], target: [20490, 130, -5633] }
   },
   {
     id: "city_margitsziget",
@@ -423,13 +424,33 @@ server.listen(HTTP_PORT, async () => {
           })()`;
 
       await send("Runtime.evaluate", { expression: posCode });
-      // Settle lod & meshes deterministically, then read pixels synchronously from WebGL framebuffer
+      // Wait for the Budapest tiles round the camera: they are fetched three
+      // at a time and built a few per frame, and a shot taken before they
+      // are all in draws a different city every run.
+      for (let i = 0; i < 80; i++) {
+        const r = await send("Runtime.evaluate", {
+          expression: `(() => {
+            SIM.step(2, 50);
+            const c = SIM.cityTiles && SIM.cityTiles();
+            if (!c) return true;
+            const x = SIM.state.fly.p[0], y = -SIM.state.fly.p[2];
+            return !c.pending.size && !c.queue.length &&
+              !c.tiles.some(t => Math.hypot(t.cx - x, t.cy - y) < c.R && !c.loaded.has(t.file));
+          })()`
+        });
+        if (r?.result?.value) break;
+        await new Promise(r => setTimeout(r, 150));
+      }
+      // Settle lod & meshes, then read pixels synchronously from WebGL framebuffer.
+      // The frames run at fixed timestamps (SIM.tick), not SIM.step's
+      // last-frame-plus-50 ms: the water's waves and glints run on the frame
+      // time, and on the wall clock they never matched between runs.
       const rawRes = await send("Runtime.evaluate", {
         expression: `(() => {
           SIM.state.front = null;
           SIM.state.hour = 12.0;
           if (SIM.traffic) SIM.traffic.seekTo(12.0 * 3600);
-          SIM.step(12, 50);
+          for (let i = 0; i < 12; i++) SIM.tick(100000 + i * 50);
           const cv = document.getElementById("gl");
           const gl = cv.getContext("webgl2");
           const W = cv.width, H = cv.height;
@@ -475,8 +496,11 @@ server.listen(HTTP_PORT, async () => {
         } else {
           const baselineRaw = fs.readFileSync(rawPath);
           const diff = compareRawBuffers(rawBuf, baselineRaw);
-          const maxDiff = spot.id.startsWith("city_") ? 0.06 : 0.025;
-          if (diff <= maxDiff) { // <= 2.5% standard, <= 6% for wide dynamic water wave specular
+          // 2.5% everywhere: the city spots had 6% for the river's moving
+          // glints, which the fixed frame times above now hold still
+          // (Parliament 7-11% -> 1.3%, Margitsziget 4-5% -> 1.0%, 26 Oct)
+          const maxDiff = 0.025;
+          if (diff <= maxDiff) {
             console.log(`  ok       ${spot.id} — ${spot.desc} (diff ${(diff * 100).toFixed(2)}%)`);
             totalPassed++;
           } else {
