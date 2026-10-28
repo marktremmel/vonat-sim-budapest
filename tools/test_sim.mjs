@@ -12,12 +12,16 @@
 //      overrun by more than 30 m is a missed stop (it used to be snapped);
 //   3. a clean run scores three stars, a signal passed at danger does not;
 //   4. six hours of timetabled traffic on each line: no two trains ever in
-//      the same place on the same track;
+//      the same place on the same track; and on line 2's single track, with
+//      the game's own sections and a player train driven by the automatic
+//      driver, no two trains are ever DRAWN in each other (crossings in the
+//      loops are side by side);
 //   5. the collision world pushes a disc out of a building and finds roofs;
 //   6. the daily challenge is the same all day and different the next.
 import { readFileSync } from "node:fs";
 import { Route, Driver, STOCKS } from "../web/src/route.js";
-import { Traffic } from "../web/src/traffic.js";
+import { Traffic, trackLayout, sideOnLoops } from "../web/src/traffic.js";
+import { unpackRails } from "../web/src/geom.js";
 import { RunScore } from "../web/src/score.js";
 import { dailyMission, MISSIONS } from "../web/src/missions.js";
 import { Solids } from "../web/src/collide.js";
@@ -106,6 +110,58 @@ for (const [line, suffix] of [["line 70", ""], ["line 2", "_line2"], ["S21", "_s
     }
   }
   ok(worst > -1, `${line}: 6 h of traffic, no train runs into another`, `closest ${worst.toFixed(0)} m (${pair}), up to ${maxN} trains`);
+}
+
+// -------------------------------- 4b. line 2: no two trains drawn in each other
+// The owner, 28 Oct: "on the S2 line we are constantly running through other
+// trains". Trains waiting to cross stood 25 m short of the single track and
+// the train coming off it was eased onto the loop over 60 m, so its front ran
+// through the waiting one; and a short gap in the mapped second track was
+// double for the traffic but drawn as one line. Here every pair, either
+// direction, the player included, is checked where they are drawn.
+{
+  const rd = load("route_line2.json"), ctx = load("context_line2.json");
+  const route = new Route(rd);
+  const traffic = new Traffic(route, rd.signals, load("timetable_line2.json"));
+  const { loops, single } = trackLayout(route, rd, unpackRails(ctx.rails.data, ctx.rails.count));
+  traffic.setSingleTrack(single);
+  const side = sideOnLoops(route, loops, single);
+  const d = new Driver(route, STOCKS.FLIRT);
+  d.auto = true; d.m = route.startM; d.callsAt = null;
+  const player = { dir: route.dir, m: d.m, v: 0, length: STOCKS.FLIRT.lengthM, cars: 4, svc: { id: "player", pattern: "all" }, aspect: 3, name: "player" };
+  traffic.trains.push(player);
+  const t0 = 7 * 3600; traffic.seekTo(t0);
+  const ext = t => [Math.min(t.m, t.m - t.dir * t.length), Math.max(t.m, t.m - t.dir * t.length)];
+  const offOf = (t, m) => (t === player ? 0 : side(t, m));
+  let hits = 0, worst = Infinity, where = "", runs = 0, crossings = 0;
+  const dt = 0.25;
+  for (let s = 0; s < 5 * 3600; s += dt) {
+    d.step(dt); player.m = d.m; player.v = d.v;
+    traffic.step(dt, t0 + s, player);
+    player.aspect = traffic.aspectFor(player);
+    const ds = traffic.distanceToSignal(player);
+    d.signalStop = player.aspect === 0 && ds < 3000 ? (player.singleStopM ?? d.m + route.dir * ds) : null;
+    if (d.terminated) {                                   // turn round and go again
+      runs++; route.setDirection(-route.dir); d.terminated = false; d.layover = 0; d.v = 0;
+      d.stopIdx = Math.max(0, route.stops.findIndex(x => (x.km * 1000 - d.m) * route.dir > 30));
+      player.dir = route.dir;
+    }
+    const T = traffic.trains;
+    for (let i = 0; i < T.length; i++) for (let j = i + 1; j < T.length; j++) {
+      const a = T[i], b = T[j];
+      const [a0, a1] = ext(a), [b0, b1] = ext(b);
+      const lo = Math.max(a0, b0), hi = Math.min(a1, b1);
+      if (hi <= lo) continue;
+      if (a.dir !== b.dir) crossings++;
+      for (let m = lo; m <= hi; m += 4) {
+        const sep = Math.abs(offOf(a, m) - offOf(b, m));
+        if (sep < worst) { worst = sep; where = `${a.name} / ${b.name} at km ${(m / 1000).toFixed(2)}`; }
+        if (sep < 3) { hits++; break; }
+      }
+    }
+  }
+  ok(hits === 0 && crossings > 0, "line 2: 5 h with the player, no two trains drawn in each other",
+     `${hits} overlapping frames, closest ${worst.toFixed(1)} m apart (${where}), ${(crossings * dt / 60).toFixed(0)} train-min side by side, ${runs} runs ended`);
 }
 
 // ------------------------------------------------------- 5. collision world

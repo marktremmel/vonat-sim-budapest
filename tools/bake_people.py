@@ -14,7 +14,7 @@ people.json: {"frames": 8, "cell", "cols", "rows", "people": [{"name",
 "fem", "nv", "ni", "vo" (offset of the frames in the bin, in int16s), "io"
 (offset of the uint16 indices, in bytes), "uo" (offset of the float32 uvs,
 in bytes)}]}. Frame f of a person is nv*4 int16s at vo + f*nv*4; frame 8 is
-the standing pose.
+the standing pose. tools/tag_people.py then adds the forearm tags and "rig".
 """
 import json, os, struct, subprocess, sys, math
 from PIL import Image
@@ -64,3 +64,5 @@ json.dump({"atlas": "people.webp", "bin": "people.bin", "frames": raw["frames"],
            "people": people}, open("web/data/models/people.json", "w"), separators=(",", ":"))
 print(len(people), "people,", len(blob) // 1024, "KB of frames,", os.path.getsize("web/data/models/people.webp") // 1024, "KB atlas;",
       "verts", min(p["nv"] for p in people), "to", max(p["nv"] for p in people))
+# the forearm tags and each person's elbow and neck, for the idle poses
+subprocess.run([sys.executable, "tools/tag_people.py"], check=True, stdout=subprocess.DEVNULL)

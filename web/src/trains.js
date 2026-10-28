@@ -167,7 +167,7 @@ export function buildTrains(traffic, downPts, upPts, player, night = 0, hollow =
       const frontEnd = k === 0 ? t.dir : 0;
       const rearEnd = k === t.cars - 1 ? -t.dir : 0;
 
-      if (isLoco) buildLoco(quad, Pw, half, stock, tGlass, night, t.loco);
+      if (isLoco) buildLoco(quad, Pw, half, stock, tGlass, night, t.loco, t.dir);
       else if (stock === "FREIGHT")
         buildWagon(quad, Pw, half, tSeed, k);
       else buildCoach(quad, Pw, half, stock, k, t.cars, frontEnd, rearEnd, tGlass, night);
@@ -214,8 +214,13 @@ function buildCoach(quad, P, half, stock, k, cars, frontEnd, rearEnd, glass, nig
   const step = doubleDeck ? half * 0.56 : half;
   // (the 416 and Bzmot fronts are nearly upright: a short nose)
   const nose = (frontEnd || rearEnd) ? (stock === "FLIRT" ? 1.30 : (stock === "M416" || stock === "BZMOT") ? 0.38 : 1.05) : 0;
-  const e0 = -half + (rearEnd ? nose : 0);
-  const e1 =  half - (frontEnd ? nose : 0);
+  // frontEnd and rearEnd are the way that end of the train faces along the
+  // track (+1 up the chainage, -1 down): a train running at -1 has its head
+  // at the car's -1 end. (Until 28 Oct the head was put at +1 whatever the
+  // direction, so every train running at -1 had its cabs on the inside.)
+  const cabAt = (out) => frontEnd === out || rearEnd === out;
+  const e0 = -half + (cabAt(-1) ? nose : 0);
+  const e1 =  half - (cabAt(1) ? nose : 0);
 
   // window bands, and where the blue gives way to the white
   const loWin = doubleDeck ? [1.08, 1.88] : [floor + 0.62, floor + 1.62];
@@ -328,9 +333,8 @@ function buildCoach(quad, P, half, stock, k, cars, frontEnd, rearEnd, glass, nig
   }
 
   for (const [ee, out] of [[e0, -1], [e1, 1]]) {
-    const isCab = (out < 0 ? rearEnd : frontEnd) !== 0;
     const topH = doubleDeck ? endTop : roofHi;
-    if (isCab) cabEnd(quad, P, ee, out, W, Wt, topH, floor, liv, nose, glass, night, stock);
+    if (cabAt(out)) cabEnd(quad, P, ee, out, W, Wt, topH, floor, liv, nose, glass, night, stock, frontEnd === out);
     else {
       quad(P(ee, -W, floor - 0.4), P(ee, W, floor - 0.4),
            P(ee, W, topH - 0.32), P(ee, -W, topH - 0.32), DARK);
@@ -348,7 +352,7 @@ function buildCoach(quad, P, half, stock, k, cars, frontEnd, rearEnd, glass, nig
     pantograph(quad, P, half * 0.15, doubleDeck ? CAR_H[stock] : CAR_H[stock]);
 }
 
-function cabEnd(quad, P, ee, out, W, Wt, topH, floor, liv, nose, glass, night, stock = "KISS") {
+function cabEnd(quad, P, ee, out, W, Wt, topH, floor, liv, nose, glass, night, stock = "KISS", lead = out > 0) {
   const tip = ee + out * nose;
   const wTip = W * 0.72, wTipT = Wt * 0.62;
   quad(P(ee, -Wt, topH), P(ee, Wt, topH),
@@ -463,7 +467,6 @@ function cabEnd(quad, P, ee, out, W, Wt, topH, floor, liv, nose, glass, night, s
   // and two red low at the trailing one; both ends carry both, and the colour
   // is chosen by which way the vehicle faces. They are authored above 1.0, so
   // it is the bloom that makes them read as lights rather than white squares.
-  const lead = out > 0;
   const lampCol = lead ? HEADLAMP : TAILLAMP;
   const boost = 0.55 + night * 0.9;
   const lc = [lampCol[0]*boost, lampCol[1]*boost, lampCol[2]*boost];
@@ -518,7 +521,7 @@ function pantograph(quad, P, x, roofY) {
 // A V43-ish machine: cobalt blue with a yellow warning front, roof equipment,
 // a cab at each end. It is what pulls everything on this line that is not a
 // multiple unit.
-function buildLoco(quad, P, half, stock, glass, night, loco) {
+function buildLoco(quad, P, half, stock, glass, night, loco, dir = 1) {
   const liv = LIVERY["LOCO_" + loco] || LIVERY.LOCO;
   const W = 1.48, Wt = 1.20, roofY = 4.28, floor = 1.15;
   const nose = 1.15;
@@ -542,7 +545,7 @@ function buildLoco(quad, P, half, stock, glass, night, loco) {
   }
   quad(P(e0, -Wt, roofY), P(e1, -Wt, roofY), P(e1, Wt, roofY), P(e0, Wt, roofY), liv.roof);
   for (const [ee, out] of [[e0, -1], [e1, 1]])
-    cabEnd(quad, P, ee, out, W, Wt, roofY, floor, liv, nose, glass, night, "LOCO");
+    cabEnd(quad, P, ee, out, W, Wt, roofY, floor, liv, nose, glass, night, "LOCO", out === dir);
   bogies(quad, P, half, "end", W);
   pantograph(quad, P, -half * 0.34, roofY);
   pantograph(quad, P, half * 0.34, roofY);

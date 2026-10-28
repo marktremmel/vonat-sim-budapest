@@ -29,6 +29,102 @@ export const SERVICES = [
     pattern: "none",  stock: "FREIGHT" },
 ];
 
+// ---- single track. A line whose up and down tracks are the same path
+// (line 2) is single track except where the data shows a second track
+// alongside, 3–7 m off: double-track sections and station loops. Those
+// ranges come from the yard-track layer (OSM, q_line2_rails.ql, unpacked by
+// geom.js unpackRails); a range under 300 m is a siding, not a loop. The
+// loop's side is the side the second track is on. Returns {loops, single},
+// single null on a double-track line. main.js and tools/test_sim.mjs both
+// use it, so the test runs on the sections the game has.
+export function trackLayout(route, routeData, railWays) {
+  const dn = routeData.track_down, up = routeData.track_up;
+  const singleLine = dn.length === up.length && dn.length > 10 && dn[10][0] === up[10][0] && dn[10][1] === up[10][1];
+  if (!singleLine) return { loops: [], single: null };
+  let loops = [];
+  const B = 50, n = Math.ceil(dn[dn.length - 1][3] / B) + 2;
+  const cnt = new Uint16Array(n), side = new Float32Array(n);
+  for (const w of railWays) {
+    if (w.cls !== 0) continue;
+    // along each segment, not only at its nodes: a straight loop track
+    // has a node at each end and nothing between
+    for (let j = 0; j + 1 < w.pts.length; j++) {
+      const q0 = w.pts[j], q1 = w.pts[j + 1];
+      if (q0[3] < 3 || q0[3] > 7 || q1[3] < 3 || q1[3] > 7) continue;
+      const steps = Math.max(1, Math.ceil(Math.abs(q1[2] - q0[2]) / 25));
+      for (let st = 0; st <= steps; st++) {
+        const f = st / steps;
+        const x = q0[0] + (q1[0] - q0[0]) * f, y = q0[1] + (q1[1] - q0[1]) * f, c = q0[2] + (q1[2] - q0[2]) * f;
+        const k = Math.floor(c / B);
+        if (k < 0 || k >= n) continue;
+        const a = route.at(c), tg = route.tangent(c);
+        cnt[k]++; side[k] += Math.sign(tg[0] * (y - a[1]) - tg[1] * (x - a[0]));
+      }
+    }
+  }
+  for (let k = 0; k < n; k++) {
+    if (!cnt[k]) continue;
+    const last = loops[loops.length - 1];
+    if (last && k * B - last.b <= 250) { last.b = (k + 1) * B; last.side += side[k]; }
+    else loops.push({ a: k * B, b: (k + 1) * B, side: side[k] });
+  }
+  loops = loops.filter(l => l.b - l.a >= 300).map(l => ({ a: l.a, b: l.b, side: l.side >= 0 ? 1 : -1 }));
+  const end = dn[dn.length - 1][3];
+  const single = [];
+  let at = 0;
+  for (const l of loops) { if (l.a - at > 150) single.push([at, l.a]); at = Math.max(at, l.b); }
+  if (end - at > 150) single.push([at, end]);
+  // a "single" stretch under 1.2 km between two double ones is a gap in
+  // the mapped second track (Kőbánya-Kispest came out single), not a real
+  // single-track section: real ones run from loop to loop, kilometres
+  for (let i = single.length - 1; i >= 0; i--) {
+    const [a, b] = single[i];
+    const inner = a > 0 && b < end;
+    if (inner && b - a < 1200) single.splice(i, 1);
+  }
+  return { loops, single };
+}
+
+// How far a train coming off a single-track section is eased over onto the
+// loop track (m), and how far short of the section's entry a train waiting
+// to cross stands: clear of that ease, so the two never stand in each other.
+// (The wait was 25 m short and the ease 60 m, and the front of every train
+// coming off the single track ran through the one waiting for it.)
+export const LOOP_EASE = 60;
+export const CROSS_STAND = LOOP_EASE + 20;
+
+// Which side a train is drawn on: trains running against the player's
+// direction take the second track wherever the line is not single track, so
+// a crossing is two trains side by side. "Not single" is the complement of
+// the traffic's own sections, not the loops: a short gap in the mapped second
+// track counts as double for the traffic (trackLayout), and trains drawn on
+// one line there ran through each other. Eased over LOOP_EASE metres at the
+// ends that meet a single-track section.
+export function sideOnLoops(route, loops, single) {
+  const end = route.r.track_down[route.r.track_down.length - 1][3];
+  const dbl = [];
+  let at = 0;
+  for (const [a, b] of single) { if (a > at) dbl.push([at, a]); at = b; }
+  if (end > at) dbl.push([at, end]);
+  const ranges = dbl.map(([a, b]) => {
+    // the side of the loop that overlaps it most
+    let best = 0, side = 1;
+    for (const l of loops) {
+      const o = Math.min(b, l.b) - Math.max(a, l.a);
+      if (o > best) { best = o; side = l.side; }
+    }
+    return { a, b, side, ea: a > 0, eb: b < end };
+  });
+  return (t, m) => {
+    if (t.dir === route.dir) return 0;
+    for (const r of ranges) {
+      if (m > r.a && m < r.b)
+        return r.side * 4.6 * Math.min(1, r.ea ? (m - r.a) / LOOP_EASE : 1, r.eb ? (r.b - m) / LOOP_EASE : 1);
+    }
+    return 0;
+  };
+}
+
 export class Traffic {
   constructor(route, signalsDown, timetable) {
     this.route = route;
@@ -216,7 +312,7 @@ export class Traffic {
     const c = this.claim[i];
     if (!c || c.dir === t.dir) return null;
     const [a, b] = this.single[i];
-    return (t.dir > 0 ? a : b) - t.dir * 25;
+    return (t.dir > 0 ? a : b) - t.dir * CROSS_STAND;
   }
   distanceToSignal(train) {
     if (train.singleStopM != null) return Math.max(0, (train.singleStopM - train.m) * train.dir);

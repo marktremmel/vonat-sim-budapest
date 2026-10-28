@@ -205,8 +205,12 @@ export class Trams {
             const lc = [TRAM_LAMP[0] * (0.4 + night), TRAM_LAMP[1] * (0.4 + night), TRAM_LAMP[2] * (0.4 + night)];
             for (const o of [-0.8, 0.8]) quad(P(f, o - 0.14, 0.75), P(f, o + 0.14, 0.75), P(f, o + 0.14, 0.95), P(f, o - 0.14, 0.95), lc);
             // the pantograph over the leading section
-            const m = this.at(r, s1 - secL * 0.5);
-            quad(P(m, -0.6, H + 0.05), P(m, 0.6, H + 0.05), P(m, 0.6, H + 0.65), P(m, -0.6, H + 0.65), TRAM_SKIRT);
+            // (a half-diamond up to the contact wire, which geom.js
+            // buildCityExtras hangs 5.5 m over the ground: 0.7 + H + 1.45)
+            const m = this.at(r, s1 - secL * 0.5), m0 = this.at(r, s1 - secL * 0.5 - 0.9);
+            quad(P(m0, -0.5, H + 0.05), P(m0, 0.5, H + 0.05), P(m, 0.5, H + 0.8), P(m, -0.5, H + 0.8), TRAM_SKIRT);
+            quad(P(m, -0.5, H + 0.8), P(m, 0.5, H + 0.8), P(m0, 0.5, H + 1.40), P(m0, -0.5, H + 1.40), TRAM_SKIRT);
+            quad(P(m0, -0.75, H + 1.40), P(m0, 0.75, H + 1.40), P(m0, 0.75, H + 1.47), P(m0, -0.75, H + 1.47), TRAM_BOGIE);
           }
         }
       }

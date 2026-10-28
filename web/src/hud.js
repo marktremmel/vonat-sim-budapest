@@ -890,9 +890,11 @@ export function drawHud(c, canvas, st, world) {
   const place = (sx, sy, text, colour, dim) => {
     c.font = `600 ${Math.round(12*s)}px "IBM Plex Sans", system-ui, sans-serif`;
     const tw = c.measureText(text).width;
-    if (used.some(u => Math.abs(u[0]-sx) < (tw+40)*s*0.5 && Math.abs(u[1]-sy) < 15*s))
+    // the label's box (with a margin) must not touch another's
+    const bx0 = sx - 10*s, bx1 = sx + tw + 10*s, by0 = sy - 28*s, by1 = sy + 2*s;
+    if (used.some(u => bx0 < u[2] && bx1 > u[0] && by0 < u[3] && by1 > u[1]))
       return false;
-    used.push([sx, sy]);
+    used.push([bx0, by0, bx1, by1]);
     c.globalAlpha = dim;
     c.fillStyle = "rgba(8,14,18,.58)";
     c.fillRect(sx - 4*s, sy - 22*s, tw + 8*s, 16*s);
@@ -910,24 +912,43 @@ export function drawHud(c, canvas, st, world) {
       : layer === "places" ? ["place"] : ["landmark", "church", "public"];
     const col = { place: "rgba(255,236,190,.96)", landmark: "rgba(190,232,255,.96)",
                   church: "rgba(226,214,246,.94)", public: "rgba(214,238,214,.94)" };
+    // In the city every tile adds its landmarks and public buildings, and
+    // from the street they crowded the view (the owner's Völgy utca picture).
+    // So: the most important first (rank, then distance), at most MAX_NAMES
+    // of them, none nearer than 150 m unless it is a town or district (you
+    // are standing in it; the street plaque names the street), and the
+    // overlap test below takes the whole label box.
+    const MAX_NAMES = 7, cands = [];
     for (const pl of routeData.places) {
       if (!want.includes(pl.kind)) continue;
       const d = Math.hypot(pl.xy[0] - st.camEye[0], pl.xy[1] + st.camEye[2]);
       const cap = pl.kind === "place" ? (pl.rank <= 1 ? 14000 : pl.rank <= 3 ? 5000 : 2200)
                 : pl.rank <= 1 ? 4200 : pl.rank <= 2 ? 2600 : 1500;
-      if (d > cap || d < 60 || !visible(d)) continue;
+      const near = pl.kind === "place" && pl.rank <= 2 ? 60 : 150;
+      if (d > cap || d < near || !visible(d)) continue;
+      cands.push([(pl.rank || 2) + d / cap, pl, d, cap]);
+    }
+    cands.sort((a, b) => a[0] - b[0]);
+    let shown = 0;
+    for (const [, pl, d, cap] of cands) {
+      if (shown >= MAX_NAMES) break;
       const pr = project(st.vp, [pl.xy[0], pl.h + 22, -pl.xy[1]]);
       if (!pr) continue;
       const sx = (pr[0]*0.5+0.5)*W, sy = (1-(pr[1]*0.5+0.5))*H;
       if (sx < 40*s || sx > W-40*s || sy < 30*s || sy > H*0.80) continue;
-      place(sx, sy, pl.name, col[pl.kind], Math.max(0.35, 1 - d / cap));
+      if (place(sx, sy, pl.name, col[pl.kind], Math.max(0.35, 1 - d / cap))) shown++;
     }
   }
 
   if (layer === "hills" || layer === "all") {
     c.font = `600 ${Math.round(12*s)}px "IBM Plex Sans", system-ui, sans-serif`;
-    const peaks = routeData.peaks;
+    // the five nearest summits at most (from a Buda street every hill round
+    // about was named at once)
+    const peaks = routeData.peaks.map(pk => [Math.hypot(pk.xy[0] - st.camEye[0], pk.xy[1] + st.camEye[2]), pk])
+      .sort((a, b) => a[0] - b[0]).map(a => a[1]);
+    let hills = 0;
     for (const pk of peaks) {
+      if (hills >= 5) break;
       const d = Math.hypot(pk.xy[0] - st.camEye[0], pk.xy[1] + st.camEye[2]);
       if (d > 24000 || d < 220 || !visible(d)) continue;
       const rise = pk.ele - st.camEye[1];
@@ -939,8 +960,8 @@ export function drawHud(c, canvas, st, world) {
       if (!pr) continue;
       const sx = (pr[0]*0.5+0.5)*W, sy = (1-(pr[1]*0.5+0.5))*H;
       if (sx < 40*s || sx > W-40*s || sy < 30*s || sy > H*0.72) continue;
-      place(sx, sy, `${pk.name}  ${pk.ele|0}`, "rgba(236,244,248,.95)",
-            Math.max(0.30, 1 - d / 26000));
+      if (place(sx, sy, `${pk.name}  ${pk.ele|0}`, "rgba(236,244,248,.95)",
+                Math.max(0.30, 1 - d / 26000))) hills++;
     }
   }
 

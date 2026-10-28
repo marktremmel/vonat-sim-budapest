@@ -11,6 +11,7 @@ import base64, json, math, struct, sys
 from collections import Counter
 sys.path.insert(0, "tools")
 from geo import frame, Chainer, load_tracks
+from facade_zones import Zones
 
 import os
 # Which line. Line 70 is the original; any other line bakes into its own
@@ -187,6 +188,9 @@ def simplify(pts, tol):
     if worst <= tol:
         return [pts[0], pts[-1]]
     return simplify(pts[:wi + 1], tol)[:-1] + simplify(pts[wi:], tol)
+
+ZONES = Zones()
+
 
 def main():
     if CITY:
@@ -705,6 +709,17 @@ def main():
         elif kind == "apartments" and h >= 18:
             cls = PANEL
 
+        # A block of flats in a dense city block is a bérház. OSM tags most of
+        # inner Pest's tenements building=apartments, which made them class 4,
+        # drawn as modern flats (Terézváros: 439 of them against 118 class 9).
+        # Not a slab (above), not over 30 m, not dated after the war.
+        if cls == 4 or (kind == "residential" and cls == 0):
+            year = (t.get("start_date") or "")[:4]
+            if not (year.isdigit() and int(year) >= 1945):
+                covered, mean_fp = cover_mean(lat, lon)
+                if crowd > 26 and covered >= 0.26 and mean_fp >= 300 and h <= 30:
+                    cls = 9
+
         # Ruins (the Aquincum amphitheatre is one, a multipolygon round an open
         # arena) are low roofless walls, not a solid block with a lid
         ruin = t.get("historic") in ("ruins", "archaeological_site") or kind == "ruins" or t.get("ruins") == "yes"
@@ -750,6 +765,9 @@ def main():
         flat = 1 if cls in (PANEL, 3, 5, 8, 10, 11, 12, 14) or kind in (
             "industrial", "warehouse", "retail", "commercial", "office",
             "roof", "garages", "hangar", "supermarket") else 0
+        # the façade family by where the building is (tools/facade_zones.py),
+        # in the top four bits of the class byte; the class stays in the low four
+        cb = cls | (ZONES.family(e["id"], lat, lon, cls, h, flat) << 4)
         # the real footprint, where it is worth having
         ring = simplify(pts[:-1] if pts[0] == pts[-1] else pts, 0.6)
         if len(ring) > 2 and ring[0] == ring[-1]:
@@ -777,7 +795,7 @@ def main():
                 cx2 = sum(q[0] for q in ring) / len(ring)
                 cy2 = sum(q[1] for q in ring) / len(ring)
                 ppack += struct.pack("<ffHBBBB", cx2, cy2,
-                                     min(65535, int(h * 10)), cls,
+                                     min(65535, int(h * 10)), cb,
                                      rtype, len(ring), min(255, len(tris)))
                 ppack += struct.pack("<H", min(65535, int(rh * 100)))
                 for q in ring:
@@ -801,7 +819,7 @@ def main():
         bpack += struct.pack("<ffHHHHBB", ox, oy,
                              min(65535, int(hu * 10)), min(65535, int(hv * 10)),
                              int((ang % math.pi) / math.pi * 65535),
-                             min(65535, int(h * 10)), cls, flat)
+                             min(65535, int(h * 10)), cb, flat)
         bcount += 1
 
     # service roads and tracks were dropped before; without them a village is
@@ -1385,10 +1403,10 @@ def main():
         "buildings": {"count": bcount,
                       "stride": 18,
                       "format": "f32 x, f32 y, u16 halfU dm, u16 halfV dm,"
-                                " u16 rot/pi, u16 height dm, u8 class, u8 pad",
+                                " u16 rot/pi, u16 height dm, u8 class | facade family << 4, u8 flat",
                       "data": base64.b64encode(bytes(bpack)).decode()},
         "polys": {"count": pcount, "format":
-                  "f32 cx, f32 cy, u16 height dm, u8 class, u8 roof, u8 npts, "
+                  "f32 cx, f32 cy, u16 height dm, u8 class | facade family << 4, u8 roof, u8 npts, "
                   "u8 ntri, u16 roofheight cm, npts x (i16 dx, i16 dy) dm, "
                   "ntri x (u8,u8,u8)",
                   "colours": pcolours,
@@ -1422,6 +1440,8 @@ def main():
     print(f"buildings kept {bcount} (dropped {skipped} beyond {BUILD_R:.0f} m), "
           f"{len(bpack)/1e6:.2f} MB packed")
     print(f"roads {rcount} ways, {rpts} points, {len(rpack)/1e6:.2f} MB packed")
+    if ZONES.count:
+        print("façade zones (buildings per family):\n" + ZONES.report())
     print(f"{OUTF} {os.path.getsize(OUTF)/1e6:.2f} MB")
 
 main()

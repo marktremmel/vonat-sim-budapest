@@ -1,6 +1,6 @@
 # raw downloads (Overpass extracts, terrain tiles): ~660 MB, regenerable with tools/
 data/raw/
-# the built site: GitHub Actions builds it (.github/workflows/pages.yml)
+# the dev server's build; Pages serves the committed root index.html and web/data/
 dist/
 web/data/city_all.json
 *.part
@@ -12,3 +12,9 @@ itch/
 scratch/
 # picture-test PNGs are for looking at; the test compares the .raw files
 tests/fixtures/pictures/*.png
+data/bake_logs/
+# the owner's generated façade sheets (379 MB): only the cut atlas in web/data/ is
+# committed; the folders and kit.json files stay
+art/facade_kit/*/*
+!art/facade_kit/*/.keep
+!art/facade_kit/*/kit.json

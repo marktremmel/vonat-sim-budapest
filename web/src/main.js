@@ -11,6 +11,7 @@ import { CLOUD_TYPES } from "./clouds.js";
 import { SITUATIONS, resolveWeather, weatherAt, stepFront, weatherPalette, weatherDecks,
          precipVelocity, windVector, compass, visibilityOf, fmtVis,
          PRECIP, PRECIP_EN, pickSituation, queueFront } from "./weather.js";
+import { Foliage } from "./foliage.js";
 import { compile, texFromImage, gridMesh, M4, norm, cross, add, scale, sub } from "./engine.js";
 import { LAYERS, drawHud, isAuthenticStreetOrSquare } from "./hud.js";
 import { installInput } from "./input.js";
@@ -30,7 +31,7 @@ import { buildTrains, CAR_LEN, carLayout } from "./trains.js";
 import { TrainWreck, trackGround } from "./wreck.js";
 import { buildCatenary, buildYardWires } from "./catenary.js";
 import { unpackStructures, buildStructures } from "./structures.js";
-import { Traffic, ASPECT, ASPECT_NAME, RoadTraffic, buildRoadTraffic, buildTrafficLights, RT_SPRAY,
+import { Traffic, trackLayout, sideOnLoops, ASPECT, ASPECT_NAME, RoadTraffic, buildRoadTraffic, buildTrafficLights, RT_SPRAY,
          danubeLane, RiverTraffic, buildRiverTraffic } from "./traffic.js";
 import { bindSettings, loadPrefs, savePrefs } from "./settings.js";
 import { RunScore, CATS, starsFor } from "./score.js";
@@ -41,6 +42,9 @@ import { initPhotoFx } from "./photofx.js";
 import { Kisvasut } from "./kisvasut.js";
 import { Particles, VFX_MAX, Murmuration } from "./vfx.js";
 import { Trams } from "./trams.js";
+import { Streams } from "./streams.js";
+import { StreetBits } from "./streetbits.js";
+import { Grass } from "./grass.js";
 
 const RES = { w: 512, h: 288 };            // internal render size, upscaled
 // nested square annuli: each ring has a hole exactly filled by the finer one,
@@ -135,6 +139,16 @@ export async function boot(assets) {
   // ---- programs
   const pSky = compile(gl, S.SKY_VS, S.SKY_FS);
   const pTer = compile(gl, S.TERRAIN_VS, S.TERRAIN_FS);
+  // ground cover near the camera (grass.js)
+  let grass = null;
+  // its reach: the Beállítás setting (state.gfx.grass, 0 off), at most 22 m
+  // with state.lite; SIM.state.grassR overrides both
+  const grassRadius = () => {
+    if (state.grassR != null) return state.grassR;
+    const g = state.gfx && state.gfx.grass != null ? state.gfx.grass : 70;
+    return state.lite ? Math.min(g, 22) : g;
+  };
+  try { grass = new Grass(gl); } catch (e) { console.warn("grass unavailable", e); }
   const pTrk = compile(gl, S.TRACK_VS, S.TRACK_FS);
   const pVeg = compile(gl, S.VEG_VS, S.VEG_FS);
   const pTree = compile(gl, S.TREE_VS, S.VEG_FS);     // the cadastre's trees, one instance each
@@ -196,6 +210,54 @@ export async function boot(assets) {
     for (const p of [pTrk, pBld]) { gl.useProgram(p.p); if (p.u.uFacTex) gl.uniform1i(p.u.uFacTex, 6); }
     gl.useProgram(null);
   }
+  // The façade kit (tools/bake_facade_kit.py): colour on unit 14, masks on
+  // unit 15. uKitFam holds each family's first sheet and count, in the order
+  // of tools/facade_zones.py FAMILIES; a family with no sheets has a count of
+  // 0 and stays procedural.
+  {
+    const base = window.DATA_BASE || "data/";
+    const units = [gl.TEXTURE14, gl.TEXTURE15];
+    const texs = units.map(u => {
+      const t = gl.createTexture();
+      gl.activeTexture(u); gl.bindTexture(gl.TEXTURE_2D, t);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([200, 196, 188, 255]));
+      return t;
+    });
+    const KIT_FAMILIES = ["tenement", "interwar", "cube", "village", "villa", "mav", "oldtown", "garden", "civic", "szocreal"];
+    const fams = new Int32Array(KIT_FAMILIES.length * 2);
+    let size = [1024, 1024];
+    try {
+      const meta = await fetch(base + "facade_kit.json").then(r => r.ok ? r.json() : null);
+      if (meta && meta.sheets > 0 && meta.families) {
+        const imgs = await Promise.all([loadImage(base + "facade_kit.webp"), loadImage(base + "facade_kit_mask.png")]);
+        imgs.forEach((img, i) => {
+          gl.activeTexture(units[i]); gl.bindTexture(gl.TEXTURE_2D, texs[i]);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, img);
+          gl.generateMipmap(gl.TEXTURE_2D);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        });
+        KIT_FAMILIES.forEach((f, i) => {
+          const r = meta.families[f];
+          if (r) { fams[i * 2] = r[0]; fams[i * 2 + 1] = r[1]; }
+        });
+        size = meta.atlas;
+      }
+    } catch (e) { console.warn("no façade kit", e); }
+    gl.activeTexture(gl.TEXTURE0);
+    for (const p of [pTrk, pBld]) {
+      gl.useProgram(p.p);
+      if (p.u.uKitTex) gl.uniform1i(p.u.uKitTex, 14);
+      if (p.u.uKitMask) gl.uniform1i(p.u.uKitMask, 15);
+      if (p.u.uKitSize) gl.uniform2f(p.u.uKitSize, size[0], size[1]);
+      const famLoc = gl.getUniformLocation(p.p, "uKitFam");
+      if (famLoc) gl.uniform2iv(famLoc, fams);
+      // the façades' parallax steps (FACADE_GLSL); lite keeps the shading only
+      const pomLoc = gl.getUniformLocation(p.p, "uKitPom");
+      if (pomLoc) gl.uniform1f(pomLoc, state.lite ? 0 : 1);
+    }
+    gl.useProgram(null);
+  }
 
   await step(tt("terep és pálya", "terrain and track"), 0.74);
   // ---- geometry
@@ -245,7 +307,21 @@ export async function boot(assets) {
     gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 32, 16);
     gl.vertexAttribDivisor(1, 1); gl.vertexAttribDivisor(2, 1);
     gl.bindVertexArray(null);
-    return { vao, bufs: [b], n: inst.length / 8 };
+    return { vao, bufs: [b], n: inst.length / 8, inst };   // inst: the near leaf trees pick from it
+  }
+  // the near trees as leaves on wood (foliage.js); the far ones stay crosses
+  const foliage = new Foliage(gl, 14000);   // (records: 650 m of leafy trees is about 11,700)
+  const gpuTimer = gl.getExtension("EXT_disjoint_timer_query_webgl2");
+  const vegQueries = [];
+  function readVegTimer() {
+    while (vegQueries.length && gl.getQueryParameter(vegQueries[0][0], gl.QUERY_RESULT_AVAILABLE)) {
+      const [q, k] = vegQueries.shift();
+      if (!gl.getParameter(gpuTimer.GPU_DISJOINT_EXT)) {
+        const ms = gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6;
+        state[k] = state[k] == null ? ms : state[k] * 0.9 + ms * 0.1;
+      }
+      gl.deleteQuery(q);
+    }
   }
 
   function trackVao(pts) {
@@ -661,7 +737,7 @@ export async function boot(assets) {
   // phones; until they load (and on phones) people are the old box figures.
   const pPpl = compile(gl, S.PEOPLE_VS, S.PEOPLE_FS);
   let people3d = null;
-  const pplWalk = [], pplStand = [];       // eight numbers a person (geom.js)
+  const pplWalk = [], pplStand = [];       // twelve numbers a person (geom.js)
   state.ppl = { walk: pplWalk, stand: pplStand };   // (for the console)
   if (!state.lite) (async () => {
     try {
@@ -700,9 +776,10 @@ export async function boot(assets) {
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(bin, q.uo, q.nv * 2), gl.STATIC_DRAW);
         gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 0, 0);
         q.ib = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, q.ib);
-        gl.bufferData(gl.ARRAY_BUFFER, 4 * 8 * 32, gl.DYNAMIC_DRAW); q.icap = 32;
-        gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3, 4, gl.FLOAT, false, 32, 0); gl.vertexAttribDivisor(3, 1);
-        gl.enableVertexAttribArray(4); gl.vertexAttribPointer(4, 4, gl.FLOAT, false, 32, 16); gl.vertexAttribDivisor(4, 1);
+        gl.bufferData(gl.ARRAY_BUFFER, 4 * 12 * 32, gl.DYNAMIC_DRAW); q.icap = 32;
+        gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3, 4, gl.FLOAT, false, 48, 0); gl.vertexAttribDivisor(3, 1);
+        gl.enableVertexAttribArray(4); gl.vertexAttribPointer(4, 4, gl.FLOAT, false, 48, 16); gl.vertexAttribDivisor(4, 1);
+        gl.enableVertexAttribArray(5); gl.vertexAttribPointer(5, 4, gl.FLOAT, false, 48, 32); gl.vertexAttribDivisor(5, 1);
         const eb = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, eb);
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(bin, q.io, q.ni), gl.STATIC_DRAW);
         gl.bindVertexArray(null);
@@ -720,9 +797,9 @@ export async function boot(assets) {
     const P = people3d.people;
     for (const q of P) q.inst.length = 0;
     const add = (a, i) => { const q = P[Math.min(P.length - 1, (a[i + 5] * P.length) | 0)];
-      q.inst.push(a[i], a[i + 1], a[i + 2], a[i + 3], a[i + 4], 0.0, a[i + 6], a[i + 7]); };
-    for (let i = 0; i < pplWalk.length; i += 8) add(pplWalk, i);
-    for (let i = 0; i < pplStand.length; i += 8)
+      q.inst.push(a[i], a[i + 1], a[i + 2], a[i + 3], a[i + 4], 0.0, a[i + 6], a[i + 7], a[i + 8], a[i + 9], a[i + 10], a[i + 11]); };
+    for (let i = 0; i < pplWalk.length; i += 12) add(pplWalk, i);
+    for (let i = 0; i < pplStand.length; i += 12)
       if (Math.abs(pplStand[i] - camX) < 700 && Math.abs(pplStand[i + 2] + camZ) < 700) add(pplStand, i);
 
     // Hero Character (player):
@@ -734,15 +811,15 @@ export async function boot(assets) {
       const phase = (p.phase !== undefined) ? p.phase : -1.0;
       const tint = p.tintScale || 1.0;
       const pitch = p.pitchAngle || 0.0;
-      q.inst.push(p.x, p.y, -p.n, p.yaw || 0, H, pitch, phase, tint);
+      q.inst.push(p.x, p.y, -p.n, p.yaw || 0, H, pitch, phase, tint, 0, 0, 0, 0);
     }
 
     let total = 0;
     for (const q of P) {
-      q.n = q.inst.length / 8; total += q.n;
+      q.n = q.inst.length / 12; total += q.n;
       if (!q.n) continue;
       gl.bindBuffer(gl.ARRAY_BUFFER, q.ib);
-      if (q.n > q.icap) { q.icap = q.n * 2; gl.bufferData(gl.ARRAY_BUFFER, 4 * 8 * q.icap, gl.DYNAMIC_DRAW); }
+      if (q.n > q.icap) { q.icap = q.n * 2; gl.bufferData(gl.ARRAY_BUFFER, 4 * 12 * q.icap, gl.DYNAMIC_DRAW); }
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Float32Array(q.inst));
     }
     state.people3dN = total;
@@ -755,6 +832,7 @@ export async function boot(assets) {
     gl.uniform2f(pPpl.u.uGrid, people3d.cols, people3d.rows);
     gl.uniform1f(pPpl.u.uFrames, people3d.frames);
     gl.uniform1f(pPpl.u.uPull, 0.004);
+    gl.uniform1f(pPpl.u.uTime, (state.hour * 3600) % 86400);
     gl.uniform3fv(pPpl.u.uSunDir, sunDir);
     gl.uniform3fv(pPpl.u.uSunCol, pal.sun);
     gl.uniform3fv(pPpl.u.uSkyCol, pal.zenith);
@@ -769,6 +847,7 @@ export async function boot(assets) {
       if (!q.n) return;
       gl.uniform1f(pPpl.u.uRow0, q.row0);
       gl.uniform1f(pPpl.u.uCell, pi);
+      gl.uniform4fv(pPpl.u.uRig, q.rig || [0.58, 0, 0.16, 0]);
       gl.bindVertexArray(q.vao);
       gl.drawElementsInstanced(gl.TRIANGLES, q.ni, gl.UNSIGNED_SHORT, 0, q.n);
     });
@@ -1101,71 +1180,15 @@ export async function boot(assets) {
     Math.max(routeData.track_down[0][3],
              Math.min(routeData.track_down[routeData.track_down.length-1][3], m)))[2];
   await step(tt("vonatforgalom", "train traffic"), 0.84);
-  // ---- single track. A line whose up and down tracks are the same path
-  // (line 2) is single track except where the data shows a second track
-  // alongside, 3–7 m off: double-track sections and station loops. Those
-  // ranges come from the yard-track layer (OSM, q_line2_rails.ql); a range
-  // under 300 m is a siding, not a loop. The loop's side is the side the
-  // second track is on.
-  let loops = [];
-  {
-    const dn = routeData.track_down, up = routeData.track_up;
-    const singleLine = dn.length === up.length && dn.length > 10 && dn[10][0] === up[10][0] && dn[10][1] === up[10][1];
-    if (singleLine) {
-      const B = 50, n = Math.ceil(dn[dn.length - 1][3] / B) + 2;
-      const cnt = new Uint16Array(n), side = new Float32Array(n);
-      for (const w of railWays) {
-        if (w.cls !== 0) continue;
-        // along each segment, not only at its nodes: a straight loop track
-        // has a node at each end and nothing between
-        for (let j = 0; j + 1 < w.pts.length; j++) {
-          const q0 = w.pts[j], q1 = w.pts[j + 1];
-          if (q0[3] < 3 || q0[3] > 7 || q1[3] < 3 || q1[3] > 7) continue;
-          const steps = Math.max(1, Math.ceil(Math.abs(q1[2] - q0[2]) / 25));
-          for (let st = 0; st <= steps; st++) {
-            const f = st / steps;
-            const x = q0[0] + (q1[0] - q0[0]) * f, y = q0[1] + (q1[1] - q0[1]) * f, c = q0[2] + (q1[2] - q0[2]) * f;
-            const k = Math.floor(c / B);
-            if (k < 0 || k >= n) continue;
-            const a = route.at(c), tg = route.tangent(c);
-            cnt[k]++; side[k] += Math.sign(tg[0] * (y - a[1]) - tg[1] * (x - a[0]));
-          }
-        }
-      }
-      for (let k = 0; k < n; k++) {
-        if (!cnt[k]) continue;
-        const last = loops[loops.length - 1];
-        if (last && k * B - last.b <= 250) { last.b = (k + 1) * B; last.side += side[k]; }
-        else loops.push({ a: k * B, b: (k + 1) * B, side: side[k] });
-      }
-      loops = loops.filter(l => l.b - l.a >= 300).map(l => ({ a: l.a, b: l.b, side: l.side >= 0 ? 1 : -1 }));
-      const end = dn[dn.length - 1][3];
-      const single = [];
-      let at = 0;
-      for (const l of loops) { if (l.a - at > 150) single.push([at, l.a]); at = Math.max(at, l.b); }
-      if (end - at > 150) single.push([at, end]);
-      // a "single" stretch under 1.2 km between two double ones is a gap in
-      // the mapped second track (Kőbánya-Kispest came out single), not a real
-      // single-track section: real ones run from loop to loop, kilometres
-      for (let i = single.length - 1; i >= 0; i--) {
-        const [a, b] = single[i];
-        const inner = a > 0 && b < end;
-        if (inner && b - a < 1200) single.splice(i, 1);
-      }
-      traffic.setSingleTrack(single);
-      console.log("single track sections", single.map(q => q.map(v => (v / 1000).toFixed(2)).join("–")).join(", "));
-    }
+  // ---- single track (line 2): the sections and the loops between them come
+  // from the yard-track layer (traffic.js trackLayout); trainSide is how far
+  // off the running line a train is drawn
+  const { loops, single } = trackLayout(route, routeData, railWays);
+  if (single) {
+    traffic.setSingleTrack(single);
+    console.log("single track sections", single.map(q => q.map(v => (v / 1000).toFixed(2)).join("–")).join(", "));
   }
-  // which side a train is drawn on: in a loop, trains running against the
-  // player's direction take the loop track, so a crossing is two trains
-  // side by side; eased over 60 m at each end of the loop
-  const trainSide = loops.length ? (t, m) => {
-    if (t.dir === route.dir) return 0;
-    for (const l of loops) {
-      if (m > l.a && m < l.b) return l.side * 4.6 * Math.min(1, (m - l.a) / 60, (l.b - m) / 60);
-    }
-    return 0;
-  } : null;
+  const trainSide = single ? sideOnLoops(route, loops, single) : null;
   // a siding's rail height: the line's, except on a raised stretch, where one
   // off the widened top stands on the slope or the ground, not in the air
   const yardYAt = (m, p) => {
@@ -1687,6 +1710,19 @@ export async function boot(assets) {
     const td = await fetch(`${window.DATA_BASE || "data/"}trams.json`).then(r => r.ok ? r.json() : null);
     if (td) trams = new Trams(td, assets.world.near, demAt, (n) => wA + wB * n, (x, n) => coverAt(x, n) === 9);
   } catch (e) { console.warn("trams unavailable", e); }
+  // streams and ditches (streams.js), meshed in 1 km chunks round the camera
+  let streams = null;
+  try {
+    const sd = await fetch(`${window.DATA_BASE || "data/"}streams.json`).then(r => r.ok ? r.json() : null);
+    if (sd) streams = new Streams(sd, assets.world.near, demAt, (x, n) => coverAt(x, n) === 9);
+  } catch (e) { console.warn("streams unavailable", e); }
+  // stops, shelters, bins, benches, fences in Budapest (streetbits.js)
+  let streetBits = null;
+  try {
+    const sb = city ? await fetch(`${window.DATA_BASE || "data/"}streetbits.json`).then(r => r.ok ? r.json() : null) : null;
+    if (sb) streetBits = new StreetBits(sb, assets.world.near, demAt, (x, n) => onRoadCarriageway(x, n, 0.3),
+                                        (x, n) => { const r = railDistAt(x, n); return r && isFinite(r.d) ? r.d : 1e9; });
+  } catch (e) { console.warn("street bits unavailable", e); }
   // the line's own extras (bake_linex.py): names along the whole line, the
   // quarries, solar farms and pipelines outside the city
   // horses in their paddocks (tools/bake_horses.py), within 5 km of the line
@@ -3402,7 +3438,11 @@ export async function boot(assets) {
       // the automatic driver obeys a red: it did not look at signals at all
       {
         const ds = traffic.distanceToSignal(playerTrain);
-        driver.signalStop = playerTrain.aspect === ASPECT.STOP && ds < 3000 ? driver.m + route.dir * ds : null;
+        // (waiting to cross on single track the point is fixed: worked out from
+        // the distance, which stops at 0, it moved with a train that had run
+        // past it, and the train crept on into the opposing one)
+        driver.signalStop = playerTrain.aspect === ASPECT.STOP && ds < 3000
+          ? (playerTrain.singleStopM ?? driver.m + route.dir * ds) : null;
         // a car on the line, seen from 700 m
         const ob = traffic.obstacleM;
         if (ob != null && driver.auto) {
@@ -3732,7 +3772,7 @@ export async function boot(assets) {
 
         // 4. Shove nearby pedestrians back
         if (typeof pplStand !== "undefined" && pplStand) {
-          for (let i = 0; i < pplStand.length; i += 8) {
+          for (let i = 0; i < pplStand.length; i += 12) {
             const px_ = pplStand[i], pz_ = -pplStand[i + 2];
             const dx = px_ - pX, dz = pz_ - pN;
             const dist = Math.hypot(dx, dz);
@@ -4310,6 +4350,8 @@ export async function boot(assets) {
     }
     state.camXZ = [camEye[0], -camEye[2]];
     if (city) city.update(camEye[0], -camEye[2]);
+    if (streetBits && state.show.roads) streetBits.update(camEye[0], -camEye[2], state.lite ? 500 : 1300, colouredVao, freeVao);
+    if (streams) streams.update(camEye[0], -camEye[2], state.lite ? 1100 : 2400, colouredVao, freeVao);
     state.camY = camEye[1];
 
     // Authentic Budapest street / square name plaque determination
@@ -4358,7 +4400,14 @@ export async function boot(assets) {
                                 RES.w / RES.h, nearZ, 62000);
     const vp = M4.mul(proj, view);
     const invVP = M4.invert(vp);
-    state.lastCam = { eye: camEye, invVP };
+    // The sky works out each pixel's ray as the far point minus the near
+    // point through an inverse VP. With the eye 25 km from the origin in
+    // float32 (steps of 2 mm) and the near plane 0.12 m away in a passenger
+    // seat, that difference was a few per cent off and changed every frame:
+    // the sky wobbled. Its own matrix has the camera at the origin.
+    const skyVP = M4.mul(proj, M4.lookAt([0, 0, 0], fwd, camUp));
+    const invSkyVP = M4.invert(skyVP);
+    state.lastCam = { eye: camEye, invVP, invSkyVP };
 
     const insideTrain = !state.follow && state.followIdx < 0 && state.followCarIdx < 0 && state.followShipIdx < 0 && !(state.drone && state.drone.active) && !state.fly && !flying && !state.tram && !(state.person && state.person.active);
     const inCab = state.cab && insideTrain && !seated;
@@ -4583,7 +4632,7 @@ export async function boot(assets) {
       if (state.show.sky) {
       gl.useProgram(pSky.p);
       gl.bindVertexArray(quadVao);
-      gl.uniformMatrix4fv(pSky.u.uInvVP, false, opts.invVP);
+      gl.uniformMatrix4fv(pSky.u.uInvVP, false, opts.skyInvVP);
       gl.uniform3fv(pSky.u.uSunDir, sunDir);
       gl.uniform3fv(pSky.u.uZenith, pal.zenith);
       gl.uniform3fv(pSky.u.uHorizon, pal.horizon);
@@ -4674,6 +4723,16 @@ export async function boot(assets) {
         gl.bindVertexArray(r.mesh.vao);
         gl.drawElements(gl.TRIANGLES, r.mesh.count, r.mesh.type, 0);
       }
+      // grass, flowers, reeds, ferns and pebbles within grassR of the camera
+      // (not in the reflection; SIM.state.grassR = 0 turns it off)
+      const grassR = grassRadius();
+      if (grass && !opts.reflect && grassR > 0 && state.show.veg) {
+        grass.draw(vp, camEye, grassR,
+          { near: texNear.tex, far: texFar.tex, cover: texCover.tex, nearW: texNear.w, nearH: texNear.h,
+            farW: texFar.w, farH: texFar.h, nearStep, farStep, farOffset },
+          { season: season4, day: state.day, cityBox: cityBoxLine, time: now * 0.001, snow: snowCover, sunDir, sunCol: pal.sun,
+            skyCol: pal.zenith, fogCol: pal.horizon, fog: pal.fog, lift, wet: wetGround });
+      }
       }
 
       // track
@@ -4704,13 +4763,24 @@ export async function boot(assets) {
       if (pTrk.u.uGround) gl.uniform1f(pTrk.u.uGround, 1);
       gl.bindVertexArray(corridor.vao);
       gl.drawArrays(gl.TRIANGLES, 0, corridor.count);
+      if (streams) {                 // (under the roads: a road over a ditch wins)
+        gl.polygonOffset(-6.0, -12.0);
+        streams.each(m => { gl.bindVertexArray(m.vao); gl.drawArrays(gl.TRIANGLES, 0, m.count); });
+        gl.polygonOffset(-2.0, -4.0);
+      }
       if (pTrk.u.uGround) gl.uniform1f(pTrk.u.uGround, 0);
       if (state.show.roads) {
         gl.polygonOffset(-9.0, -18.0);
+        if (pTrk.u.uRoad) gl.uniform1f(pTrk.u.uRoad, state.lite ? 0 : 1);
         gl.bindVertexArray(roadMesh.vao);
         gl.drawArrays(gl.TRIANGLES, 0, roadMesh.count);
         if (city) city.each(m => { if (m.roads && m.roads.count) {
           gl.bindVertexArray(m.roads.vao); gl.drawArrays(gl.TRIANGLES, 0, m.roads.count); } });
+        if (pTrk.u.uRoad) gl.uniform1f(pTrk.u.uRoad, 0);
+        if (streetBits) {
+          gl.polygonOffset(-2.0, -4.0);
+          streetBits.each(m => { gl.bindVertexArray(m.vao); gl.drawArrays(gl.TRIANGLES, 0, m.count); });
+        }
       }
       if (yardMesh.count) {
         gl.polygonOffset(-2.2, -4.4);
@@ -4870,6 +4940,12 @@ export async function boot(assets) {
       }
 
       // vegetation
+      // SIM.state.vegTimer = true times this block on the GPU (main view only)
+      // into state.vegGpuMs, and the leaf trees' placement into
+      // state.folPlaceGpuMs, where the extension exists: how the leaf
+      // trees were measured against the crosses
+      const vegQ = state.vegTimer && !opts.reflect && gpuTimer ? gl.createQuery() : null;
+      if (vegQ) gl.beginQuery(gpuTimer.TIME_ELAPSED_EXT, vegQ);
       if (state.show.veg) {
       gl.useProgram(pVeg.p); setCraters(pVeg);
       gl.uniformMatrix4fv(pVeg.u.uVP, false, vp);
@@ -4899,6 +4975,11 @@ export async function boot(assets) {
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texCover.tex);
       gl.uniform1i(pVeg.u.uCover, 2);
       gl.bindVertexArray(vegVao);
+      // Near the camera a tree is drawn by foliage.js as leaves on wood, and
+      // this pass takes it over between 55% and 100% of that radius, each tree
+      // at its own distance (VEG_BAND_GLSL). Not in the reflection, which
+      // keeps the crosses throughout. uNearFade.y is the radius.
+      const leafR = opts.reflect || !folO ? 0 : leafR0;
       // the two passes, plus the close forest pass (woodland only, a tree
       // every 7 m, lower: the understorey the woods were missing) — not at
       // the lowest quality
@@ -4913,6 +4994,8 @@ export async function boot(assets) {
         gl.uniform1f(pVeg.u.uSpacing, spacing);
         gl.uniform1i(pVeg.u.uSide, side);
         gl.uniform1f(pVeg.u.uMaxDist, maxd);
+        const lr = dense ? Math.min(leafR, 100) : leafR;
+        gl.uniform2f(pVeg.u.uNearFade, 0, lr);
         gl.drawArraysInstanced(gl.TRIANGLES, 0, 18, side * side);
       }
       // Budapest's own trees, from the cadastre, per loaded city tile
@@ -4937,10 +5020,45 @@ export async function boot(assets) {
         gl.uniform1f(U.uCloudT, state.wxT);
         gl.uniform1f(U.uCloudShadow, cloudShadow);
         gl.uniform1f(U.uMaxDist, (state.cityR || 3200) > 2000 ? 2400 : 1300);
+        gl.uniform2f(U.uNearFade, 0, leafR);
         city.each(m => { if (m.tr) { gl.bindVertexArray(m.tr.vao); gl.drawArraysInstanced(gl.TRIANGLES, 0, 18, m.tr.n); } });
       }
+      if (leafR > 0) foliage.draw(folO);
       }
+      if (vegQ) { gl.endQuery(gpuTimer.TIME_ELAPSED_EXT); vegQueries.push([vegQ, "vegGpuMs"]); }
 
+    }
+
+    // The near leaf trees: which stand where (foliage.js place), worked out
+    // before any pass of the frame begins, and only when the camera has
+    // moved 30 m or so. A transform-feedback pass is cheap work but costly to
+    // schedule (on Metal, inside the scene's pass, it split it in two).
+    const leafR0 = state.show.veg && state.leafTrees !== false
+      ? (state.lite ? 70 : (state.gfx && state.gfx.leafR) || ((state.cityR || 3200) > 2000 ? 190 : 120)) : 0;
+    let folO = null;
+    if (leafR0 > 0) {
+      if (city) {
+        const lists = [];
+        city.each(m => { if (m.tr) lists.push(m.tr.inst); });
+        foliage.pickCadastre(lists, camEye[0], camEye[2], leafR0 + 40);
+      }
+      // per pass: grid spacing, near radius, share of the leaf clusters
+      // drawn, dense; the understorey only within 100 m and with fewer
+      const fp = [[16, leafR0, 1, 0], [46, leafR0, 1, 0]];
+      if ((state.cityR || 3200) > 2000) fp.push([7, Math.min(leafR0, 100), 0.6, 1]);
+      folO = {
+        vp, eye: camEye, nearR: leafR0, sunDir, season: season4, decks,
+        cloudT: state.wxT, cloudShadow, setCraters, setStreetLights,
+        cityBox: cityBoxLine, nearSize: [texNear.w, texNear.h], nearStep,
+        texNear: texNear.tex, texCover: texCover.tex,
+        passes: fp.map(([sp, r, b, dn]) => [sp, r, b * (state.lite ? 0.5 : 1), dn]), craters: state.craters.length,
+        cadBudget: state.lite ? 0.5 : 1, time: (performance.now() * 0.001) % 3600,
+        pxPerM: RES.h * 0.5 * proj[5], pal, snow: snowCover, lift,
+      };
+      const q = state.vegTimer && gpuTimer ? gl.createQuery() : null;
+      if (q) gl.beginQuery(gpuTimer.TIME_ELAPSED_EXT, q);
+      foliage.place(folO);
+      if (q) { gl.endQuery(gpuTimer.TIME_ELAPSED_EXT); vegQueries.push([q, "folPlaceGpuMs"]); }
     }
 
     // ---- reflection
@@ -4968,13 +5086,23 @@ export async function boot(assets) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, rfbo);
       gl.viewport(0, 0, REFL.w, REFL.h);
       gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, dummyTex);
-      drawWorld(mVP, mEye, { reflect: true, invVP: M4.invert(mVP) });
+      // (the sky's mirror is the same flip with no translation)
+      const skyR = M4.mul(skyVP, new Float32Array([1,0,0,0,  0,-1,0,0,  0,0,1,0,  0,0,0,1]));
+      drawWorld(mVP, mEye, { reflect: true, invVP: M4.invert(mVP), skyInvVP: M4.invert(skyR) });
     }
 
+    // where the grass must not grow, and the corridor's height (grass.js)
+    if (grass && grassRadius() > 0) {
+      const blocked = [roadMesh, yardMesh, platMesh, bufMesh, trkDown, trkUp];
+      if (city) city.each(m => { blocked.push(m.roads, m.x); });
+      if (streetBits) streetBits.each(m => blocked.push(m));
+      if (streams) streams.each(m => blocked.push(m));
+      grass.updateMask(camEye[0], camEye[2], corridor, blocked, grassRadius());
+    }
     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
     gl.viewport(0, 0, RES.w, RES.h);
     gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, reflTex);
-    drawWorld(vp, camEye, { reflect: false, invVP });
+    drawWorld(vp, camEye, { reflect: false, invVP, skyInvVP: invSkyVP });
 
     // station name boards
     gl.useProgram(pBrd.p);
@@ -5459,6 +5587,7 @@ export async function boot(assets) {
       sound.setLoop("amb_menu", A + "menu.m4a", state.menu ? 0.5 : 0);
     }
     state.jsMs = (state.jsMs || 0) * 0.9 + (performance.now() - jsT0) * 0.1;
+    if (vegQueries.length) readVegTimer();
     state.frameN = (state.frameN || 0) + 1;
     if (!byHand) requestAnimationFrame(frame);
   }
@@ -5476,10 +5605,10 @@ export async function boot(assets) {
   // is, and there is no other way to ask from outside.
   const multiRoute = new MultiRoute();
   multiRoute.register(lineLine, route);
-  window.SIM = { tick, step: stepFrames, blastTrains, aiWrecks, solids, lakes: lakeLevels, kisvasut: () => kisvasut, trams: () => trams, demAt, vfx, carModels: () => carModels, railDistAt, res: RES, driver, route, state, data: routeData, stations: stn, PLANES, roadWays, city: () => city, carSurf, cityTiles: () => city,
+  window.SIM = { grass: () => grass, streams: () => streams, streetBits: () => streetBits, tick, step: stepFrames, foliage, blastTrains, aiWrecks, solids, lakes: lakeLevels, kisvasut: () => kisvasut, trams: () => trams, demAt, vfx, carModels: () => carModels, railDistAt, res: RES, driver, route, state, data: routeData, stations: stn, PLANES, roadWays, city: () => city, carSurf, cityTiles: () => city,
                  demAt, coverAt, multiRoute,
                  unified: { frame: UNIFIED_FRAME, localToUnified, unifiedToLocal, geoToUnified, unifiedToGeo, offsets: LINE_OFFSETS },
-                 traffic, playerTrain, sound, roadTraffic,
+                 traffic, playerTrain, sound, roadTraffic, trainSide,
                  riverTraffic,
                  dyn: () => ({ trains: trainDyn.count, signals: sigDyn.count,
                                crossings: xingDyn.count, cars: carDyn.count,

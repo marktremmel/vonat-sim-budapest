@@ -114,6 +114,34 @@ export function bindSettings(state, {
       const p = loadPrefs(); p.gfx = p.gfx || {}; p.gfx[key] = +el.value; savePrefs(p);
     });
   }
+  // how far the near trees are leaves (foliage.js); 0 is the old automatic
+  // 120 or 190 m by the quality. Lite (phones) stays at 70 m whatever this says.
+  {
+    const el = document.getElementById("gfxLeafR");
+    if (el) {
+      const p0 = loadPrefs();
+      if (p0.gfx && p0.gfx.leafR != null) el.value = String(p0.gfx.leafR);
+      state.gfx.leafR = +el.value;
+      el.addEventListener("change", () => {
+        state.gfx.leafR = +el.value;
+        const p = loadPrefs(); p.gfx = p.gfx || {}; p.gfx.leafR = +el.value; savePrefs(p);
+      });
+    }
+  }
+  // how far the ground cover reaches (grass.js); 0 is off. Lite (phones)
+  // takes at most 22 m whatever this says.
+  {
+    const el = document.getElementById("gfxGrass");
+    if (el) {
+      const p0 = loadPrefs();
+      if (p0.gfx && p0.gfx.grass != null) el.value = String(p0.gfx.grass);
+      state.gfx.grass = +el.value;
+      el.addEventListener("change", () => {
+        state.gfx.grass = +el.value;
+        const p = loadPrefs(); p.gfx = p.gfx || {}; p.gfx.grass = +el.value; savePrefs(p);
+      });
+    }
+  }
   const qs0 = document.getElementById("qualSel");
   if (qs0 && document.body.classList.contains("touch")) qs0.value = "low";
   const KEPT = ["qualSel", "resSlider", "expSlider", "bloomSlider", "grainSlider", "chromaSlider",

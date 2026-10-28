@@ -337,6 +337,9 @@ const ROAD_COL = [
 ];
 
 const KERB_COL = [0.52, 0.51, 0.48];
+// The pavement's colour is also a marker: TRACK_FS lays paving slabs on it
+// (as on SOLAR). Keep the two in step.
+export const PAVE_COL = [0.560, 0.540, 0.505];
 const MARK_COL = [0.80, 0.78, 0.70];
 
 // The terrain mesh is a triangle grid at ~17 m; a road sampled only at its own
@@ -521,6 +524,8 @@ export function buildRoads(ways, widths, demAt, waterAt, railDistAt) {
   // Vehicles drive on the same function (way.deckAt), so a car on Margit híd
   // is on Margit híd and not in the Danube under it.
   const surfAt = (x, y) => groundAt(x, y) + liftAt(x, y);
+  // no pavement on the ballast at a level crossing
+  const nearRail = (x, y) => { if (!railDistAt) return false; const r = railDistAt(x, y); return !!r && r.d < 9; };
   {
     const br = ways.filter(w => w.bridge && w.bridge !== 3 && w.pts.length > 1);
     const parent = br.map((_, i) => i);
@@ -750,6 +755,7 @@ export function buildRoads(ways, widths, demAt, waterAt, railDistAt) {
     const CL = -1 - Math.min(6, cls) * 0.012;
     const wayLen = pts.reduce((a, q, i) => i ? a + Math.hypot(q[0] - pts[i-1][0], q[1] - pts[i-1][1]) : 0, 0);
     const clearEnd = hw + 4;
+    const pave = cls >= 1 && cls <= 4 && !bridge ? (cls <= 2 ? 2.6 : cls === 3 ? 2.0 : 1.6) : 0;
     if (wayLen < 2) continue;      // a stub too short to draw: its caps stood alone as grey hexagons
     let along = 0;
     cap(pts[0][0], pts[0][1], hw, CL, col);
@@ -793,9 +799,15 @@ export function buildRoads(ways, widths, demAt, waterAt, railDistAt) {
         strip(x0, y0, x1, y1, from, hw, CL, col);
         if (paved && inside) {
           // the kerbs are laterally clear of the carriageway, so they may sit
-          // lower without ever overlapping it
-          strip(x0, y0, x1, y1, -hw - 0.9, -hw, CL - 0.07, KERB_COL);
-          strip(x0, y0, x1, y1, hw, hw + 0.9, CL - 0.07, KERB_COL);
+          // lower without ever overlapping it; then a pavement beyond them
+          // (not from OSM: sidewalks are rarely mapped here, so every street
+          // above a service road gets one, wider on the bigger roads)
+          strip(x0, y0, x1, y1, -hw - 0.3, -hw, CL - 0.07, KERB_COL);
+          strip(x0, y0, x1, y1, hw, hw + 0.3, CL - 0.07, KERB_COL);
+          if (pave > 0 && !nearRail(x0, y0) && !nearRail(x1, y1)) {
+            strip(x0, y0, x1, y1, -hw - 0.3 - pave, -hw - 0.3, CL - 0.08, PAVE_COL);
+            strip(x0, y0, x1, y1, hw + 0.3, hw + 0.3 + pave, CL - 0.08, PAVE_COL);
+          }
         }
       }
     }
@@ -858,7 +870,7 @@ export function unpackBuildings(b64, count) {
     out[i * 8 + 3] = dv.getUint16(o + 10, true) * 0.1;
     out[i * 8 + 4] = dv.getUint16(o + 12, true) / 65535 * Math.PI;
     out[i * 8 + 5] = dv.getUint16(o + 14, true) * 0.1;
-    out[i * 8 + 6] = raw[o + 16];       // class
+    out[i * 8 + 6] = raw[o + 16];       // class | façade family << 4, decoded in BLDG_FS
     out[i * 8 + 7] = raw[o + 17];       // flat roof
   }
   return out;
@@ -882,7 +894,9 @@ export function unpackPolyBuildings(b64, count, colours) {
   for (let i = 0; i < count; i++) {
     const cx = dv.getFloat32(o, true), cy = dv.getFloat32(o + 4, true);
     const h = dv.getUint16(o + 8, true) * 0.1;
-    const cls = raw[o + 10], roof = raw[o + 11];
+    // the class byte carries the façade family in its top four bits
+    // (tools/facade_zones.py)
+    const cls = raw[o + 10] & 15, fam = raw[o + 10] >> 4, roof = raw[o + 11];
     const npts = raw[o + 12], ntri = raw[o + 13];
     const rh = dv.getUint16(o + 14, true) * 0.01;
     o += 16;
@@ -893,7 +907,7 @@ export function unpackPolyBuildings(b64, count, colours) {
     }
     const tri = [];
     for (let k = 0; k < ntri; k++) { tri.push([raw[o], raw[o+1], raw[o+2]]); o += 3; }
-    out.push({ cx, cy, h, cls, roof, rh, pts, tri });
+    out.push({ cx, cy, h, cls, fam, roof, rh, pts, tri });
   }
   // OSM building:colour / roof:colour, where mapped (bake_context osm_colour)
   for (const [i, wall, roofC] of colours || []) {
@@ -993,7 +1007,7 @@ export function buildPolyBuildings(polys, demAt, sheds) {
     const seed = ((oi * 2654435761) >>> 0) % 997 / 997;
     // a negative seed tells the façade shader the wall colour is OSM's own,
     // not to be replaced by its palette
-    info = [g, eave - g, B.cls, B.wallCol ? -(seed + 0.001) : seed];
+    info = [g, eave - g, B.cls + 16 * (B.fam || 0), B.wallCol ? -(seed + 0.001) : seed];
     // roofs vary: Pest is terracotta, weathered brown and grey slate
     const RT = [[0.40,0.23,0.17], [0.46,0.27,0.19], [0.33,0.24,0.20], [0.30,0.31,0.33], [0.38,0.30,0.26]];
     const rt = B.roofCol || RT[Math.floor(seed * 5 * 7.3) % 5];
@@ -1824,10 +1838,15 @@ export function boardAtlas(names, W = 512, H = 64) {
  * platform position so they do not swim about between frames, and they face
  * the track, because everybody does.
  */
-// With `sink` (an array), each person is added to it as eight numbers for the
+// With `sink` (an array), each person is added to it as twelve numbers for the
 // textured, animated models (main.js people3d): x, y, z, yaw, height, a 0..1
-// pick of which model, the walk phase (-1 standing) and a shade. Only the
+// pick of which model, the walk phase (-1 standing), a shade, and how the
+// shader moves them (PEOPLE_VS aInst3): mode (0 as given, 1 standing about,
+// 2 pacing up and down), a seed, the half length and pace of the pacing, or
+// for mode 1 a 1 for somebody who takes out a phone now and then. Only the
 // suitcase and the umbrella are then still built as boxes.
+// (A sixth of those waiting on a platform pace up and down it; the rest
+// stand, each at its own point of shifting weight and looking about.)
 export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, rainy = false, osmFor = null, walk = null, sink = null) {
   const V = new FBuf(), C = new FBuf();
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
@@ -1863,7 +1882,7 @@ export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, 
     for (let k = 0; k < 4; k++) quad(c[k], c[(k+1)%4], t[(k+1)%4], t[k], col);
     quad(t[0], t[1], t[2], t[3], col);
   };
-  const person = (x, y, g, fx, fy, r, i, swing = 0, phase = -1) => {
+  const person = (x, y, g, fx, fy, r, i, swing = 0, phase = -1, anim = null) => {
     const kid = r(1) < 0.10, old = !kid && r(2) < 0.18;
     const H = kid ? 1.05 + r(3) * 0.25 : (1.58 + r(3) * 0.30) * (old ? 0.96 : 1);
     const W = (kid ? 0.16 : 0.20 + r(4) * 0.06) * (r(5) < 0.2 ? 1.2 : 1);
@@ -1875,7 +1894,11 @@ export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, 
     const legH = H * 0.47, bodyH = H * 0.33, headH = H * 0.13;
     const lean = old ? 0.06 : 0;
     const bx = x + fx * lean, by = y + fy * lean, hx = bx + fx * lean, hy = by + fy * lean, h0 = g + legH + bodyH;
-    if (sink) sink.push(x, g, -y, Math.atan2(fx, fy), H, r(26), phase, 0.88 + r(27) * 0.24);
+    if (sink) {
+      const m = anim || (phase < 0 ? [1, 0, r(29) < 0.3 ? 1 : 0] : [0, 0, 0]);
+      sink.push(x, g, -y, Math.atan2(fx, fy), H, r(26), phase, 0.88 + r(27) * 0.24, m[0], r(28), m[1], m[2]);
+      if (m[0] === 2) return;                 // (a pacer carries nothing that would stay behind)
+    }
     else {
     if (skirt) box(x, g, y, fx, fy, W * 0.95, W * 0.6, g + legH * 0.45, g + legH, coat);
     for (const sd of [-1, 1]) {                                   // legs
@@ -1941,6 +1964,12 @@ export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, 
         const wx = sec[2] - sec[0], wy = sec[3] - sec[1], wl = Math.hypot(wx, wy) || 1;
         let fx = -wx / wl, fy = -wy / wl;                       // towards the track edge
         if (pl.island && r(21) < 0.5) { fx = -fx; fy = -fy; }
+        // a pacer: along the platform from this section to one 12-24 m on
+        const j = R.indexOf(sec), j2 = j + (r(30) < 0.5 ? -1 : 1) * (2 + Math.floor(r(31) * 3));
+        if (sink && r(32) < 0.17 && j2 >= 0 && j2 < R.length) {
+          const s2 = R[j2], x2 = s2[0] + (s2[2] - s2[0]) * t, y2 = s2[1] + (s2[3] - s2[1]) * t, L = Math.hypot(x2 - x, y2 - y) / 2;
+          if (L > 4) { person((x + x2) / 2, (y + y2) / 2, (sec[4] + s2[4]) / 2, (x2 - x) / (2 * L), (y2 - y) / (2 * L), r, i, 0, -1, [2, L, 1.0 + r(33) * 0.4]); continue; }
+        }
         person(x, y, sec[4], fx, fy, r, i);
       }
       continue;
@@ -1957,6 +1986,10 @@ export function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, 
       let fx = -nx * side, fy = -ny * side;
       if (face > 0.72) { fx = ux * (face > 0.86 ? 1 : -1); fy = uy * (face > 0.86 ? 1 : -1); }
       else if (face > 0.62) { fx = -fx; fy = -fy; }
+      const L = 5 + r(31) * 5;
+      if (sink && r(32) < 0.17 && Math.abs(along) + L < half) {
+        person(x, y, g, ux, uy, r, i, 0, -1, [2, L, 1.0 + r(33) * 0.4]); continue;
+      }
       person(x, y, g, fx, fy, r, i);
       // now and then a pair or a family standing together
       if (r(24) < 0.18) person(x + ux * 0.8, y + uy * 0.8, g, fx, fy, (k) => r(k + 40), i);
@@ -2155,8 +2188,17 @@ export function buildSignals(sigs, downPts, upPts, aspectOf) {
 
 
 // ------------------------------------------------- level crossing furniture
-// 68 crossings, with the barrier type OSM records for each: full, half,
-// double half, or none. The booms drop when a train is close enough.
+// The crossings with what OSM records for each: barrier full, half, double
+// half or none, and crossing:light (tools/patch_crossings.py). On each side
+// of the line, on the right of the road for the traffic coming up to it,
+// stands the Hungarian road signal: a pale post with the St Andrew's cross
+// (white, red rim) on top and under it the light: an upside-down triangle,
+// white rim and black face, two red lamps side by side and one white lamp
+// under them, each with a hood. With no train near the white lamp blinks
+// slowly; when one is near, the two reds blink in turn and the booms come
+// down. A crossing tagged light=no has the cross alone; one with no tag
+// gets the light (nearly all on these main lines have one). The road is
+// taken to cross square to the line, 7 m wide.
 export function buildCrossings(crossings, downPts, demAt, trains) {
   const V = new FBuf(), C = new FBuf();
   const at = (m) => {
@@ -2166,56 +2208,109 @@ export function buildCrossings(crossings, downPts, demAt, trains) {
     return [a[0] + u*(b[0]-a[0]), a[1] + u*(b[1]-a[1]), a[2] + u*(b[2]-a[2])];
   };
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
-  const beam = (a, b, w, up, col) => {
-    const q = [[a[0]-w[0], a[1]-up, a[2]-w[1]], [b[0]-w[0], b[1]-up, b[2]-w[1]],
-               [b[0]+w[0], b[1]+up, b[2]+w[1]], [a[0]+w[0], a[1]+up, a[2]+w[1]]];
-    for (const k of [0,1,2,0,2,3]) push(q[k], col);
-  };
-  const post = [0.30, 0.31, 0.32], red = [0.80, 0.16, 0.12], white = [0.88, 0.88, 0.86];
-  const lampR = [0.95, 0.20, 0.15], lampOff = [0.20, 0.16, 0.16];
+  const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
+  const XP_POST = [0.62, 0.63, 0.62], XP_RED = [0.74, 0.10, 0.09], XP_WHITE = [0.90, 0.90, 0.88];
+  const XP_BLACK = [0.035, 0.035, 0.04], XP_BACK = [0.34, 0.35, 0.36], XP_GREY = [0.30, 0.31, 0.32];
+  const XP_RED_ON = [2.3, 0.22, 0.16], XP_RED_OFF = [0.20, 0.04, 0.04];
+  const XP_WHITE_ON = [2.1, 2.05, 1.9], XP_WHITE_OFF = [0.16, 0.16, 0.17];
+  const now = performance.now() / 1000;
+  const W = 3.5, D = 7.5;                    // half the road; signal from the track's middle
 
-  for (const x of crossings) {
-    const m = x.m;
+  // (OSM often has two nodes, the road and its footway, or one per track:
+  // nodes within 25 m are one crossing, with the most any of them says)
+  const RANK = { half: 1, double_half: 2, full: 3 };
+  const groups = [];
+  for (const x of crossings.slice().sort((a, b) => a.m - b.m)) {
+    const g = groups[groups.length - 1];
+    if (g && x.m - g.m0 < 25) g.list.push(x); else groups.push({ m0: x.m, list: [x] });
+  }
+  for (const grp of groups) {
+    const m = grp.list[0].m;
     if (m < downPts[0][3] + 20 || m > downPts[downPts.length-1][3] - 20) continue;
-    const barrier = x.barrier;
-    if (!barrier || barrier === "no") continue;      // unprotected: nothing to draw
+    let barrier = null;
+    for (const q of grp.list) if (RANK[q.barrier] > (RANK[barrier] || 0)) barrier = q.barrier;
+    const light = grp.list.some(q => q.light !== "no") || !!barrier;
     const a = at(m - 10), b = at(m + 10);
     const dx = b[0]-a[0], dy = b[1]-a[1];
     const L = Math.hypot(dx, dy) || 1;
     const fx = dx/L, fy = dy/L, nx = -fy, ny = fx;
-    const p = at(m);
+    const p = at(m), g0 = p[2];
     // is anything coming?
     let close = false;
     for (const t of trains) {
       const d = Math.abs(t.m - m);
       if (d < 900 && t.v > 1) { close = true; break; }
     }
-    const drop = close ? 1 : 0;
+    const blinkA = Math.floor(now * 1.6) % 2 === 0;
+    const whiteOn = !close && now % 1.4 < 0.6;
 
     for (const sg of [-1, 1]) {
-      const bx = p[0] + nx * sg * 9.5, bz = p[1] + ny * sg * 9.5;
-      const g = p[2];
-      // post
-      beam([bx - 0.14, g, bz - 0.14], [bx + 0.14, g, bz + 0.14], [0.14, 0.14], 1.6, post);
-      // the boom: spans ACROSS THE ROAD (along the track tangent direction fx, fy)
-      // when closed (drop=1), and stands upright (vertical in y) when open (drop=0).
-      const len = (barrier === "full") ? 7.6 : 4.8;
-      const boomDir = (sg > 0) ? -1 : 1;
-      const tipX = bx + fx * boomDir * len * drop;
-      const tipZ = bz + fy * boomDir * len * drop;
-      const tipY = g + 1.5 + (1 - drop) * 4.6;
-      for (let seg = 0; seg < 5; seg++) {
-        const t0 = seg / 5, t1 = (seg + 1) / 5;
-        const p0 = [bx + (tipX - bx) * t0, g + 1.5 + (tipY - (g + 1.5)) * t0, bz + (tipZ - bz) * t0];
-        const p1 = [bx + (tipX - bx) * t1, g + 1.5 + (tipY - (g + 1.5)) * t1, bz + (tipZ - bz) * t1];
-        beam(p0, p1, [nx * 0.09, ny * 0.09], 0.09, seg % 2 ? white : red);
+      // u across the road (towards its middle), h up, o towards the cars coming
+      const ex = fx * sg, ey = fy * sg, ox = nx * sg, oy = ny * sg;
+      const bx = p[0] + ox * D - ex * W, by = p[1] + oy * D - ey * W;
+      const gy = g0;                         // (the road is flush with the rails here)
+      const Q = (u, h, o) => [bx + ex * u + ox * o, gy + h, by + ey * u + oy * o];
+      const box = (u0, u1, h0, h1, o0, o1, col) => {
+        quad(Q(u0, h0, o1), Q(u1, h0, o1), Q(u1, h1, o1), Q(u0, h1, o1), col);
+        quad(Q(u1, h0, o0), Q(u0, h0, o0), Q(u0, h1, o0), Q(u1, h1, o0), col);
+        quad(Q(u0, h0, o0), Q(u0, h0, o1), Q(u0, h1, o1), Q(u0, h1, o0), col);
+        quad(Q(u1, h0, o1), Q(u1, h0, o0), Q(u1, h1, o0), Q(u1, h1, o1), col);
+        quad(Q(u0, h1, o1), Q(u1, h1, o1), Q(u1, h1, o0), Q(u0, h1, o0), col);
+      };
+      const top = light ? 3.55 : 2.75;
+      box(-0.05, 0.05, 0, top, -0.05, 0.05, XP_POST);
+      // the St Andrew's cross: two boards, a red rim round white
+      const ch = top - 0.35;
+      for (const [k, ang] of [[0, 0.95], [1, -0.95]]) {
+        const ca = Math.cos(ang), sa = Math.sin(ang);
+        const R = (l, w, o) => Q(l * ca - w * sa, ch + l * sa + w * ca, o);
+        const o = 0.07 + k * 0.03;
+        quad(R(-0.62, -0.1, o - 0.012), R(0.62, -0.1, o - 0.012), R(0.62, 0.1, o - 0.012), R(-0.62, 0.1, o - 0.012), XP_BACK);
+        quad(R(-0.62, -0.1, o), R(0.62, -0.1, o), R(0.62, 0.1, o), R(-0.62, 0.1, o), XP_RED);
+        quad(R(-0.57, -0.055, o + 0.006), R(0.57, -0.055, o + 0.006), R(0.57, 0.055, o + 0.006), R(-0.57, 0.055, o + 0.006), XP_WHITE);
       }
-      // warning signal lamps facing approaching road traffic (facing along nx * sg)
-      for (const side of [-1, 1]) {
-        const lx = bx + fx * side * 0.55, lz = bz + fy * side * 0.55;
-        beam([lx - 0.16, g + 2.5, lz], [lx + 0.16, g + 2.5, lz], [0.16, 0.16], 0.16,
-             close && (Math.floor(performance.now() / 500) % 2 === (side > 0 ? 0 : 1))
-               ? lampR : lampOff);
+      if (light) {
+        // the triangle: top edge at 2.55 m, point at 1.62 m, a box 14 cm deep
+        const tT = 2.55, tB = 1.62, hw = 0.56, o0 = 0.0, o1 = 0.14;
+        const tri = (k, o, col) => {
+          const s = k, tt = tT - s * 0.55, tb = tB + s * 1.1, w = hw - s * 0.95;
+          quad(Q(0, tb, o), Q(w, tt, o), Q(-w, tt, o), Q(-w, tt, o), col);
+        };
+        tri(0, o0 - 0.005, XP_BACK);
+        tri(0, o1, XP_WHITE);
+        tri(0.075, o1 + 0.005, XP_BLACK);
+        quad(Q(-hw, tT, o1), Q(hw, tT, o1), Q(hw, tT, o0), Q(-hw, tT, o0), XP_GREY);
+        for (const sd of [-1, 1])
+          quad(Q(0, tB, o1), Q(sd * hw, tT, o1), Q(sd * hw, tT, o0), Q(0, tB, o0), XP_GREY);
+        // the lamps, each a disc with a hood over it
+        const lamp = (u, h, r, col) => {
+          const o = o1 + 0.012, n = 10;
+          for (let i = 0; i < n; i++) {
+            const a0 = i / n * 6.2832, a1 = (i + 1) / n * 6.2832;
+            quad(Q(u, h, o), Q(u + Math.cos(a0) * r, h + Math.sin(a0) * r, o),
+                 Q(u + Math.cos(a1) * r, h + Math.sin(a1) * r, o), Q(u + Math.cos(a1) * r, h + Math.sin(a1) * r, o), col);
+          }
+          quad(Q(u - r * 1.15, h + r * 1.1, o), Q(u + r * 1.15, h + r * 1.1, o),
+               Q(u + r * 1.15, h + r * 0.75, o + r * 1.6), Q(u - r * 1.15, h + r * 0.75, o + r * 1.6), XP_BLACK);
+        };
+        lamp(-0.2, 2.31, 0.115, close && blinkA ? XP_RED_ON : XP_RED_OFF);
+        lamp(0.2, 2.31, 0.115, close && !blinkA ? XP_RED_ON : XP_RED_OFF);
+        lamp(0, 1.98, 0.075, whiteOn ? XP_WHITE_ON : XP_WHITE_OFF);
+      }
+      if (barrier) {
+        // the boom: from its drive just behind the post, across the near half
+        // of the road (the whole road for a full barrier); upright when open
+        const len = barrier === "full" ? 2 * W + 0.4 : W + 0.4, drop = close ? 1 : 0;
+        box(0.3, 0.62, 0, 1.05, -0.62, -0.3, XP_GREY);
+        const h0 = 0.95;
+        for (let seg = 0; seg < 6; seg++) {
+          const t0 = seg / 6, t1 = (seg + 1) / 6;
+          const P0 = drop ? [0.46 + len * t0, h0] : [0.46, h0 + len * t0];
+          const P1 = drop ? [0.46 + len * t1, h0] : [0.46, h0 + len * t1];
+          const col = seg % 2 ? XP_WHITE : XP_RED;
+          if (drop) box(P0[0], P1[0], h0 - 0.05, h0 + 0.05, -0.5, -0.42, col);
+          else box(0.41, 0.51, P0[1], P1[1], -0.5, -0.42, col);
+        }
       }
     }
   }
@@ -2293,8 +2388,46 @@ export function buildCityExtras(x, tx, demAt, waterAt, railDistAt, skipAt = null
   const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
   const BALLAST = [0.36, 0.33, 0.30], RAIL = [0.30, 0.29, 0.28], TRAMBED = [0.32, 0.32, 0.33];
   const pts = (a) => { const o = []; for (let i = 0; i < a.length; i += 2) o.push(tx(a[i], a[i + 1])); return o; };
+  // the tram tracks' segments in a 20 m grid, so each tram way can tell on
+  // which side its partner track runs (the overhead line's poles stand on the
+  // other side, never between the two tracks)
+  const tramSeg = new Map();
+  for (const [kind, , flat] of x.rails || []) {
+    if (kind !== 2) continue;
+    const P = pts(flat);
+    for (let i = 0; i + 1 < P.length; i++) {
+      const k = Math.floor((P[i][0] + P[i + 1][0]) / 40) + "," + Math.floor((P[i][1] + P[i + 1][1]) / 40);
+      if (!tramSeg.has(k)) tramSeg.set(k, []);
+      tramSeg.get(k).push([P[i], P[i + 1], flat]);
+    }
+  }
+  // signed distance to the nearest OTHER tram track at (px, py), along the
+  // normal (nx, ny): + on the left, - on the right, 0 if none within 7 m
+  const partner = (px, py, nx, ny, own) => {
+    let best = 0, bd = 7;
+    const cx = Math.floor(px / 20), cy = Math.floor(py / 20);
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++)
+      for (const [a, b, f] of tramSeg.get((cx + dx) + "," + (cy + dy)) || []) {
+        if (f === own) continue;
+        const ex = b[0] - a[0], ey = b[1] - a[1], L2 = ex * ex + ey * ey || 1;
+        const t = Math.max(0, Math.min(1, ((px - a[0]) * ex + (py - a[1]) * ey) / L2));
+        const qx = a[0] + ex * t - px, qy = a[1] + ey * t - py, d = Math.hypot(qx, qy);
+        if (d < bd && d > 1.5) { bd = d; best = Math.sign(qx * nx + qy * ny) * d; }
+      }
+    return best;
+  };
+  // A wire as two crossed ribbons (as catenary.js), drawn thicker than it is
+  // so it survives the low internal resolution.
+  const wire = (p0, p1, r, col) => {
+    const dx = p1[0] - p0[0], dz = p1[2] - p0[2], L = Math.hypot(dx, dz) || 1;
+    const nx = -dz / L * r, nz = dx / L * r;
+    quad([p0[0], p0[1] - r, p0[2]], [p1[0], p1[1] - r, p1[2]], [p1[0], p1[1] + r, p1[2]], [p0[0], p0[1] + r, p0[2]], col);
+    quad([p0[0] - nx, p0[1], p0[2] - nz], [p1[0] - nx, p1[1], p1[2] - nz], [p1[0] + nx, p1[1], p1[2] + nz], [p0[0] + nx, p0[1], p0[2] + nz], col);
+  };
+  const POLE = [0.34, 0.37, 0.35], TWIRE = [0.24, 0.22, 0.20];
   for (const [kind, bridge, flat] of x.rails || []) {
     const P = pts(flat);
+    if (kind === 2) tramOverhead(P, bridge, flat);
     const gauge = kind === 1 ? 1.0 : 1.435, bw = kind === 2 ? 1.6 : kind === 1 ? 1.9 : 2.7;
     const yOf = (p) => {
       const g = demAt(p[0], p[1]);
@@ -2325,6 +2458,54 @@ export function buildCityExtras(x, tx, demAt, waterAt, railDistAt, skipAt = null
       if (bridge && kind !== 2) {   // railway bridges get deck edges; trams on road bridges run flush
         for (const sg of [-1, 1])
           quad(Q(a, ya, sg * bw, -1.2), Q(b, yb, sg * bw, -1.2), Q(b, yb, sg * bw, 0.1), Q(a, ya, sg * bw, 0.1), [0.40, 0.38, 0.36]);
+      }
+    }
+  }
+  // The tram's overhead line: one contact wire 5.5 m over the ground, hung
+  // from a bracket on a pole every 32 m. The pole stands 3.1 m out on the
+  // side away from the other track (both tracks' poles face each other across
+  // a double line, which reads as Budapest's span-wire poles from a distance).
+  // Not from OSM: the city's poles are not mapped, so the spacing is typical.
+  // On a bridge there are no poles (they stand on the parapet in reality).
+  function tramOverhead(P, bridge, own) {
+    const CW = 5.5, POLE_H = 7.2, OFF = 3.1, SPAN = 32;
+    const yOf = (p) => bridge ? NaN : demAt(p[0], p[1]);
+    let acc = SPAN * 0.5 + (Math.abs(P[0][0] * 7.1 + P[0][1] * 3.3) % 9);
+    for (let i = 0; i + 1 < P.length; i++) {
+      const a = P[i], b = P[i + 1];
+      const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy);
+      if (L < 0.2) continue;
+      const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+      if (railDistAt) { const r = railDistAt(mx, my); if (r && r.d < 6) { acc = 0; continue; } }
+      const ya = bridge ? NaN : yOf(a), yb = bridge ? NaN : yOf(b);
+      if (isFinite(ya) && isFinite(yb))
+        wire([a[0], ya + CW, a[1]], [b[0], yb + CW, b[1]], 0.05, TWIRE);
+      const nx = -dy / L, ny = dx / L;
+      acc += L;
+      while (acc >= SPAN) {
+        acc -= SPAN;
+        const t = 1 - acc / L, px = a[0] + dx * t, py = a[1] + dy * t;
+        const g = yOf([px, py]);
+        if (!isFinite(g)) continue;
+        // the partner track's side; the pole goes on the other one
+        const pd = partner(px, py, nx, ny, own);
+        const sg = pd > 0 ? -1 : pd < 0 ? 1 : (i % 2 ? 1 : -1);
+        const ox = px + nx * OFF * sg, oy = py + ny * OFF * sg;
+        const go = demAt(ox, oy);
+        if (!isFinite(go)) continue;
+        // a tapered square pole
+        const r0 = 0.15, r1 = 0.09;
+        const c = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+        for (let k = 0; k < 4; k++) {
+          const [u0, v0] = c[k], [u1, v1] = c[(k + 1) % 4];
+          quad([ox + u0 * r0, go - 0.3, oy + v0 * r0], [ox + u1 * r0, go - 0.3, oy + v1 * r0],
+               [ox + u1 * r1, go + POLE_H, oy + v1 * r1], [ox + u0 * r1, go + POLE_H, oy + v0 * r1], POLE);
+        }
+        // the bracket over the track and its tie, and the hanger to the wire
+        const tip = [px - nx * sg * 0.25, g + CW + 0.55, py - ny * sg * 0.25];
+        wire([ox, go + CW + 0.6, oy], tip, 0.05, POLE);
+        wire([ox, go + CW + 1.5, oy], [px + nx * sg * 0.9, g + CW + 0.62, py + ny * sg * 0.9], 0.035, POLE);
+        wire(tip, [px, g + CW, py], 0.03, TWIRE);
       }
     }
   }

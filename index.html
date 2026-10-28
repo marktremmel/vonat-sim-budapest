@@ -479,6 +479,18 @@
     <label><span data-en="Depth of field amount">Mélységélesség mértéke</span> <input id="gfxDofAmt" type="range" min="0.04" max="1.2" step="0.02" value="0.12"></label>
     <label><span data-en="Motion blur amount">Elmosás mértéke</span> <input id="gfxMotionAmt" type="range" min="0.2" max="2.5" step="0.05" value="1"></label>
     <label><span data-en="Corner shading amount">Zugárnyék mértéke</span> <input id="gfxAOAmt" type="range" min="0.2" max="2" step="0.05" value="1"></label>
+    <label title="Eddig a távolságig levelekből rajzolt fák, azon túl egyszerűbbek. Telefonon mindig 70 m." data-en-title="Trees drawn from single leaves up to this distance, simpler ones beyond. Always 70 m on a phone."><span data-en="Leafy trees up to">Lombos fák eddig</span> <select id="gfxLeafR">
+        <option value="0" data-en="auto (120–190 m)">auto (120–190 m)</option>
+        <option value="300">300 m</option>
+        <option value="450">450 m</option>
+        <option value="650" data-en="650 m — fast computer">650 m — erős gép</option>
+      </select></label>
+    <label title="Fű, virágok, nád és kavics a kamera körül. Telefonon legfeljebb 22 m." data-en-title="Grass, flowers, reeds and pebbles round the camera. At most 22 m on a phone."><span data-en="Grass">Fű</span> <select id="gfxGrass">
+        <option value="0" data-en="off">ki</option>
+        <option value="40" data-en="near (40 m)">közel (40 m)</option>
+        <option value="70" selected data-en="normal (70 m)">normál (70 m)</option>
+        <option value="110" data-en="far (110 m) — fast computer">messze (110 m) — erős gép</option>
+      </select></label>
     <label><span data-en="Volume">Hangerő</span> <input id="volSlider" type="range" min="0" max="1" step="0.02" value="0.7"></label>
     <label><span data-en="Animation">Animáció</span> <select id="cineSel">
         <option value="off" data-en="— still —">— áll —</option>
@@ -1350,6 +1362,70 @@ const FACADE_GLSL = `
 // the photographed panel façades (tools/bake_facades.py → data/facades.webp):
 // five tiles side by side, each a whole number of bays and storeys
 uniform sampler2D uFacTex;
+// the façade kit (tools/bake_facade_kit.py, docs/FACADE_KIT.md): generated
+// façade sheets, each a block of 4 bays x 3 rows at 64 x 80 px a cell (rows
+// top floor, typical floor, ground floor; for a village house, three houses),
+// eight blocks to an atlas row, uKitSize px. The mask is R glass, G paint.
+// uKitFam[i] = (first sheet, count) of family i, in the order of
+// tools/facade_zones.py FAMILIES: 0 tenement, 1 interwar, 2 cube house,
+// 3 village house, 4 villa, 5 MÁV colony house, 6 old town house, 7 garden
+// city, 8 public building, 9 1950s block; a count of 0 leaves it procedural.
+// 3 and 5 are three one-storey fronts a sheet, the others stacked storeys
+// (KIT_G: ground floor, storey, bay in metres).
+uniform sampler2D uKitTex, uKitMask;
+uniform vec2 uKitSize;
+uniform ivec2 uKitFam[10];
+const vec3 KIT_G[10] = vec3[10](vec3(4.4, 3.6, 2.9), vec3(3.8, 3.2, 3.0), vec3(3.0, 2.9, 2.8), vec3(0.0),
+                                vec3(3.4, 3.2, 3.0), vec3(0.0), vec3(3.8, 3.6, 3.2), vec3(3.0, 2.9, 2.8),
+                                vec3(4.6, 4.2, 3.4), vec3(3.4, 3.0, 3.0));
+// Relief: the mask's blue channel (bake_facade_kit.py relief()) is the
+// wall's depth, 0.5 the wall's plane, 0 0.4 m back (glass and gates sit
+// lower), above 0.5 standing out (mouldings). Before calling facade() the
+// caller sets the wall's frame with kitFrame(): the way to the eye and the
+// sun as (along the wall, up, out of it). facade() then looks the sheet up
+// where the eye ray meets the relief (parallax), shades the relief against
+// the sun, and leaves the glass's reflection in gKitRefl, which the caller
+// adds after lighting. uKitPom 0 (lite) keeps the shading and reflection but
+// skips the parallax steps.
+uniform float uKitPom;
+vec3 gKitV = vec3(0.0, 0.0, 1.0), gKitSun = vec3(0.0, 1.0, 0.0), gKitSunCol = vec3(1.0), gKitRefl = vec3(0.0);
+void kitFrame(vec3 n, float sgn, vec3 toEye, vec3 sun, vec3 sunCol) {
+  vec3 T = normalize(vec3(-n.z, 0.0, n.x)) * sgn;
+  vec3 V = normalize(toEye);
+  gKitV = vec3(dot(V, T), V.y, dot(V, n));
+  gKitSun = vec3(dot(sun, T), sun.y, dot(sun, n));
+  gKitSunCol = sunCol;
+  gKitRefl = vec3(0.0);
+}
+void kitAt(int sheet, float row, float bx, float fyK, float qy, out vec3 tx, out vec3 mk) {
+  vec2 blk = vec2(float(sheet % 8) * 256.0, float(sheet / 8) * 240.0);
+  vec2 uv = (blk + vec2((mod(floor(bx), 4.0) + fract(bx)) * 64.0, (row + 1.0 - clamp(fyK, 0.0, 1.0)) * 80.0)) / uKitSize;
+  // gradients from the unwrapped coordinates, or the mip jumps at every seam
+  vec2 q = vec2(bx * 64.0, qy * -80.0) / uKitSize;
+  vec2 gx = dFdx(q), gy = dFdy(q);
+  tx = textureGrad(uKitTex, uv, gx, gy).rgb;
+  mk = textureGrad(uKitMask, uv, gx, gy).rgb;
+}
+// A stacked kit wall: the ground floor row, then whole upper storeys
+// stretched to fill the wall, the last one the top-floor row. The ground
+// floor and the floors above come from different sheets (own seeds).
+// Returns true on the ground floor.
+bool kitStack(int fam, float u, float relH, float H, vec3 g, float seed, out vec3 tx, out vec3 mk) {
+  float groundH = g.x, bayW = g.z;
+  float up = relH - groundH;
+  float nUp = max(1.0, floor((H - groundH) / g.y + 0.35));
+  float sH = (H - groundH) / nUp;
+  float row = 2.0, fyK = relH / groundH, qy = relH / groundH;
+  if (up >= 0.0) {
+    float st = min(floor(up / sH), nUp - 1.0);
+    row = st >= nUp - 1.0 ? 0.0 : 1.0;
+    fyK = (up - st * sH) / sH; qy = relH / sH;
+  }
+  int n = uKitFam[fam].y;
+  int sheet = uKitFam[fam].x + int(fract(seed * (row == 2.0 ? 3.71 : 6.13)) * float(n)) % n;
+  kitAt(sheet, row, u / bayW, fyK, qy, tx, mk);
+  return up < 0.0;
+}
 // Façades, shared by the polygon buildings (TRACK_FS) and the boxes (BLDG_FS).
 // The owner's note: "not every building is a tower building with tower
 // windows" — a shed has none, a small house has a few small ones, an office
@@ -1377,9 +1453,10 @@ int facadeKind(int cls, float H, float seed) {
 }
 // base: the wall colour, modified in place. Returns the window glow, added
 // after lighting. u runs along the wall, relH is height above the building's
-// own ground, H the wall height.
+// own ground, H the wall height. fb: the façade family the bake chose (the
+// top four bits of the class byte; 0 none, 1..10 family + 1, 15 procedural).
 vec3 facade(inout vec3 base, float u, float relH, float H, int kind, float seed,
-            float detail, float nightFac, vec3 sky) {
+            float detail, float nightFac, vec3 sky, int fb) {
   // a negative seed: the wall colour is OSM's building:colour, keep it
   bool own = seed < 0.0;
   seed = abs(seed);
@@ -1415,7 +1492,88 @@ vec3 facade(inout vec3 base, float u, float relH, float H, int kind, float seed,
   float fx = fract(u / bayW);
   float bay = floor(u / bayW);
 
-  if (kind == 2 && variant == 0 && up >= 0.0 && !topZone) {
+  // which kit family draws this wall, if any. The bake's choice by place
+  // (tools/facade_zones.json) wins when that family has sheets; 15 keeps the
+  // wall procedural. Otherwise the rule by kind: 70% of each kind that has
+  // sheets; a tenement is interwar for 12% of them (Pest's infill)
+  int fam = -1;
+  float kitR = fract(seed * 2.917);
+  if (fb >= 1 && fb <= 10 && uKitFam[fb - 1].y > 0) fam = fb - 1;
+  else if (fb == 15) fam = -1;
+  else if (kind == 2 && H >= 7.0) {
+    if (kitR < 0.12 && uKitFam[1].y > 0) fam = 1;
+    else if (kitR < 0.7 && uKitFam[0].y > 0) fam = 0;
+  } else if (kitR < 0.7) {
+    if (kind == 10 && uKitFam[1].y > 0) fam = 1;
+    else if (kind == 1 && H >= 5.6 && uKitFam[2].y > 0) fam = 2;
+    else if (kind == 1 && H < 5.6 && uKitFam[3].y > 0) fam = 3;
+  }
+  if (kind == 1 && H < 5.6 && !own) {
+    // a village house (Verőce, Göd, MÁV-telep): white or pale plaster
+    vec3 VIL[8] = vec3[8](vec3(0.94,0.93,0.89), vec3(0.95,0.91,0.80), vec3(0.93,0.86,0.66), vec3(0.92,0.92,0.90),
+                          vec3(0.88,0.80,0.70), vec3(0.93,0.80,0.72), vec3(0.84,0.88,0.80), vec3(0.95,0.89,0.74));
+    base = VIL[int(fract(seed * 6.17) * 8.0)] * (0.94 + fract(seed * 13.7) * 0.08);
+  }
+
+  if (fam >= 0) {
+    vec3 tx; vec3 mk; bool gnd = true;
+    bool strips = fam == 3 || fam == 5;
+    // parallax: three lookups, each moved by the depth found at the last one
+    // along the eye ray (fewer when the wall is far: detail fades it out)
+    float pu = u, ph = relH;
+    vec2 ray = gKitV.xy / max(gKitV.z, 0.25) * detail;
+    for (int i = 0; i < 3; i++) {
+      if (strips) {
+        // a village or colony house is one row: one of the sheet's three
+        // houses, plinth to eaves, in 3 m bays
+        int n = uKitFam[fam].y;
+        int sheet = uKitFam[fam].x + int(fract(seed * 3.71) * float(n)) % n;
+        kitAt(sheet, floor(fract(seed * 5.31) * 3.0), pu / 3.0, clamp(ph, 0.0, H) / H, relH / H, tx, mk);
+      } else {
+        gnd = kitStack(fam, pu, clamp(ph, 0.0, H - 0.01), H, KIT_G[fam], seed, tx, mk);
+      }
+      if (uKitPom < 0.5 || i == 2) break;
+      vec2 off = ray * (0.5 - mk.b) * 0.8;        // metres behind the plane, along the ray
+      pu = u - off.x; ph = relH - off.y;
+    }
+    float dep = (0.5 - mk.b) * 0.8;                // metres; > 0 set back, < 0 standing out
+    if ((fam == 1 || fam == 9) && !own) {
+      // interwar and 1950s render: white, pale grey, cream, ochre, sage, pink
+      vec3 IW[6] = vec3[6](vec3(0.93,0.92,0.89), vec3(0.80,0.80,0.78), vec3(0.92,0.88,0.76),
+                           vec3(0.88,0.78,0.56), vec3(0.78,0.82,0.74), vec3(0.90,0.80,0.76));
+      base = IW[int(fract(seed * 4.37) * 6.0)] * (0.94 + fract(seed * 13.7) * 0.08);
+    }
+    // the sheets' wall is levelled to 0.78: paint it this building's colour
+    float lum = dot(tx, vec3(0.299, 0.587, 0.114));
+    base = mix(tx, base * (lum / 0.78) * 1.05, mk.g);
+    glass = mk.r; litShare = strips ? 0.3 : gnd ? 0.40 : 0.35;
+    // the relief against the sun: its slope along the wall and up it, from
+    // the screen derivatives of depth and of (u, relH)
+    vec2 jx = vec2(dFdx(u), dFdx(relH)), jy = vec2(dFdy(u), dFdy(relH));
+    float dd = jx.x * jy.y - jx.y * jy.x;
+    vec2 dx2 = vec2(dFdx(dep), dFdy(dep));
+    vec2 slope = abs(dd) > 1e-7 ? vec2(dx2.x * jy.y - dx2.y * jx.y, dx2.y * jx.x - dx2.x * jy.x) / dd : vec2(0.0);
+    slope = clamp(slope, vec2(-2.5), vec2(2.5)) * detail;
+    vec3 bn = normalize(vec3(slope, 1.0));
+    float flatL = max(gKitSun.z, 0.0), bumpL = max(dot(bn, gKitSun), 0.0);
+    base *= clamp((0.45 + bumpL) / (0.45 + flatL), 0.55, 1.6);
+    // a recess is darker inside (not the glass: that is reflection's job)
+    base *= 1.0 - clamp(dep, 0.0, 0.4) * 0.9 * (1.0 - glass);
+    // the glass: the sky (or the street, looking down) at a glancing angle
+    // and the sun's glint; each pane leans a little its own way, so a row of
+    // windows does not flash all at once
+    float bayM = strips ? 3.0 : KIT_G[fam].z, stM = strips ? H : KIT_G[fam].y;
+    vec2 pane = vec2(floor(u / bayM), floor(relH / stM));
+    vec2 lean = vec2(fract(sin(dot(pane + seed * 17.0, vec2(12.9898, 78.233))) * 43758.5453),
+                     fract(sin(dot(pane + seed * 17.0, vec2(39.346, 11.135))) * 24634.6345)) - 0.5;
+    vec3 pn = normalize(vec3(lean * 0.05, 1.0));
+    vec3 r = reflect(-gKitV, pn);
+    float fres = 0.05 + 0.45 * pow(1.0 - clamp(dot(gKitV, pn), 0.0, 1.0), 4.0);
+    vec3 seen = mix(vec3(0.16, 0.16, 0.15) + sky * 0.25, sky * 0.9 + 0.03, smoothstep(-0.25, 0.25, r.y));
+    float glint = pow(max(dot(r, gKitSun), 0.0), 320.0) * step(0.0, gKitSun.z);
+    gKitRefl = glass * (seen * fres + gKitSunCol * glint * 2.5) * (1.0 - nightFac * 0.75);
+    base = mix(base, base * 0.6, glass * fres);
+  } else if (kind == 2 && variant == 0 && up >= 0.0 && !topZone) {
     // Hungarian Secessionist (szecessziós, Lechner style): undulating window mouldings,
     // and a decorative glazed Zsolnay ceramic tile frieze band under the eaves
     bool piano = (storey == 0.0);
@@ -1507,12 +1665,7 @@ vec3 facade(inout vec3 base, float u, float relH, float H, int kind, float seed,
   } else if (kind == 1 && H < 5.6) {
     // A village house (Verőce, Göd, MÁV-telep): one storey, white or pale
     // plaster, a dark plinth, one or two windows a side with a white frame,
-    // shutters on some, and a door now and then
-    if (!own) {
-      vec3 VIL[8] = vec3[8](vec3(0.94,0.93,0.89), vec3(0.95,0.91,0.80), vec3(0.93,0.86,0.66), vec3(0.92,0.92,0.90),
-                            vec3(0.88,0.80,0.70), vec3(0.93,0.80,0.72), vec3(0.84,0.88,0.80), vec3(0.95,0.89,0.74));
-      base = VIL[int(fract(seed * 6.17) * 8.0)] * (0.94 + fract(seed * 13.7) * 0.08);
-    }
+    // shutters on some, and a door now and then (the colour is set above)
     float bw = 5.4 + fract(seed * 3.9) * 2.4;
     float wx = fract(u / bw + seed), wb = floor(u / bw + seed);
     float h1 = fract(sin(wb * 12.9898 + seed * 78.2) * 43758.5);
@@ -1841,6 +1994,10 @@ vec3 waterSurface(vec3 vWorld, float vDist, vec3 tint, bool mirror) {
 const TERRAIN_VS = `#version 300 es
 in vec3 aGrid;                       // xy -1..1 across the ring, z = skirt
 out vec3 vWorld; out float vDist;
+// a smooth normal from the heightmap (central differences over one quad
+// either side): the ground used to be lit per triangle, flat facets of
+// colour the owner called "flat coloured triangles"
+out vec3 vSmooth;
 uniform mat4 uVP; uniform vec3 uEye;
 uniform vec2 uOrigin;                // ring centre, snapped
 uniform float uCell, uHalf;          // metres per quad, half-extent
@@ -1923,6 +2080,12 @@ void main(){
     h = wl;
   }
   h += craterDip(w);
+  {
+    float e = max(uCell, 12.0);
+    float hx0 = sampleH(w - vec2(e, 0.0)) + craterDip(w - vec2(e, 0.0)), hx1 = sampleH(w + vec2(e, 0.0)) + craterDip(w + vec2(e, 0.0));
+    float hz0 = sampleH(w - vec2(0.0, e)) + craterDip(w - vec2(0.0, e)), hz1 = sampleH(w + vec2(0.0, e)) + craterDip(w + vec2(0.0, e));
+    vSmooth = normalize(vec3(hx0 - hx1, 2.0 * e, hz0 - hz1));
+  }
   vWorld = vec3(w.x, h, w.y);
   vDist = length(vWorld - uEye);
   gl_Position = uVP * vec4(vWorld, 1.0);
@@ -1930,7 +2093,7 @@ void main(){
 
 const TERRAIN_FS = `#version 300 es
 precision highp float;
-in vec3 vWorld; in float vDist;
+in vec3 vWorld; in float vDist; in vec3 vSmooth;
 out vec4 fc;
 uniform vec3 uSunDir, uSunCol, uSkyCol, uFogCol, uEye;
 uniform float uFogDensity, uDither, uCorridorCut, uTime;
@@ -2037,6 +2200,19 @@ void main(){
   vec2 nuv = vec2(vWorld.x, -vWorld.z) / (uNearSize * uNearStep);
   vec3 cov = (nuv.x > 0.0 && nuv.x < 1.0 && nuv.y > 0.0 && nuv.y < 1.0)
     ? texture(uCover, vec2(nuv.x, 1.0 - nuv.y)).rgb : vec3(0.0, 0.0, 1.0);
+  // The cover raster is 25 m texels sampled nearest, and each texel was one
+  // flat colour with a straight edge: seen from the street, the ground was
+  // big tilted squares and triangles of green. Near the camera the lookup is
+  // warped by a noise of up to ~10 m, so the edges between classes and
+  // between fields wander like real ones. Water and the corridor cut-out
+  // (cov.b) are left on the true texel, or the banks and track would move.
+  if (vDist < 900.0 && nuv.x > 0.01 && nuv.x < 0.99 && nuv.y > 0.01 && nuv.y < 0.99) {
+    vec2 wq = vWorld.xz * 0.09;
+    vec2 warp = vec2(vnoise(wq) + 0.5 * vnoise(wq * 2.7 + 5.1), vnoise(wq + 17.3) + 0.5 * vnoise(wq * 2.7 + 9.4)) / 1.5 - 0.5;
+    vec2 wuv = nuv + warp * 20.0 / (uNearSize * uNearStep);
+    vec3 cw = texture(uCover, vec2(wuv.x, 1.0 - wuv.y)).rgb;
+    if (abs(cov.r * 255.0 - 9.0) > 0.5 && abs(cw.r * 255.0 - 9.0) > 0.5) cov.rg = cw.rg;
+  }
   float vCover = cov.r * 255.0;
   // Shorelines. The cover raster is 25 m pixels sampled nearest, so every
   // bank was a staircase of 25 m steps — at Népsziget a grey shipyard plate
@@ -2092,6 +2268,9 @@ void main(){
   // per-face normal from screen derivatives: flat shading for free
   vec3 n = flatNormal(vWorld, vec3(0.0, 1.0, 0.0));
   if (n.y < 0.0) n = -n;
+  // on land, light by the smooth normal (water and the river plane stay as
+  // they were: they are flat, and their snapped edges are not the DEM's)
+  if (vCover < 8.5 || vCover > 9.5) n = normalize(vSmooth);
   vec3 base = coverColour(vCover);
   // A quarry is a wound in the hill, and on the Naszály it is the most
   // visible thing from the line: bright cut limestone in horizontal benches.
@@ -2146,6 +2325,9 @@ void main(){
   float blotch = vnoise(vWorld.xz * 0.011) - 0.5;   // "patch" is reserved in GLSL ES
   float grain = (vnoise(vWorld.xz * 0.19) - 0.5) * closeness;
   base *= 1.0 + blotch * 0.26 + grain * 0.16;
+  // and a metre-scale tuft grain right by the camera (the street views)
+  float tuft = (vnoise(vWorld.xz * 0.95) * 0.6 + vnoise(vWorld.xz * 2.3) * 0.4 - 0.5) * exp(-vDist * 0.008);
+  base *= 1.0 + tuft * 0.34;
   // every field, wood and orchard gets its own shade so the classes stop
   // reading as one flat wash of colour
   base *= 0.80 + fieldTint * 0.42;
@@ -2309,6 +2491,7 @@ in vec3 vCol; in float vDist; in vec3 vWorld; in vec3 vNrm; in vec4 vBld; out ve
 uniform vec3 uEye;
 uniform vec4 uSeason;     // leaf, autumn, fresh, crop (as TERRAIN_FS)
 uniform float uGround;    // 1 while the corridor mesh draws: its grass has seasons
+uniform float uRoad;      // 1 while the roads draw: asphalt grain, patches, paving slabs
 uniform vec3 uSunDir, uSunCol, uSkyCol, uFogCol;
 uniform float uFogDensity, uDither, uSnow, uWet, uLift;
 uniform vec4 uCloudDeck, uCloudShape, uCloudWind;
@@ -2395,6 +2578,38 @@ void main(){
     b2 = mix(b2, vec3(0.40, 0.38, 0.30) * (0.9 + 0.2 * fract(vCol.r * 91.0)), (1.0 - uSeason.x) * 0.45);
     base = mix(base, b2, green);
   }
+  // Road surfaces (geom.js buildRoads), flat parts only, fading out where a
+  // pixel covers more than the pattern. Asphalt: a fine grain, a coarser
+  // mottle and darker repair patches in a 4 m grid, aligned to nothing in
+  // particular. The pavement (the PAVE_COL marker): 0.5 m slabs with joints
+  // and a few odd slabs, along the world axes (the mesh carries no
+  // direction along the street, so on a diagonal street they run askew).
+  if (uRoad > 0.5 && n.y > 0.8 && vBld.y < 0.5) {
+    vec2 p = vWorld.xz;
+    float fw = max(fwidth(p.x), fwidth(p.y));
+    float lum = dot(vCol, vec3(0.333));
+    float sat = max(vCol.r, max(vCol.g, vCol.b)) - min(vCol.r, min(vCol.g, vCol.b));
+    if (distance(vCol, vec3(0.560, 0.540, 0.505)) < 0.004) {
+      float det = 1.0 - smoothstep(0.08, 0.30, fw);
+      vec2 cell = floor(p / 0.5), f = fract(p / 0.5);
+      float joint = 1.0 - smoothstep(0.0, 0.06, min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)));
+      float odd = th21(cell * 1.7 + 3.1);
+      vec3 slab = base * (0.93 + 0.12 * odd) * (1.0 - joint * 0.22);
+      slab *= 0.94 + 0.10 * th21(floor(p / 3.0) + 7.7);         // weathering in patches
+      base = mix(base * (0.97 + 0.06 * th21(floor(p / 3.0) + 7.7)), slab, det);
+    } else if (lum < 0.40 && sat < 0.06) {
+      float det = 1.0 - smoothstep(0.15, 0.60, fw);
+      float grain = th21(p * 7.0) - 0.5;
+      float mott = th21(floor(p / 1.3)) * 0.5 + th21(floor(p / 0.6 + 0.5)) * 0.5 - 0.5;
+      vec2 pc = floor(p / 4.0);
+      float pr = th21(pc + 19.3);
+      vec2 pf = fract(p / 4.0);
+      float patchA = step(0.86, pr) * step(0.15, pf.x) * step(pf.x, 0.75 + 0.2 * th21(pc)) * step(0.2, pf.y) * step(pf.y, 0.9);
+      vec3 asph = base * (1.0 + grain * 0.10 + mott * 0.08);
+      asph = mix(asph, asph * vec3(0.78, 0.79, 0.82), patchA);   // fresh tar, darker
+      base = mix(base * (1.0 + mott * 0.05), asph, det);
+    }
+  }
   base *= mix(1.0, 0.60, uWet);
   // Snow lies on the ballast, the sleepers and the cess, but never on the
   // railhead — a running line is burnished clean by every wheel that passes.
@@ -2420,10 +2635,12 @@ void main(){
     float u = dot(vWorld.xz, tng);
     float relH = vWorld.y - vBld.x;
     float H = vBld.y;
-    int kind = facadeKind(int(vBld.z + 0.5), H, vBld.w);
+    int clsB = int(vBld.z + 0.5);       // class | façade family << 4
+    int kind = facadeKind(clsB & 15, H, vBld.w);
     float detail = 1.0 - smoothstep(0.35, 1.10, max(fwidth(u / 3.0), fwidth(relH / 3.3)));
     float nightFac = clamp((0.30 - uSunDir.y) * 4.0, 0.0, 1.0);
-    glow = facade(base, u, relH, H, kind, vBld.w, detail, nightFac, uSkyCol);
+    kitFrame(n, 1.0, uEye - vWorld, uSunDir, uSunCol);   // u runs along (-n.z, n.x)
+    glow = facade(base, u, relH, H, kind, vBld.w, detail, nightFac, uSkyCol, clsB >> 4);
   }
 
   float lam = max(dot(n, uSunDir), 0.0);
@@ -2447,7 +2664,20 @@ void main(){
     float cellLine = step(0.92, fract(vWorld.x * 0.95)) + step(0.94, fract(vWorld.y * 1.4));
     col *= 1.0 - clamp(cellLine, 0.0, 1.0) * 0.25;
   }
-  col += glow * 1.35;
+  // Streams and ditches (streams.js STREAM_WATER marker): water, darker than
+  // the river, with the sky in it at a glancing angle, a slow ripple and the
+  // sun's glint
+  if (distance(vCol, vec3(0.090, 0.150, 0.160)) < 0.004) {
+    vec3 v = normalize(uEye - vWorld);
+    vec2 rp = vWorld.xz * 1.7;
+    float t = uCloudT * 0.6;
+    vec3 wn = normalize(vec3(sin(rp.x + t) * 0.06 + sin(rp.y * 1.3 - t * 0.7) * 0.04, 1.0,
+                             cos(rp.y * 0.9 + t * 0.8) * 0.06));
+    float fres = pow(1.0 - clamp(dot(v, wn), 0.0, 1.0), 4.0);
+    col = mix(vec3(0.050, 0.075, 0.070) * (uSunCol * 0.6 + uSkyCol * 0.6), mix(uSkyCol, uFogCol, 0.4), 0.10 + fres * 0.70);
+    col += uSunCol * pow(max(dot(reflect(-uSunDir, wn), v), 0.0), 60.0) * 1.6 * lam;
+  }
+  col += glow * 1.35 + gKitRefl;
   col += headlight(vWorld, base, n, uLamp, uLampDir);
   col += streetLight(vWorld, base, n);
   col *= 1.0 - 0.82 * scorchAt(vWorld.xz);
@@ -2457,43 +2687,22 @@ void main(){
   fc = vec4(col, 1.0);
 }`;
 
-const VEG_VS = `#version 300 es
-in vec3 aCorner;                     // x: -1..1, y: 0..1, z: plane (0 or 1)
-out vec2 vUv; out float vDist; out float vKind; out float vSeed; out float vFootY;
-out float vSp; out float vWaterY; out float vCloud;
-uniform mat4 uVP; uniform vec3 uEye; uniform vec3 uRight;
+
+// Where the forest's trees stand and what they are, from the instance id
+// alone: the far trees (VEG_VS) and the near leaf-clump trees (foliage.js
+// FOL_PLACE_VS) both call this, so the two levels of detail are always the
+// same tree. False: nothing grows in this cell.
+const VEG_PLACE_GLSL = `
 uniform vec2 uOrigin; uniform float uSpacing; uniform int uSide;
 uniform sampler2D uHeightNear, uCover;
 uniform vec2 uNearSize, uNearStep;
-uniform float uMaxDist;
 uniform float uDense;                // 1: the close forest pass (woodland only)
 uniform vec4 uCityBox;               // Budapest's box, (east, north) min and max
-uniform vec2 uWaterAB;
 uniform vec4 uSeason;                // leaf, autumn, fresh, crop
-uniform vec3 uSunDir;
-uniform vec4 uCloudDeck, uCloudShape, uCloudWind;
-uniform float uCloudT, uCloudShadow;
-${CLOUD_FIELD_GLSL}
-// One sample at the foot of the tree, in the vertex shader. A billboard is
-// four vertices and a great many fragments, and a tree is under the cloud or
-// it is not — sampling the field per fragment would cost a hundred times as
-// much to say the same thing.
-float cloudShade(vec3 wpos, vec3 sunDir, vec4 deck, vec4 shape, vec4 wind,
-                 float t, float amount) {
-  if (amount <= 0.002 || sunDir.y < 0.05 || deck.z <= 0.01) return 1.0;
-  float rise = deck.x - wpos.y;
-  if (rise <= 0.0) return 1.0;
-  vec2 hit = wpos.xz + sunDir.xz / sunDir.y * rise;
-  float n = deckField(hit, deck, shape, deckFlowW(deck, wind), t, 3);
-  return 1.0 - amount * deckDensity(n, deck.z, shape.x);
-}
-
 float decode(vec3 c){ return (c.r*255.0*256.0 + c.g*255.0) * 0.1; }
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
-
-${CRATER_GLSL}
-void main(){
-  int id = gl_InstanceID;
+bool vegPlace(int id, out vec3 foot, out float sp, out float tall, out float wide,
+              out float r, out float rt, out float cov, out float railDist) {
   int n = uSide;
   vec2 cell = vec2(float(id % n), float(id / n)) - float(n) * 0.5;
   vec2 base = uOrigin + cell * uSpacing + uDense * 2.9;
@@ -2501,7 +2710,7 @@ void main(){
   vec2 w = base + jit * uSpacing * 0.9;
 
   vec2 nuv = vec2(w.x, -w.y) / (uNearSize * uNearStep);
-  float cov = 0.0, railDist = 255.0;
+  cov = 0.0; railDist = 255.0;
   if (nuv.x > 0.0 && nuv.x < 1.0 && nuv.y > 0.0 && nuv.y < 1.0) {
     vec4 cc4 = texture(uCover, vec2(nuv.x, 1.0 - nuv.y));
     vec3 cc = cc4.rgb;
@@ -2518,7 +2727,7 @@ void main(){
   bool plant = ((cov > 0.5 && cov < 2.5) || (cov > 4.5 && cov < 7.5)
                 || (cov > 10.5 && cov < 11.5) || (cov > 12.5 && cov < 13.5))
              && railDist > 30.0;
-  float r = hash(w * 0.37);
+  r = hash(w * 0.37);
   if (cov > 6.5 && cov < 7.5 && r > 0.40) plant = false;   // a tree in two garden cells out of five
   // in the city a "residential" cell is mostly courtyard and street: far
   // fewer, or they stand in the tenement blocks
@@ -2535,13 +2744,8 @@ void main(){
   if (inCity && cov > 12.5 && cov < 13.5 && r > 0.06) plant = false;
 
   float h = decode(texture(uHeightNear, vec2(clamp(nuv.x,0.,1.), 1.0 - clamp(nuv.y,0.,1.))).rgb);
-  vec3 foot = vec3(w.x, h, w.y);
-  float d = length(foot - uEye);
-  if (!plant || d > uMaxDist || nuv.x <= 0.0 || nuv.x >= 1.0
-      || nuv.y <= 0.0 || nuv.y >= 1.0) {
-    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);   // cull off-screen
-    return;
-  }
+  foot = vec3(w.x, h, w.y);
+  if (!plant || nuv.x <= 0.0 || nuv.x >= 1.0 || nuv.y <= 0.0 || nuv.y >= 1.0) return false;
 
   // Species, for the Börzsöny and the Danube floodplain specifically.
   // Altitude does most of the work here: the Börzsöny is a beech zone above
@@ -2558,8 +2762,7 @@ void main(){
   //  8 éger (alder)          9 szelídgesztenye (sweet chestnut)
   // 10 mogyoró/kökény (hazel, blackthorn)   11 szőlő (vine)
   float rs = hash(w * 1.13 + 4.7);
-  float rt = hash(w * 2.71 + 19.3);
-  float sp;
+  rt = hash(w * 2.71 + 19.3);
   // 12 gyümölcsfa (apple, plum, cherry)  13 dió (walnut)
   // 14 lucfenyő/tuja (spruce, thuja)      15 nyír (birch)
   if (cov > 6.5 && cov < 7.5)      sp = rs < 0.40 ? 12.0         // gardens
@@ -2587,7 +2790,6 @@ void main(){
                                       : rs < 0.86 ? 4.0 : 6.0;
 
   // height by species, with a real spread inside each
-  float tall;
   if (sp == 0.0)       tall = 22.0 + r * 12.0;  // beech, the tallest here
   else if (sp == 1.0)  tall = 16.0 + r * 10.0;  // sessile oak
   else if (sp == 2.0)  tall = 11.0 + r *  7.0;  // hornbeam, an understorey tree
@@ -2609,7 +2811,7 @@ void main(){
   if (uDense > 0.5) tall *= 0.62;               // the understorey is lower
   if (sp == 11.0) tall *= mix(0.55, 1.0, uSeason.x);
 
-  float wide = tall * (sp == 12.0 ? 0.95 + rt * 0.25
+  wide = tall * (sp == 12.0 ? 0.95 + rt * 0.25
                      : sp == 13.0 ? 0.72 + rt * 0.16
                      : sp == 14.0 ? 0.34 + rt * 0.08
                      : sp == 15.0 ? 0.36 + rt * 0.10
@@ -2620,6 +2822,71 @@ void main(){
                      : sp == 4.0 ? 0.52 + rt * 0.22
                      : sp == 0.0 ? 0.50 + rt * 0.18
                                  : 0.44 + rt * 0.26);
+  return true;
+}
+`;
+
+// The hand-over between the near leaf trees (foliage.js) and the far
+// three-plane crosses. R is the leaf trees' radius; each tree, by its seed r,
+// crosses over somewhere between 55% and 100% of it, so the change is not a
+// ring round the camera. In the band, a per-pixel threshold decides which of
+// the two draws the pixel: the far one keeps the pixels under the fade, the
+// near one the rest, so each pixel is drawn by exactly one of them. The
+// threshold is interleaved gradient noise shifted per tree, finer than the
+// 4x4 ordered dither it replaced (a visible screen-door grid).
+const VEG_BAND_GLSL = `
+vec2 vegBand(float R, float r) {
+  float s = fract(r * 13.7);
+  return R * vec2(0.55 + 0.15 * s, 0.85 + 0.15 * s);
+}
+`;
+const VEG_HANDOFF_GLSL = `
+float vegHandoff(float r) {
+  float n = fract(52.9829189 * fract(dot(floor(gl_FragCoord.xy), vec2(0.06711056, 0.00583715))));
+  return fract(n + fract(r * 13.7) * 0.618034);
+}
+`;
+
+const VEG_VS = `#version 300 es
+in vec3 aCorner;                     // x: -1..1, y: 0..1, z: plane (0 or 1)
+out vec2 vUv; out float vDist; out float vKind; out float vSeed; out float vFootY;
+out float vSp; out float vWaterY; out float vCloud; out float vFade;
+uniform mat4 uVP; uniform vec3 uEye; uniform vec3 uRight;
+uniform float uMaxDist;
+uniform vec2 uNearFade;              // .y: the leaf trees' radius (m), 0: none (VEG_BAND_GLSL)
+uniform vec2 uWaterAB;
+uniform vec3 uSunDir;
+uniform vec4 uCloudDeck, uCloudShape, uCloudWind;
+uniform float uCloudT, uCloudShadow;
+${CLOUD_FIELD_GLSL}
+// One sample at the foot of the tree, in the vertex shader. A billboard is
+// four vertices and a great many fragments, and a tree is under the cloud or
+// it is not — sampling the field per fragment would cost a hundred times as
+// much to say the same thing.
+float cloudShade(vec3 wpos, vec3 sunDir, vec4 deck, vec4 shape, vec4 wind,
+                 float t, float amount) {
+  if (amount <= 0.002 || sunDir.y < 0.05 || deck.z <= 0.01) return 1.0;
+  float rise = deck.x - wpos.y;
+  if (rise <= 0.0) return 1.0;
+  vec2 hit = wpos.xz + sunDir.xz / sunDir.y * rise;
+  float n = deckField(hit, deck, shape, deckFlowW(deck, wind), t, 3);
+  return 1.0 - amount * deckDensity(n, deck.z, shape.x);
+}
+${VEG_PLACE_GLSL}
+${VEG_BAND_GLSL}
+${CRATER_GLSL}
+void main(){
+  vec3 foot; float sp, tall, wide, r, rt, cov, railDist;
+  bool ok = vegPlace(gl_InstanceID, foot, sp, tall, wide, r, rt, cov, railDist);
+  float d = length(foot - uEye);
+  // nearer than its band the leaf tree (foliage.js) has it alone
+  vec2 band = vegBand(uNearFade.y, r);
+  if (!ok || d > uMaxDist || (uNearFade.y > 0.0 && d < band.x)) {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);   // cull off-screen
+    return;
+  }
+  vFade = uNearFade.y > 0.0 ? smoothstep(band.x, band.y, d) : 1.0;
+  float h = foot.y;
 
   // 3D X-Cross intersecting quads: Plane 0 at angle theta, Plane 1 at theta + 90 deg
   float treeAng = r * 6.2831853 + aCorner.z * 1.0471976;   // three planes, 60° apart
@@ -2633,7 +2900,7 @@ void main(){
   vec3 p = foot + planeDir * (aCorner.x * wide * 0.5) + vec3(0.0, aCorner.y * tall, 0.0);
   vUv = vec2(aCorner.x * 0.5 + 0.5, aCorner.y);
   vDist = d; vKind = cov; vSeed = r; vFootY = h; vSp = sp;
-  vWaterY = uWaterAB.x + uWaterAB.y * (-w.y);   // w.y is world z: north = -w.y
+  vWaterY = uWaterAB.x + uWaterAB.y * (-foot.z);   // foot.z is world z: north = -z
   vCloud = cloudShade(foot, uSunDir, uCloudDeck, uCloudShape, uCloudWind,
                       uCloudT, uCloudShadow);
   gl_Position = uVP * vec4(p, 1.0);
@@ -2649,9 +2916,10 @@ layout(location = 0) in vec3 aCorner;
 layout(location = 1) in vec4 aFoot;     // x, y, z, form
 layout(location = 2) in vec4 aDim;      // height, crown, seed, -
 out vec2 vUv; out float vDist; out float vKind; out float vSeed; out float vFootY;
-out float vSp; out float vWaterY; out float vCloud;
+out float vSp; out float vWaterY; out float vCloud; out float vFade;
 uniform mat4 uVP; uniform vec3 uEye;
 uniform float uMaxDist;
+uniform vec2 uNearFade;
 uniform vec2 uWaterAB;
 uniform vec4 uSeason;
 uniform vec3 uSunDir;
@@ -2667,6 +2935,7 @@ float cloudShade(vec3 wpos, vec3 sunDir, vec4 deck, vec4 shape, vec4 wind,
   float n = deckField(hit, deck, shape, deckFlowW(deck, wind), t, 3);
   return 1.0 - amount * deckDensity(n, deck.z, shape.x);
 }
+${VEG_BAND_GLSL}
 ${CRATER_GLSL}
 void main(){
   vec3 foot = aFoot.xyz;
@@ -2675,6 +2944,11 @@ void main(){
   float reach = uMaxDist * clamp(aDim.x / 9.0, 0.25, 1.0);
   if (d > reach) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
   float sp = aFoot.w, tall = aDim.x, wide = aDim.y, r = aDim.z;
+  // near, a tree is the leaf-clump one (foliage.js); a flower bed stays here
+  bool handed = sp < 15.5 && uNearFade.y > 0.0;
+  vec2 band = vegBand(uNearFade.y, r);
+  if (handed && d < band.x) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+  vFade = handed ? smoothstep(band.x, band.y, d) : 1.0;
   float treeAng = r * 6.2831853 + aCorner.z * 1.0471976;   // three planes, 60° apart
   vec3 planeDir = vec3(cos(treeAng), 0.0, sin(treeAng));
   // the dark timeline: a tree in the blast is gone, one on the crater's
@@ -2698,17 +2972,67 @@ void main(){
   gl_Position = uVP * vec4(p, 1.0);
 }`;
 
+
+// Each species' colours, shared by the far trees (VEG_FS) and the near
+// leaf-clump trees (foliage.js FOL_FS): the summer green, the autumn colour
+// it turns to, and its bark. Tune them here and both levels follow.
+const VEG_PAL_GLSL = `
+vec3 vegGreen(int sp) {
+  vec3 c = sp == 5  ? vec3(0.10,0.20,0.14)   // pine, blue-dark
+               : sp == 14 ? vec3(0.08,0.18,0.12)   // spruce, darker still
+               : sp == 15 ? vec3(0.30,0.42,0.18)   // birch, light
+               : sp == 12 ? vec3(0.24,0.36,0.16)   // fruit tree
+               : sp == 13 ? vec3(0.22,0.33,0.15)   // walnut
+               : sp == 0  ? vec3(0.19,0.33,0.15)   // beech, bright green
+               : sp == 4  ? vec3(0.30,0.40,0.20)   // locust, pale and yellowish
+               : sp == 6  ? vec3(0.25,0.35,0.18)   // poplar
+               : sp == 7  ? vec3(0.28,0.38,0.24)   // willow, grey-green
+               : sp == 8  ? vec3(0.13,0.25,0.15)   // alder, very dark
+               : sp == 9  ? vec3(0.20,0.31,0.14)   // chestnut
+               : sp == 11 ? vec3(0.26,0.33,0.17)   // vine
+               : sp == 3  ? vec3(0.20,0.30,0.13)   // Turkey oak
+                          : vec3(0.17,0.29,0.14);  // sessile oak, hornbeam, scrub
+  return c;
+}
+vec3 vegGold(int sp) {
+  vec3 c = sp == 15 ? vec3(0.86,0.72,0.20)   // birch, clear yellow
+            : sp == 12 ? vec3(0.76,0.40,0.14)   // fruit trees, orange and red
+            : sp == 0 ? vec3(0.62,0.32,0.12)
+            : sp == 2 || sp == 4 ? vec3(0.78,0.62,0.16)
+            : sp == 6 || sp == 7 ? vec3(0.72,0.60,0.20)
+            : sp == 9 ? vec3(0.70,0.46,0.14)
+                      : vec3(0.54,0.30,0.12);
+  return c;
+}
+vec3 vegBark(int sp) {
+  vec3 c = sp == 15 ? vec3(0.86,0.85,0.82)     // birch, white
+            : sp == 0 ? vec3(0.42,0.42,0.40)      // beech, smooth pale grey
+            : sp == 6 ? vec3(0.46,0.45,0.40)      // poplar
+            : sp == 5 ? vec3(0.34,0.22,0.14)      // pine, red-brown
+            : sp == 4 ? vec3(0.30,0.24,0.17)      // locust, deeply furrowed
+            : sp == 7 ? vec3(0.24,0.20,0.15)
+                      : vec3(0.21,0.17,0.13);
+  // bark reads as wood against the leaves: a touch lighter and greyer than
+  // the crown, which it was the same value as (the owner: trunks and
+  // branches did not separate from the leaves)
+  c = mix(c * 1.30, vec3(0.42, 0.40, 0.37), 0.25);
+  return c;
+}
+`;
+
 const VEG_FS = `#version 300 es
 precision highp float;
 in vec2 vUv; in float vDist; in float vKind; in float vSeed; in float vFootY;
-in float vSp; in float vWaterY; in float vCloud;
+in float vSp; in float vWaterY; in float vCloud; in float vFade;
 out vec4 fc;
 uniform vec3 uSunCol, uSkyCol, uFogCol;
 uniform float uFogDensity, uDither, uClipBelow, uSnow, uLift;
 uniform vec4 uSeason;                // leaf, autumn, fresh, crop
-
+${VEG_PAL_GLSL}
+${VEG_HANDOFF_GLSL}
 void main(){
   if (uClipBelow > 0.5 && vFootY < vWaterY - 0.15) discard;
+  if (vegHandoff(vSeed) >= vFade) discard;
   vec2 p = vUv - vec2(0.5, 0.0);
   float y = vUv.y;
   int sp = int(vSp + 0.5);
@@ -2823,20 +3147,7 @@ void main(){
     if (a < thr[by * 4 + bx] * 0.78 + 0.16) discard;
   }
 
-  vec3 leafCol = sp == 5  ? vec3(0.10,0.20,0.14)   // pine, blue-dark
-               : sp == 14 ? vec3(0.08,0.18,0.12)   // spruce, darker still
-               : sp == 15 ? vec3(0.30,0.42,0.18)   // birch, light
-               : sp == 12 ? vec3(0.24,0.36,0.16)   // fruit tree
-               : sp == 13 ? vec3(0.22,0.33,0.15)   // walnut
-               : sp == 0  ? vec3(0.19,0.33,0.15)   // beech, bright green
-               : sp == 4  ? vec3(0.30,0.40,0.20)   // locust, pale and yellowish
-               : sp == 6  ? vec3(0.25,0.35,0.18)   // poplar
-               : sp == 7  ? vec3(0.28,0.38,0.24)   // willow, grey-green
-               : sp == 8  ? vec3(0.13,0.25,0.15)   // alder, very dark
-               : sp == 9  ? vec3(0.20,0.31,0.14)   // chestnut
-               : sp == 11 ? vec3(0.26,0.33,0.17)   // vine
-               : sp == 3  ? vec3(0.20,0.30,0.13)   // Turkey oak
-                          : vec3(0.17,0.29,0.14);  // sessile oak, hornbeam, scrub
+  vec3 leafCol = vegGreen(sp);
   leafCol *= 0.84 + fract(vSeed * 13.7) * 0.32;
   leafCol = mix(leafCol, vec3(0.44,0.60,0.24), uSeason.z * (evergreen ? 0.08 : 0.55));
   // April: the fruit trees flower, white and pale pink, before the leaves
@@ -2847,13 +3158,7 @@ void main(){
   // hornbeam and locust to clear yellow, oak to rust and brown, poplar to
   // gold. A pine does none of it.
   float turn = clamp(uSeason.y * (0.55 + fract(vSeed * 5.9) * 0.9), 0.0, 1.0);
-  vec3 gold = sp == 15 ? vec3(0.86,0.72,0.20)   // birch, clear yellow
-            : sp == 12 ? vec3(0.76,0.40,0.14)   // fruit trees, orange and red
-            : sp == 0 ? vec3(0.62,0.32,0.12)
-            : sp == 2 || sp == 4 ? vec3(0.78,0.62,0.16)
-            : sp == 6 || sp == 7 ? vec3(0.72,0.60,0.20)
-            : sp == 9 ? vec3(0.70,0.46,0.14)
-                      : vec3(0.54,0.30,0.12);
+  vec3 gold = vegGold(sp);
   if (!evergreen) leafCol = mix(leafCol, gold, turn);
   // and out of season it is dead leaf and bare twig, not green
   vec3 dead = vec3(0.31, 0.25, 0.18);
@@ -2869,17 +3174,7 @@ void main(){
     vec3 bed = mix(vec3(0.20,0.33,0.14), fl, step(0.42, fract(hh * 7.3)) * smoothstep(0.35, 0.8, uSeason.x));
     leafCol = mix(vec3(0.30,0.24,0.18), bed, smoothstep(0.15, 0.6, uSeason.x));
   }
-  vec3 bark = sp == 15 ? vec3(0.86,0.85,0.82)     // birch, white
-            : sp == 0 ? vec3(0.42,0.42,0.40)      // beech, smooth pale grey
-            : sp == 6 ? vec3(0.46,0.45,0.40)      // poplar
-            : sp == 5 ? vec3(0.34,0.22,0.14)      // pine, red-brown
-            : sp == 4 ? vec3(0.30,0.24,0.17)      // locust, deeply furrowed
-            : sp == 7 ? vec3(0.24,0.20,0.15)
-                      : vec3(0.21,0.17,0.13);
-  // bark reads as wood against the leaves: a touch lighter and greyer than
-  // the crown, which it was the same value as (the owner: trunks and
-  // branches did not separate from the leaves)
-  bark = mix(bark * 1.30, vec3(0.42, 0.40, 0.37), 0.25);
+  vec3 bark = vegBark(sp);
   vec3 col = mix(bark, leafCol, canopy);
   // the inside of a crown is in its own shade: darker round the stem and
   // low down, so a tree has volume and structure in full leaf too
@@ -3488,7 +3783,8 @@ void main(){
   // walls exactly, roofs from the derivatives — a roof is never seen edge-on
   vec3 n = vIsWall > 0.5 ? normalize(vNrm) : flatNormal(vWorld, vec3(0.0, 1.0, 0.0));
   if (dot(n, uEye - vWorld) < 0.0) n = -n;      // mirroring flips winding
-  int cls = int(vCls + 0.5);
+  int clsB = int(vCls + 0.5);           // class | façade family << 4
+  int cls = clsB & 15;
   vec3 wall = vec3(0.72,0.68,0.60);
   if (cls == 1) wall = vec3(0.86,0.83,0.75);        // church
   else if (cls == 2) wall = vec3(0.74,0.70,0.58);   // station
@@ -3591,7 +3887,11 @@ void main(){
   if (!roof && cls != 7) {
     int kind = facadeKind(cls, vH, vSeed);
     float det = 1.0 - smoothstep(0.35, 1.10, max(fwidth(wallU / 3.0), fwidth((vWorld.y - vBase) / 3.3)));
-    glow = facade(col, wallU, vWorld.y - vBase, vH, kind, vSeed, det, uNight, uSkyCol);
+    // which way wallU runs along the wall, from how it changes on screen
+    vec3 T0 = vec3(-n.z, 0.0, n.x);
+    float sg = dot(dFdx(vWorld), T0) * dFdx(wallU) + dot(dFdy(vWorld), T0) * dFdy(wallU);
+    kitFrame(n, sg < 0.0 ? -1.0 : 1.0, uEye - vWorld, uSunDir, uSunCol);
+    glow = facade(col, wallU, vWorld.y - vBase, vH, kind, vSeed, det, uNight, uSkyCol, clsB >> 4);
   }
   // snow settles on a roof and runs off a wall; a wet wall just goes darker
   if (roof) col = mix(col, vec3(0.84,0.87,0.92), clamp(uSnow * 1.1, 0.0, 1.0));
@@ -3605,7 +3905,7 @@ void main(){
   // hash of the cell, so a building keeps the same ones all night, and how
   // many depends on what the building is: a block of flats is mostly lit at
   // nine in the evening, a shed is not.
-  col += glow * 1.35;
+  col += glow * 1.35 + gKitRefl;
   if (uNight > 0.01 && !roof && cls == 7) {
     vec2 cell = floor(grid);
     vec2 f2 = fract(grid);
@@ -3824,15 +4124,68 @@ const PEOPLE_VS = `#version 300 es
 precision highp float; precision highp isampler2D;
 layout(location = 0) in float aVid; layout(location = 2) in vec2 aUv;
 layout(location = 3) in vec4 aInst; layout(location = 4) in vec4 aInst2;
+layout(location = 5) in vec4 aInst3;
 uniform mat4 uVP; uniform vec3 uEye; uniform vec2 uGrid;
-uniform float uRow0, uFrames, uCell, uPull;
+uniform float uRow0, uFrames, uCell, uPull, uTime;
+uniform vec4 uRig;              // elbow y, elbow z, elbow |x|, neck z (tools/tag_people.py)
 uniform isampler2D uAnim;
 out vec2 vUv; out vec3 vWorld; out float vDist; out float vShade;
 vec3 frameAt(float f) { return vec3(texelFetch(uAnim, ivec2(int(aVid), int(uRow0 + f)), 0).xyz) / 16000.0; }
+float h1(float n) { return fract(sin(n * 127.1) * 43758.5453); }
+// a value held for a while, then eased to the next: k-th hold of a person
+float held(float t, float len, float sd, float lo, float hi) {
+  float u = t / len + sd * 7.0, k = floor(u);
+  float a = mix(lo, hi, h1(k + sd * 31.0)), b = mix(lo, hi, h1(k + 1.0 + sd * 31.0));
+  return mix(a, b, smoothstep(0.78, 1.0, u - k));
+}
+vec3 turnX(vec3 r, float a) { float c = cos(a), s = sin(a); return vec3(r.x, r.y * c - r.z * s, r.y * s + r.z * c); }
+vec3 turnY(vec3 r, float a) { float c = cos(a), s = sin(a); return vec3(r.x * c + r.z * s, r.y, -r.x * s + r.z * c); }
 void main(){
   vec3 p;
-  float ph = aInst2.z;
-  if (ph < 0.0) p = frameAt(uFrames);
+  vec3 at = aInst.xyz;
+  float ph = aInst2.z, yaw = aInst.w;
+  // aInst3: x the mode (0 as given, 1 idle, 2 pacing up and down a platform),
+  // y a seed, z the half length of the pace (m), w the pace (m/s) or, idle,
+  // 1 for somebody with a phone
+  float mode = aInst3.x, sd = aInst3.y;
+  bool idle = mode > 0.5;
+  float phone = mode < 1.5 ? aInst3.w : 0.0;
+  if (mode > 1.5) {
+    float L = aInst3.z, v = aInst3.w, P = 2.0 + 5.0 * h1(sd * 3.1);
+    float Tw = 2.0 * L / v, T = 2.0 * (Tw + P);
+    float t = mod(uTime + sd * T, T), back = step(Tw + P, t);
+    t -= back * (Tw + P);
+    float s = min(t, Tw) * v;
+    at += vec3(sin(yaw), 0.0, -cos(yaw)) * (back > 0.5 ? L - s : s - L);
+    if (t < Tw) { idle = false; ph = s / (1.45 * aInst2.x / 1.72); yaw += back * 3.14159; }
+    else yaw += (back + smoothstep(0.3, 0.7, (t - Tw) / P)) * 3.14159;   // turn round at the end
+  }
+  if (idle) {
+    // standing about: the weight now on one leg, now the other, the head
+    // turning to look along the platform, and some with a phone held up
+    float t = uTime + sd * 400.0;
+    p = frameAt(uFrames);
+    float w = held(t, 6.0 + 4.0 * sd, sd, -1.0, 1.0);
+    p = mix(p, frameAt(w > 0.0 ? 2.0 : 6.0), abs(w) * 0.13);
+    p.x += w * 0.014 * smoothstep(0.05, 0.5, p.y);
+    float pw = 0.0;
+    if (phone > 0.5) { float f = fract(t / (35.0 + 30.0 * sd) + sd); pw = smoothstep(0.0, 0.05, f) * (1.0 - smoothstep(0.72, 0.77, f)); }
+    int tag = texelFetch(uAnim, ivec2(int(aVid), int(uRow0 + uFrames)), 0).w;
+    if (tag == 2 && pw > 0.0) {
+      // the right forearm comes up about the elbow, the hand in to the chest
+      vec3 e = vec3(-uRig.z, uRig.x, uRig.y);
+      vec3 r = turnX(p - e, -2.3 * pw);
+      p = e + r + vec3(0.0, 0.035, 0.02) * pw; p.x += 0.5 * max(r.z, 0.0);
+    }
+    float hw = tag == 0 ? smoothstep(0.83, 0.875, p.y) : 0.0;
+    if (hw > 0.0) {
+      float look = held(t, 3.5 + 3.0 * h1(sd * 5.7), sd + 0.37, -1.0, 1.0);
+      look = sign(look) * smoothstep(0.35, 0.8, abs(look)) * 0.75 * (1.0 - pw);
+      vec3 n = vec3(0.0, 0.86, uRig.w);
+      vec3 r = turnY(turnX(p - n, 0.5 * pw), look);
+      p = mix(p, n + r, hw);
+    }
+  } else if (ph < 0.0) p = frameAt(uFrames);
   else {
     float f = fract(ph) * uFrames, fa = floor(f);
     p = mix(frameAt(fa), frameAt(mod(fa + 1.0, uFrames)), f - fa);
@@ -3843,9 +4196,9 @@ void main(){
     float cp = cos(pit), sp = sin(pit);
     p = vec3(p.x, p.y * cp - p.z * sp, p.y * sp + p.z * cp);
   }
-  float c = cos(aInst.w), s = sin(aInst.w);
+  float c = cos(yaw), s = sin(yaw);
   vec3 fw = vec3(s, 0.0, -c), l = vec3(-c, 0.0, -s);
-  vec3 w = aInst.xyz + l * p.x + vec3(0.0, p.y, 0.0) + fw * p.z;
+  vec3 w = at + l * p.x + vec3(0.0, p.y, 0.0) + fw * p.z;
   vec2 cr = vec2(mod(uCell, uGrid.x), floor(uCell / uGrid.x));
   vUv = (cr + aUv) / uGrid;
   vWorld = w; vDist = length(w - uEye); vShade = aInst2.w;
@@ -4018,7 +4371,8 @@ void main(){
 
 // ===== engine.js =====
 // --------------------------------------------------------------- gl helpers
-function compile(gl, vs, fs) {
+// tf: varyings a transform-feedback pass captures (interleaved), or none
+function compile(gl, vs, fs, tf) {
   const p = gl.createProgram();
   for (const [type, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
     const s = gl.createShader(type);
@@ -4037,6 +4391,7 @@ function compile(gl, vs, fs) {
     ["aCol", 1], ["aPosSize", 1], ["aPosRow", 1],
     ["aUv", 2], ["aRotHgtCls", 2], ["aAngN", 2], ["aNrm", 2], ["aBld", 3],
   ]) gl.bindAttribLocation(p, loc, name);
+  if (tf) gl.transformFeedbackVaryings(p, tf, gl.INTERLEAVED_ATTRIBS);
   gl.linkProgram(p);
   if (!gl.getProgramParameter(p, gl.LINK_STATUS))
     throw new Error(gl.getProgramInfoLog(p));
@@ -4228,6 +4583,611 @@ class FBuf {
     return n;
   }
   arr() { const out = this.a.slice(0, this.length); this.a = null; return out; }
+}
+
+// ===== foliage.js =====
+// Near trees as leaves on wood (27 Oct 2026, docs/LEAF_TREES.md). Within a hundred-odd metres of the
+// camera a tree or bush is a trunk, eight limbs, sixteen side branches and
+// 64 clusters of leaves, each cluster a camera-facing card on which the
+// fragment shader cuts single leaves. Each leaf has its own colour and its
+// own day to turn and to fall, so autumn comes leaf by leaf and the wood
+// shows through as it goes. Light is worked out against the crown as a
+// volume: a leaf deep in the crown on the far side from the sun is in the
+// crown's own shadow, and a leaf between you and the sun glows through.
+// Further out the forest stays VEG_VS's three-plane crosses; the two levels
+// hand over in a dithered band (VEG_HANDOFF_GLSL).
+//
+// Which trees stand near is not decided here: VEG_PLACE_GLSL (the same
+// function the far trees use) runs once per grid cell in a transform-feedback
+// pass and writes one 12-float record per tree into a buffer, culled to the
+// near radius and the view. Budapest's cadastre trees (TREE_VS) go through a
+// second small pass from a list main.js keeps of the ones near the camera.
+// The draw is then one instanced call over those records.
+
+
+// One tree, in crown space: x, z across the crown and y up it, the crown a
+// unit sphere (y −1 its foot, +1 its top) and y −2 the ground. FOL_VS bends
+// this into each species' crown. 8 floats a vertex: the point (xyz) and kind
+// (0 leaf card, 1 wood); then for a card its corner (±1, ±1), a random number
+// and its place in the draw order (cards past a tree's budget are dropped,
+// the rest grow to cover), for wood the outward direction and the radius as a
+// share of the trunk's.
+function buildFoliageMesh() {
+  let seed = 90127;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const V = [], I = [];
+  const vert = (q, kind, c) => { V.push(q[0], q[1], q[2], kind, c[0], c[1], c[2], c[3]); return V.length / 8 - 1; };
+  const nrm = v => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
+  const crs = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  // a tube along pts, radius share rf at each point, `sides` faces
+  function tube(pts, rf, sides) {
+    const first = V.length / 8;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
+      const t = nrm([b[0] - a[0], b[1] - a[1], b[2] - a[2]]);
+      const u = nrm(crs(t, Math.abs(t[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0])), w = crs(t, u);
+      for (let k = 0; k < sides; k++) {
+        const ang = k / sides * Math.PI * 2, c = Math.cos(ang), s = Math.sin(ang);
+        vert(pts[i], 1, [u[0] * c + w[0] * s, u[1] * c + w[1] * s, u[2] * c + w[2] * s, rf[i]]);
+      }
+    }
+    for (let i = 0; i + 1 < pts.length; i++)
+      for (let k = 0; k < sides; k++) {
+        const a = first + i * sides + k, b = first + i * sides + (k + 1) % sides;
+        I.push(a, a + sides, b, b, a + sides, b + sides);
+      }
+  }
+  // the trunk, flared at the foot, running up into the crown as the leader
+  tube([[0, -2, 0], [0, -1.5, 0], [0, -1, 0], [0, -0.45, 0], [0, 0.15, 0], [0, 0.62, 0]],
+       [1.2, 1.0, 0.88, 0.7, 0.45, 0.14], 6);
+  const tips = [[0, 0.78, 0]];
+  for (let i = 0; i < 8; i++) {
+    const az = i * 2.39996 + rnd() * 0.5, y0 = -0.85 + i / 7 * 1.0;
+    let e = [Math.cos(az) * 0.84, y0 + 0.28 + rnd() * 0.28, Math.sin(az) * 0.84];
+    const l = Math.hypot(e[0], e[1], e[2]);
+    if (l > 0.92) e = e.map(v => v * 0.92 / l);
+    const s = [0, y0, 0];
+    const m = [s[0] * 0.45 + e[0] * 0.55, s[1] * 0.45 + e[1] * 0.55 + 0.08, s[2] * 0.45 + e[2] * 0.55];
+    const k = 1 - i * 0.05;
+    tube([s, m, e], [0.42 * k, 0.24 * k, 0.06 * k], 4);
+    tips.push(e);
+    for (let j = 0; j < 2; j++) {
+      let f = [e[0] + (rnd() - 0.5) * 0.7, e[1] + (rnd() * 0.5 - 0.15), e[2] + (rnd() - 0.5) * 0.7];
+      const lf = Math.hypot(f[0], f[1], f[2]), want = 0.70 + rnd() * 0.22;
+      f = f.map(v => v * want / lf);
+      tube([m, f], [0.11 * k, 0.025], 3);
+      tips.push(f);
+    }
+  }
+  const woodIdx = I.length;
+  // leaf cards: two round every branch tip, the rest scattered over the shell
+  const cards = [];
+  for (const t of tips)
+    for (let j = 0; j < 2; j++)
+      cards.push([t[0] + (rnd() - 0.5) * 0.3, t[1] + (rnd() - 0.5) * 0.3, t[2] + (rnd() - 0.5) * 0.3]);
+  while (cards.length < 64) {
+    const d = nrm([rnd() - 0.5, rnd() - 0.35, rnd() - 0.5]), r = 0.55 + rnd() * 0.37;
+    cards.push(d.map(v => v * r));
+  }
+  const order = cards.map((_, i) => i).sort(() => rnd() - 0.5);
+  cards.forEach((q, i) => {
+    const o = (order[i] + 0.5) / cards.length, r = rnd();
+    const a = vert(q, 0, [-1, -1, r, o]);
+    vert(q, 0, [1, -1, r, o]); vert(q, 0, [1, 1, r, o]); vert(q, 0, [-1, 1, r, o]);
+    I.push(a, a + 1, a + 2, a, a + 2, a + 3);
+  });
+  return { verts: new Float32Array(V), idx: new Uint16Array(I), nIdx: I.length, woodIdx, cards: cards.length };
+}
+
+// Placement shared by both transform-feedback passes: the record a tree
+// leaves for FOL_VS. Not within reach (the draw radius and FOL_MARGIN), or
+// blown away: tall 0. Whether it is in view and near enough is FOL_VS's
+// question, asked every frame; this pass runs only when the camera has gone
+// far enough for the reach to matter (Foliage.place).
+const FOL_REC_GLSL = `
+uniform vec3 uEye; uniform float uNearR, uDrawR, uBudget;
+uniform vec3 uSunDir;
+uniform vec4 uCloudDeck, uCloudShape, uCloudWind;
+uniform float uCloudT, uCloudShadow;
+out vec4 oFoot; out vec4 oDim; out vec4 oExt;
+${CLOUD_FIELD_GLSL}
+float folCloud(vec3 wpos) {
+  if (uCloudShadow <= 0.002 || uSunDir.y < 0.05 || uCloudDeck.z <= 0.01) return 1.0;
+  float rise = uCloudDeck.x - wpos.y;
+  if (rise <= 0.0) return 1.0;
+  vec2 hit = wpos.xz + uSunDir.xz / uSunDir.y * rise;
+  float n = deckField(hit, uCloudDeck, uCloudShape, deckFlowW(uCloudDeck, uCloudWind), uCloudT, 3);
+  return 1.0 - uCloudShadow * deckDensity(n, uCloudDeck.z, uCloudShape.x);
+}
+${CRATER_GLSL}
+void folRecord(bool ok, vec3 foot, float sp, float tall, float wide, float r, float rt) {
+  gl_Position = vec4(0.0, 0.0, 0.0, 1.0);
+  oFoot = vec4(foot, sp); oDim = vec4(0.0); oExt = vec4(0.0);
+  float d = length(foot - uEye);
+  if (!ok || d > uNearR || sp > 15.5) return;
+  if (uCraterN > 0) {
+    if (blastAt(foot.xz) > 0.55) return;
+    foot.y += craterDip(foot.xz);
+    oFoot.y = foot.y;
+  }
+  oDim = vec4(tall, wide, r, rt);
+  oExt = vec4(folCloud(foot), 0.0, uBudget, uDrawR);
+}
+`;
+
+const FOL_PLACE_VS = `#version 300 es
+${VEG_PLACE_GLSL}
+${FOL_REC_GLSL}
+void main(){
+  vec3 foot; float sp, tall, wide, r, rt, cov, railDist;
+  bool ok = vegPlace(gl_VertexID, foot, sp, tall, wide, r, rt, cov, railDist);
+  folRecord(ok, foot, sp, tall, wide, r, rt);
+}`;
+
+// the cadastre's trees, from main.js's list of the near ones (TREE_VS's layout)
+const FOL_CAD_VS = `#version 300 es
+layout(location = 1) in vec4 aFoot;     // x, y, z, form
+layout(location = 2) in vec4 aDim;      // height, crown, seed, -
+${FOL_REC_GLSL}
+void main(){
+  folRecord(true, aFoot.xyz, aFoot.w, aDim.x, aDim.y, aDim.z, fract(aDim.z * 7.31 + 0.13));
+}`;
+
+const FOL_NULL_FS = `#version 300 es
+precision mediump float;
+out vec4 fc;
+void main(){ fc = vec4(0.0); }`;
+
+// Each species' crown: where it starts up the tree (cf), its radius as a
+// share of the crown width the placement gives (rw), its form (0 dome, 1
+// cone, 2 flame or column, 3 weeping, 4 mound from the ground), how much
+// light a metre of it stops in full leaf (dens), the trunk's radius as a
+// share of the width, and the size of a leaf cluster. Crown starts and
+// widths follow VEG_FS's silhouettes, so near and far are the same tree.
+const FOL_SPECIES_GLSL = `
+void folSpecies(int sp, out float cf, out float rw, out int shape, out float dens,
+                out float trunk, out float card) {
+  shape = 0; card = 0.42;
+  if (sp == 0)                 { cf = 0.34; rw = 0.42; dens = 0.40; trunk = 0.031; }        // beech
+  else if (sp == 1 || sp == 3) { cf = 0.28; rw = 0.47; dens = 0.30; trunk = 0.040; }        // oaks
+  else if (sp == 2)  { cf = 0.22; rw = 0.34; shape = 2; dens = 0.38; trunk = 0.025; }       // hornbeam
+  else if (sp == 4)  { cf = 0.30; rw = 0.38; dens = 0.16; trunk = 0.024; card = 0.34; }     // locust, airy
+  else if (sp == 5)  { cf = 0.12; rw = 0.38; shape = 1; dens = 0.30; trunk = 0.024; card = 0.38; } // pine
+  else if (sp == 6)  { cf = 0.15; rw = 0.30; shape = 2; dens = 0.30; trunk = 0.020; }       // poplar
+  else if (sp == 7)  { cf = 0.20; rw = 0.50; shape = 3; dens = 0.25; trunk = 0.042; }       // willow
+  else if (sp == 8)  { cf = 0.20; rw = 0.30; shape = 2; dens = 0.36; trunk = 0.022; }       // alder
+  else if (sp == 9)  { cf = 0.30; rw = 0.50; dens = 0.38; trunk = 0.045; }                  // chestnut
+  else if (sp == 10) { cf = 0.02; rw = 0.48; shape = 4; dens = 0.40; trunk = 0.015; }       // hazel, blackthorn
+  else if (sp == 11) { cf = 0.30; rw = 0.48; shape = 4; dens = 0.35; trunk = 0.022; card = 0.45; } // vine
+  else if (sp == 12) { cf = 0.34; rw = 0.50; dens = 0.30; trunk = 0.030; }                  // fruit tree
+  else if (sp == 13) { cf = 0.26; rw = 0.50; dens = 0.30; trunk = 0.037; }                  // walnut
+  else if (sp == 14) { cf = 0.04; rw = 0.42; shape = 1; dens = 0.50; trunk = 0.020; card = 0.40; } // spruce, thuja
+  else if (sp == 15) { cf = 0.30; rw = 0.32; shape = 2; dens = 0.16; trunk = 0.017; card = 0.34; } // birch
+  else               { cf = 0.30; rw = 0.44; dens = 0.30; trunk = 0.030; }
+}
+`;
+
+const FOL_VS = `#version 300 es
+layout(location = 0) in vec4 aQ;      // crown-space point, kind (0 card, 1 wood)
+layout(location = 1) in vec4 aC;      // card: corner, random, order; wood: direction, radius
+layout(location = 2) in vec4 aFoot;   // the tree: foot (world), species
+layout(location = 3) in vec4 aDim;    // tall, crown width, seed, second seed
+layout(location = 4) in vec4 aExt;    // cloud over it, -, card budget, near radius
+uniform mat4 uVP; uniform vec3 uEye, uSunDir;
+uniform vec4 uSeason;
+uniform float uTime, uPxPerM;
+out vec3 vWorld, vN, vLamp, vEll;
+out vec2 vUv;
+out float vKind, vSp, vSeed, vCard, vLod, vSh, vAO, vCloud, vFade, vDist, vExpo;
+${STREETLIGHT_GLSL}
+${VEG_BAND_GLSL}
+${FOL_SPECIES_GLSL}
+// crown space to metres above the foot, bent into the species' form
+vec3 folMap(vec3 q, float tall, float cf, float R, int shape, out float t) {
+  if (q.y < -1.0) { t = 0.0; return vec3(0.0, tall * cf * (q.y + 2.0), 0.0); }
+  t = (q.y + 1.0) * 0.5;
+  float lxz = length(q.xz);
+  float rho = min(lxz / sqrt(max(1.0 - q.y * q.y, 0.02)), 1.0);
+  vec2 dir = lxz > 1e-4 ? q.xz / lxz : vec2(0.0);
+  float W;
+  if (shape == 1) { t = pow(t, 1.4); W = clamp((1.0 - t) * 1.05, 0.0, 1.0) * smoothstep(0.0, 0.08, t); }
+  else if (shape == 2) W = pow(sin(3.14159 * pow(t, 0.75)), 0.7);
+  else if (shape == 4) W = sqrt(max(0.0, 1.0 - t * t));
+  else W = sqrt(max(0.0, 1.0 - (2.0 * t - 1.0) * (2.0 * t - 1.0)));
+  float y = tall * (cf + t * (1.0 - cf));
+  if (shape == 3) y -= tall * (1.0 - cf) * 0.5 * rho * rho * (0.3 + 0.7 * t);   // the willow hangs
+  return vec3(dir.x * rho * W * R, y, dir.y * rho * W * R);
+}
+// metres of crown between P and the sun, the crown an ellipsoid
+float folPath(vec3 P, vec3 C, vec3 Rad, vec3 L) {
+  vec3 p = (P - C) / Rad, dl = L / Rad;
+  float a = dot(dl, dl), b = 2.0 * dot(p, dl), c = dot(p, p) - 1.0;
+  float disc = b * b - 4.0 * a * c;
+  if (disc <= 0.0) return 0.0;
+  float sq = sqrt(disc);
+  float t0 = (-b - sq) / (2.0 * a), t1 = (-b + sq) / (2.0 * a);
+  return max(0.0, t1 - max(t0, 0.0));
+}
+void main(){
+  float tall = aDim.x;
+  if (tall <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+  int sp = int(aFoot.w + 0.5);
+  float wide = aDim.y, seed = aDim.z, d = length(aFoot.xyz - uEye);
+  vec2 nf = vegBand(aExt.w, seed);   // this tree's hand-off band (VEG_VS has the same)
+  if (d > nf.y) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+  {
+    // in view? the crown's sphere against the clip box, generously
+    float rad = max(tall, wide) * 0.7 + 2.0;
+    vec4 c = uVP * vec4(aFoot.xyz + vec3(0.0, tall * 0.5, 0.0), 1.0);
+    float m = rad * 2.5;
+    if (c.w < -rad || c.x > c.w + m || c.x < -c.w - m || c.y > c.w + m || c.y < -c.w - m) {
+      gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return;
+    }
+  }
+  float cf, rw, dens, trunkF, cardF; int shape;
+  folSpecies(sp, cf, rw, shape, dens, trunkF, cardF);
+  bool ever = sp == 5 || sp == 14;
+  float R = rw * wide, Hc = (1.0 - cf) * tall * 0.5;
+  vec3 foot = aFoot.xyz;
+  vec3 C = foot + vec3(0.0, tall * (cf + (1.0 - cf) * 0.5), 0.0);
+  // every tree turns the same template its own way, and mirrors half of them
+  float ang = seed * 6.2831853, ca = cos(ang), sa = sin(ang);
+  float mir = aDim.w > 0.5 ? -1.0 : 1.0;
+  vec3 q = aQ.xyz; q.x *= mir;
+  q.xz = vec2(ca * q.x - sa * q.z, sa * q.x + ca * q.z);
+  float t; vec3 off = folMap(q, tall, cf, R, shape, t);
+  vec3 P;
+  if (aQ.w > 0.5) {
+    vec3 dv = aC.xyz; dv.x *= mir;
+    dv.xz = vec2(ca * dv.x - sa * dv.z, sa * dv.x + ca * dv.z);
+    P = foot + off + dv * max(trunkF * wide, 0.05) * aC.w;
+    vN = dv; vUv = vec2(0.0); vCard = 0.0; vLod = 1.0;
+  } else {
+    // fewer, bigger clusters further out: the budget falls to 45% at the hand-off
+    float budget = aExt.z * mix(1.0, 0.45, smoothstep(nf.y * 0.25, nf.y, d));
+    if (aC.w >= budget) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+    // (a narrow crown, a spruce or a poplar, keeps clusters to its own width,
+    // or from above it was a round blob)
+    float hs = cardF * min(0.65 * R + 0.35 * Hc, 1.1 * R) * (0.75 + 0.5 * aC.z) * inversesqrt(max(budget, 0.2));
+    vec3 A = foot + off;
+    float sway = sin(uTime * 1.7 + aC.z * 40.0 + foot.x * 0.07) * 0.05 * hs * t;
+    A.xz += vec2(sway, sway * 0.6);
+    vec3 vd = normalize(A - uEye);
+    vec3 rgt = cross(vd, vec3(0.0, 1.0, 0.0));
+    rgt = dot(rgt, rgt) > 1e-4 ? normalize(rgt) : vec3(1.0, 0.0, 0.0);
+    vec3 up = cross(rgt, vd);
+    float roll = aC.z * 6.2831853;
+    vec2 c = vec2(cos(roll) * aC.x - sin(roll) * aC.y, sin(roll) * aC.x + cos(roll) * aC.y);
+    vec3 side = rgt * c.x + up * c.y;
+    P = A + side * hs;
+    // the normal: out from the crown's middle, rounded over the card
+    vec3 e = (A - C) / vec3(R, Hc, R);
+    vN = normalize(normalize(e + vec3(0.0, 0.25, 0.0)) + 0.45 * side);
+    vUv = aC.xy; vCard = aC.z;
+    // leaves across the card by its size on screen: about 3 px a leaf,
+    // never under 2 or over 16 (sub-pixel leaves are noise, NOTES)
+    float px = 2.0 * hs * uPxPerM / max(d, 1.0);
+    vLod = log2(clamp(px / 3.2, 2.0, 16.0));
+  }
+  vec3 e = (P - C) / vec3(R, Hc, R);
+  vEll = e;
+  float leafAmt = ever ? 1.0 : uSeason.x;
+  vSh = exp(-folPath(P, C, vec3(R, Hc, R), uSunDir) * dens * mix(0.12, 1.0, leafAmt));
+  float le = length(e);
+  vAO = mix(0.45, 1.0, smoothstep(0.15, 1.0, le)) * (0.78 + 0.22 * clamp(e.y * 0.5 + 0.5, 0.0, 1.0));
+  if (aQ.w > 0.5 && q.y < -1.0) vAO = mix(0.80, 1.0, smoothstep(-1.4, -2.0, q.y)) * mix(1.0, 0.85, leafAmt);
+  // the sunny outside of the crown turns first
+  vExpo = clamp(le, 0.0, 1.0) * 0.5 + clamp(e.y * 0.5 + 0.5, 0.0, 1.0) * 0.5;
+  vLamp = streetLight(P, vec3(1.0), vN);
+  vFade = smoothstep(nf.x, nf.y, d);
+  vWorld = P; vDist = length(P - uEye);
+  vKind = aQ.w; vSp = float(sp); vSeed = seed; vCloud = aExt.x;
+  gl_Position = uVP * vec4(P, 1.0);
+}`;
+
+const FOL_FS = `#version 300 es
+precision highp float;
+in vec3 vWorld, vN, vLamp, vEll;
+in vec2 vUv;
+in float vKind, vSp, vSeed, vCard, vLod, vSh, vAO, vCloud, vFade, vDist, vExpo;
+out vec4 fc;
+uniform vec3 uSunCol, uSkyCol, uFogCol, uSunDir, uEye;
+uniform float uFogDensity, uSnow, uLift;
+uniform vec4 uSeason;                // leaf, autumn, fresh, crop
+${VEG_PAL_GLSL}
+${VEG_HANDOFF_GLSL}
+float folHash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+void main(){
+  if (vegHandoff(vSeed) < vFade) discard;
+  int sp = int(vSp + 0.5);
+  bool ever = sp == 5 || sp == 14;
+  float leafAmt = ever ? 1.0 : uSeason.x;
+  vec3 n = normalize(vN);
+  vec3 bark = vegBark(sp);
+  vec3 base = bark;
+  bool leaf = false;
+  if (vKind < 0.5) {
+    vec2 uv = vUv;
+    if (dot(uv, uv) > 1.0) discard;
+    // the leaf grid: a power of two across, dithered between the two levels
+    // either side of the card's size on screen so a level change is no pop
+    float lf = floor(vLod);
+    float lev = lf + (folHash(floor(gl_FragCoord.xy) + vCard * 7.0) < vLod - lf ? 1.0 : 0.0);
+    float G = exp2(lev);
+    vec2 g = (uv * 0.5 + 0.5) * G, cell = floor(g), f = fract(g) - 0.5;
+    vec2 cc = (cell + 0.5) / G * 2.0 - 1.0;
+    float id = folHash(cell + vCard * 73.1 + lev * 11.7);
+    float id2 = folHash(cell * 1.71 + vCard * 29.3 + 5.3);
+    float id3 = folHash(cell * 2.37 + vCard * 13.9 + 9.1);
+    bool inCard = dot(cc, cc) < 0.92;
+    // the order this leaf turns and falls in: the sunny outside first
+    float age = clamp(id * 0.7 + (1.0 - vExpo) * 0.3, 0.0, 1.0);
+    bool present = inCard && (ever || age >= 1.0 - leafAmt);
+    // oak, beech and hornbeam hold some dead leaves through the winter
+    bool held = !present && inCard && !ever && (sp <= 3) && id3 < 0.14;
+    if (present || held) {
+      float a = id2 * 6.2831853;
+      vec2 lp = f - (vec2(id, id3) - 0.5) * 0.25;
+      lp = vec2(cos(a) * lp.x - sin(a) * lp.y, sin(a) * lp.x + cos(a) * lp.y);
+      float L = 0.50, Wd = 0.24;
+      if (ever) { L = 0.56; Wd = 0.07; }
+      else if (sp == 4 || sp == 15 || sp == 7) { L = 0.42; Wd = 0.14; }
+      if (!ever && present) { float grow = mix(0.45, 1.0, smoothstep(0.0, 0.6, leafAmt)); L *= grow; Wd *= grow; }
+      float xl = lp.x / L;
+      leaf = abs(xl) < 1.0 && abs(lp.y) < Wd * (1.0 - xl * xl);
+      if (ever && !leaf) {   // needles come in crossed pairs
+        vec2 lq = vec2(lp.x * 0.5 - lp.y * 0.866, lp.x * 0.866 + lp.y * 0.5);
+        float xq = lq.x / L;
+        leaf = abs(xq) < 1.0 && abs(lq.y) < Wd * (1.0 - xq * xq);
+      }
+    }
+    if (leaf) {
+      vec3 green = vegGreen(sp) * (0.84 + fract(vSeed * 13.7) * 0.32) * (0.86 + id3 * 0.28);
+      green = mix(green, green * vec3(1.18, 1.06, 0.70), id2 * 0.35);
+      green = mix(green, vec3(0.44, 0.60, 0.24), uSeason.z * (ever ? 0.08 : 0.55));
+      vec3 lc = green;
+      if (!ever) {
+        // autumn, leaf by leaf: each species' colour, some leaves redder,
+        // some browner, the exposed ones first
+        float turnLevel = clamp(uSeason.y * (0.55 + fract(vSeed * 5.9) * 0.9), 0.0, 1.0);
+        float turned = smoothstep(age - 0.12, age + 0.12, turnLevel * 1.15);
+        float redF = sp == 12 ? 0.70 : (sp == 1 || sp == 3) ? 0.25 : sp == 0 ? 0.30 : sp == 9 ? 0.20 : 0.08;
+        vec3 gold = vegGold(sp);
+        gold = mix(gold, vec3(0.62, 0.16, 0.08), step(1.0 - redF, id3) * 0.8);
+        gold = mix(gold, vec3(0.40, 0.24, 0.12), id2 * 0.35) * (0.85 + 0.30 * id);
+        lc = mix(green, gold, turned);
+        vec3 dead = vec3(0.36, 0.25, 0.15) * (0.85 + 0.30 * id);
+        lc = held ? dead : mix(dead, lc, smoothstep(0.0, 0.45, leafAmt));
+        // April: the fruit trees flower, white and pale pink, before the leaves
+        if (sp == 12 && id < uSeason.z * 0.9)
+          lc = fract(vSeed * 3.3) < 0.5 ? vec3(0.96, 0.93, 0.92) : vec3(0.95, 0.78, 0.84);
+      }
+      base = lc;
+    } else {
+      // no leaf here: the twigs it grows on, two from the cluster's foot, each
+      // forking once. They are the same length in every season (when they
+      // reached further as the leaves fell, the owner saw the branches grow
+      // in winter), short and thin: twigs, not limbs.
+      // (not on a small, distant cluster in leaf, where a twig a pixel wide
+      // was a grey speckle over the green)
+      if (ever || (leafAmt > 0.5 && vLod < 3.0)) discard;
+      float tw = 1e3, reach = 0.62;
+      int nTw = vLod < 2.0 ? 1 : 2;   // a distant bare crown is mostly its limbs
+      for (int k = 0; k < 2; k++) {
+        if (k >= nTw) break;
+        float ak = vCard * 17.0 + float(k) * 2.6;
+        vec2 dir = normalize(vec2(sin(ak) * 0.8, 1.0));
+        vec2 o = vec2(0.0, -0.75);
+        vec2 pp = uv - o;
+        float t = clamp(dot(pp, dir), 0.0, reach);
+        tw = min(tw, length(pp - dir * t) + t * 0.012);
+        float fa = (fract(ak) < 0.5 ? 0.6 : -0.6) + sin(ak * 5.3) * 0.2;
+        vec2 fd = vec2(dir.x * cos(fa) - dir.y * sin(fa), dir.x * sin(fa) + dir.y * cos(fa));
+        vec2 fp = uv - (o + dir * reach * 0.45);
+        float ft = clamp(dot(fp, fd), 0.0, reach * 0.5);
+        tw = min(tw, length(fp - fd * ft) + 0.006 + ft * 0.016);
+      }
+      if (tw > max(0.020, fwidth(uv.x) * 0.45)) discard;
+      base = mix(bark, vec3(0.24, 0.19, 0.15), 0.6) * 0.8;   // twigs: darker than the bole
+    }
+  }
+  if (uSnow > 0.001)
+    base = mix(base, vec3(0.86, 0.89, 0.93),
+               clamp(uSnow * smoothstep(0.05, 0.7, n.y) * (ever ? 1.0 : leaf ? leafAmt : 0.8), 0.0, 0.9));
+  vec3 L = uSunDir, v = normalize(vWorld - uEye);
+  float sunVis = vSh * vCloud;
+  float wrap = clamp((dot(n, L) + 0.45) / 1.45, 0.0, 1.0);
+  vec3 amb = uSkyCol * (0.42 + uLift * 0.36) * vAO + uLift * 0.06;
+  vec3 col = base * (uSunCol * wrap * sunVis * 0.95 + amb);
+  // light off the sunlit ground under the tree, onto the bole and undersides
+  col += base * uSunCol * max(uSunDir.y, 0.0) * 0.12 * clamp(0.5 - 0.5 * n.y, 0.0, 1.0);
+  if (leaf) {
+    // the sun through the leaves: strongest looking toward it, a little on
+    // every leaf's shaded side
+    float back = pow(clamp(dot(v, L), 0.0, 1.0), 4.0);
+    float behind = clamp(0.5 - 0.5 * dot(n, L), 0.0, 1.0);
+    col += base * vec3(0.85, 1.10, 0.40) * uSunCol * sunVis * (0.15 * behind + 0.65 * back);
+  }
+  col += base * vLamp;
+  float fog = 1.0 - exp(-vDist * uFogDensity);
+  col = mix(col, uFogCol, clamp(fog, 0.0, 1.0));
+  fc = vec4(col, 1.0);
+}`;
+
+const FOL_REC = 12;           // floats a tree record
+const FOL_MARGIN = 40;        // m placed beyond the draw radius; placement reruns after 30
+const FOL_CAD_MAX = 12288;    // cadastre trees in one near list (a park at 650 m)
+
+// GL side: the template, the record buffer, the passes. main.js calls
+// place() once a frame before any pass, and draw() from the vegetation
+// block of drawWorld (never the reflection).
+class Foliage {
+  constructor(gl, cap) {
+    this.gl = gl;
+    const m = buildFoliageMesh();
+    this.mesh = m;
+    const tf = ["oFoot", "oDim", "oExt"];
+    this.pPlace = compile(gl, FOL_PLACE_VS, FOL_NULL_FS, tf);
+    this.pCad = compile(gl, FOL_CAD_VS, FOL_NULL_FS, tf);
+    this.pDraw = compile(gl, FOL_VS, FOL_FS);
+    this.cap = cap + FOL_CAD_MAX;
+    this.inst = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.inst);
+    gl.bufferData(gl.ARRAY_BUFFER, this.cap * FOL_REC * 4, gl.DYNAMIC_COPY);
+    this.vao = gl.createVertexArray();
+    gl.bindVertexArray(this.vao);
+    const vb = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+    gl.bufferData(gl.ARRAY_BUFFER, m.verts, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 32, 0);
+    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 32, 16);
+    const ib = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, m.idx, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.inst);
+    for (let k = 0; k < 3; k++) {
+      gl.enableVertexAttribArray(2 + k);
+      gl.vertexAttribPointer(2 + k, 4, gl.FLOAT, false, FOL_REC * 4, k * 16);
+      gl.vertexAttribDivisor(2 + k, 1);
+    }
+    this.emptyVao = gl.createVertexArray();
+    this.cadBuf = gl.createBuffer();
+    this.cadVao = gl.createVertexArray();
+    gl.bindVertexArray(this.cadVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.cadBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, FOL_CAD_MAX * 32, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 32, 0);
+    gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 32, 16);
+    gl.bindVertexArray(null);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    this.tf = gl.createTransformFeedback();
+    this.cad = new Float32Array(FOL_CAD_MAX * 8);
+    this.cadN = 0;
+    this.cadAt = null;
+    this.trees = 0;
+  }
+  // the cadastre trees within reach of (x, z), from each loaded tile's list;
+  // redone when the camera has moved 12 m or every 40 calls
+  pickCadastre(tiles, x, z, reach) {
+    const a = this.cadAt;
+    if (a && Math.hypot(a[0] - x, a[1] - z) < 30 && a[2] === reach && ++a[3] < 120) return;
+    this.cadAt = [x, z, reach, 0];
+    const out = this.cad, r2 = (reach + 14) * (reach + 14);
+    let n = 0;
+    for (const L of tiles) {
+      for (let i = 0; i < L.length && n < FOL_CAD_MAX; i += 8) {
+        const dx = L[i] - x, dz = L[i + 2] - z;
+        if (dx * dx + dz * dz > r2 || L[i + 3] > 15.5) continue;
+        for (let k = 0; k < 8; k++) out[n * 8 + k] = L[i + k];
+        n++;
+      }
+    }
+    this.cadN = n;
+    this.cadDirty = true;
+    const gl = this.gl;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.cadBuf);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, out, 0, n * 8);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  }
+  // o: vp, eye, nearR (the cadastre's), passes [[spacing, near radius,
+  // budget, dense]], and the uniforms the far trees take (see main.js).
+  // Reruns when the camera has moved 30 m, the passes or the craters have
+  // changed, the cadastre list was redone, or every 40th call (for the
+  // cloud shadow, which is sampled here).
+  place(o) {
+    const gl = this.gl;
+    const key = JSON.stringify(o.passes) + "|" + o.nearR + "|" + o.craters;
+    const a = this.at;
+    if (a && !this.cadDirty && a.key === key && ++a.calls < 40
+        && Math.hypot(a.x - o.eye[0], a.z - o.eye[2]) < 30) return;
+    this.at = { x: o.eye[0], z: o.eye[2], key, calls: 0 };
+    this.cadDirty = false;
+    this.runs = (this.runs || 0) + 1;
+    const rec = (p, drawR) => {
+      const U = p.u;
+      gl.uniform3fv(U.uEye, o.eye);
+      gl.uniform1f(U.uNearR, drawR + FOL_MARGIN);
+      gl.uniform1f(U.uDrawR, drawR);
+      gl.uniform3fv(U.uSunDir, o.sunDir);
+      gl.uniform4fv(U.uCloudDeck, o.decks.a);
+      gl.uniform4fv(U.uCloudShape, o.decks.aShape);
+      gl.uniform4fv(U.uCloudWind, o.decks.wind);
+      gl.uniform1f(U.uCloudT, o.cloudT);
+      gl.uniform1f(U.uCloudShadow, o.cloudShadow);
+      o.setCraters(p);
+    };
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    gl.enable(gl.RASTERIZER_DISCARD);
+    gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, this.tf);
+    let n = 0;
+    {
+      const p = this.pPlace, U = p.u;
+      gl.useProgram(p.p); rec(p, o.nearR);
+      gl.uniform4fv(U.uSeason, o.season);
+      gl.uniform4fv(U.uCityBox, o.cityBox);
+      gl.uniform2f(U.uNearSize, o.nearSize[0], o.nearSize[1]);
+      gl.uniform2f(U.uNearStep, o.nearStep, o.nearStep);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, o.texNear);
+      gl.uniform1i(U.uHeightNear, 0);
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, o.texCover);
+      gl.uniform1i(U.uCover, 2);
+      gl.bindVertexArray(this.emptyVao);
+      for (const [spacing, r, budget, dense] of o.passes) {
+        const side = 2 * Math.ceil((r + FOL_MARGIN) / spacing) + 3, cnt = side * side;
+        if (n + cnt > this.cap - FOL_CAD_MAX) break;
+        gl.uniform1f(U.uDense, dense);
+        gl.uniform2f(U.uOrigin, Math.round(o.eye[0] / spacing) * spacing, Math.round(o.eye[2] / spacing) * spacing);
+        gl.uniform1f(U.uSpacing, spacing);
+        gl.uniform1i(U.uSide, side);
+        gl.uniform1f(U.uBudget, budget);
+        gl.uniform1f(U.uNearR, r + FOL_MARGIN);
+        gl.uniform1f(U.uDrawR, r);
+        gl.bindBufferRange(gl.TRANSFORM_FEEDBACK_BUFFER, 0, this.inst, n * FOL_REC * 4, cnt * FOL_REC * 4);
+        gl.beginTransformFeedback(gl.POINTS);
+        gl.drawArrays(gl.POINTS, 0, cnt);
+        gl.endTransformFeedback();
+        n += cnt;
+      }
+    }
+    if (this.cadN) {
+      const p = this.pCad;
+      gl.useProgram(p.p); rec(p, o.nearR);
+      gl.uniform1f(p.u.uBudget, o.cadBudget);
+      gl.bindVertexArray(this.cadVao);
+      gl.bindBufferRange(gl.TRANSFORM_FEEDBACK_BUFFER, 0, this.inst, n * FOL_REC * 4, this.cadN * FOL_REC * 4);
+      gl.beginTransformFeedback(gl.POINTS);
+      gl.drawArrays(gl.POINTS, 0, this.cadN);
+      gl.endTransformFeedback();
+      n += this.cadN;
+    }
+    gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, null);
+    gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null);
+    gl.disable(gl.RASTERIZER_DISCARD);
+    this.trees = n;
+  }
+  // the trees place() found, drawn in the pass that is current
+  draw(o) {
+    const gl = this.gl, n = this.trees;
+    if (!n || this.noDraw) return;   // (noDraw: from the console, to time the rest alone)
+    const p = this.pDraw, U = p.u;
+    gl.useProgram(p.p);
+    gl.uniformMatrix4fv(U.uVP, false, o.vp);
+    gl.uniform3fv(U.uEye, o.eye);
+    gl.uniform3fv(U.uSunDir, o.sunDir);
+    gl.uniform4fv(U.uSeason, o.season);
+    gl.uniform1f(U.uTime, o.time);
+    gl.uniform1f(U.uPxPerM, o.pxPerM);
+    gl.uniform3fv(U.uSunCol, o.pal.sun);
+    gl.uniform3fv(U.uSkyCol, o.pal.zenith);
+    gl.uniform3fv(U.uFogCol, o.pal.horizon);
+    gl.uniform1f(U.uFogDensity, o.pal.fog);
+    gl.uniform1f(U.uSnow, o.snow);
+    gl.uniform1f(U.uLift, o.lift);
+    o.setStreetLights(p);
+    gl.bindVertexArray(this.vao);
+    gl.drawElementsInstanced(gl.TRIANGLES, this.mesh.nIdx, gl.UNSIGNED_SHORT, 0, n);
+    gl.bindVertexArray(null);
+  }
 }
 
 // ===== env.js =====
@@ -4596,6 +5556,10 @@ class Driver {
       this.throttle = Math.max(0, Math.min(1, err / 3.0));
       this.brake = Math.max(0, Math.min(1, (-err - 0.15) / 2.2));
       if (this.brake > 0.02) this.throttle = 0;
+      // told to stand (a red, a crossing to wait for): the brake goes fully
+      // on. With the brake in proportion to the speed alone, a down grade
+      // held the train at 0.3 m/s, and it crept past the signal for ever.
+      if (cap < 0.05) { this.throttle = 0; this.brake = 1; }
     }
     const m = s.massT * 1000 * s.rot;
     // Wheel slip: the driven axles can only put down adhesion x their share
@@ -5109,6 +6073,9 @@ const ROAD_COL = [
 ];
 
 const KERB_COL = [0.52, 0.51, 0.48];
+// The pavement's colour is also a marker: TRACK_FS lays paving slabs on it
+// (as on SOLAR). Keep the two in step.
+const PAVE_COL = [0.560, 0.540, 0.505];
 const MARK_COL = [0.80, 0.78, 0.70];
 
 // The terrain mesh is a triangle grid at ~17 m; a road sampled only at its own
@@ -5293,6 +6260,8 @@ function buildRoads(ways, widths, demAt, waterAt, railDistAt) {
   // Vehicles drive on the same function (way.deckAt), so a car on Margit híd
   // is on Margit híd and not in the Danube under it.
   const surfAt = (x, y) => groundAt(x, y) + liftAt(x, y);
+  // no pavement on the ballast at a level crossing
+  const nearRail = (x, y) => { if (!railDistAt) return false; const r = railDistAt(x, y); return !!r && r.d < 9; };
   {
     const br = ways.filter(w => w.bridge && w.bridge !== 3 && w.pts.length > 1);
     const parent = br.map((_, i) => i);
@@ -5522,6 +6491,7 @@ function buildRoads(ways, widths, demAt, waterAt, railDistAt) {
     const CL = -1 - Math.min(6, cls) * 0.012;
     const wayLen = pts.reduce((a, q, i) => i ? a + Math.hypot(q[0] - pts[i-1][0], q[1] - pts[i-1][1]) : 0, 0);
     const clearEnd = hw + 4;
+    const pave = cls >= 1 && cls <= 4 && !bridge ? (cls <= 2 ? 2.6 : cls === 3 ? 2.0 : 1.6) : 0;
     if (wayLen < 2) continue;      // a stub too short to draw: its caps stood alone as grey hexagons
     let along = 0;
     cap(pts[0][0], pts[0][1], hw, CL, col);
@@ -5565,9 +6535,15 @@ function buildRoads(ways, widths, demAt, waterAt, railDistAt) {
         strip(x0, y0, x1, y1, from, hw, CL, col);
         if (paved && inside) {
           // the kerbs are laterally clear of the carriageway, so they may sit
-          // lower without ever overlapping it
-          strip(x0, y0, x1, y1, -hw - 0.9, -hw, CL - 0.07, KERB_COL);
-          strip(x0, y0, x1, y1, hw, hw + 0.9, CL - 0.07, KERB_COL);
+          // lower without ever overlapping it; then a pavement beyond them
+          // (not from OSM: sidewalks are rarely mapped here, so every street
+          // above a service road gets one, wider on the bigger roads)
+          strip(x0, y0, x1, y1, -hw - 0.3, -hw, CL - 0.07, KERB_COL);
+          strip(x0, y0, x1, y1, hw, hw + 0.3, CL - 0.07, KERB_COL);
+          if (pave > 0 && !nearRail(x0, y0) && !nearRail(x1, y1)) {
+            strip(x0, y0, x1, y1, -hw - 0.3 - pave, -hw - 0.3, CL - 0.08, PAVE_COL);
+            strip(x0, y0, x1, y1, hw + 0.3, hw + 0.3 + pave, CL - 0.08, PAVE_COL);
+          }
         }
       }
     }
@@ -5630,7 +6606,7 @@ function unpackBuildings(b64, count) {
     out[i * 8 + 3] = dv.getUint16(o + 10, true) * 0.1;
     out[i * 8 + 4] = dv.getUint16(o + 12, true) / 65535 * Math.PI;
     out[i * 8 + 5] = dv.getUint16(o + 14, true) * 0.1;
-    out[i * 8 + 6] = raw[o + 16];       // class
+    out[i * 8 + 6] = raw[o + 16];       // class | façade family << 4, decoded in BLDG_FS
     out[i * 8 + 7] = raw[o + 17];       // flat roof
   }
   return out;
@@ -5654,7 +6630,9 @@ function unpackPolyBuildings(b64, count, colours) {
   for (let i = 0; i < count; i++) {
     const cx = dv.getFloat32(o, true), cy = dv.getFloat32(o + 4, true);
     const h = dv.getUint16(o + 8, true) * 0.1;
-    const cls = raw[o + 10], roof = raw[o + 11];
+    // the class byte carries the façade family in its top four bits
+    // (tools/facade_zones.py)
+    const cls = raw[o + 10] & 15, fam = raw[o + 10] >> 4, roof = raw[o + 11];
     const npts = raw[o + 12], ntri = raw[o + 13];
     const rh = dv.getUint16(o + 14, true) * 0.01;
     o += 16;
@@ -5665,7 +6643,7 @@ function unpackPolyBuildings(b64, count, colours) {
     }
     const tri = [];
     for (let k = 0; k < ntri; k++) { tri.push([raw[o], raw[o+1], raw[o+2]]); o += 3; }
-    out.push({ cx, cy, h, cls, roof, rh, pts, tri });
+    out.push({ cx, cy, h, cls, fam, roof, rh, pts, tri });
   }
   // OSM building:colour / roof:colour, where mapped (bake_context osm_colour)
   for (const [i, wall, roofC] of colours || []) {
@@ -5765,7 +6743,7 @@ function buildPolyBuildings(polys, demAt, sheds) {
     const seed = ((oi * 2654435761) >>> 0) % 997 / 997;
     // a negative seed tells the façade shader the wall colour is OSM's own,
     // not to be replaced by its palette
-    info = [g, eave - g, B.cls, B.wallCol ? -(seed + 0.001) : seed];
+    info = [g, eave - g, B.cls + 16 * (B.fam || 0), B.wallCol ? -(seed + 0.001) : seed];
     // roofs vary: Pest is terracotta, weathered brown and grey slate
     const RT = [[0.40,0.23,0.17], [0.46,0.27,0.19], [0.33,0.24,0.20], [0.30,0.31,0.33], [0.38,0.30,0.26]];
     const rt = B.roofCol || RT[Math.floor(seed * 5 * 7.3) % 5];
@@ -6596,10 +7574,15 @@ function boardAtlas(names, W = 512, H = 64) {
  * platform position so they do not swim about between frames, and they face
  * the track, because everybody does.
  */
-// With `sink` (an array), each person is added to it as eight numbers for the
+// With `sink` (an array), each person is added to it as twelve numbers for the
 // textured, animated models (main.js people3d): x, y, z, yaw, height, a 0..1
-// pick of which model, the walk phase (-1 standing) and a shade. Only the
+// pick of which model, the walk phase (-1 standing), a shade, and how the
+// shader moves them (PEOPLE_VS aInst3): mode (0 as given, 1 standing about,
+// 2 pacing up and down), a seed, the half length and pace of the pacing, or
+// for mode 1 a 1 for somebody who takes out a phone now and then. Only the
 // suitcase and the umbrella are then still built as boxes.
+// (A sixth of those waiting on a platform pace up and down it; the rest
+// stand, each at its own point of shifting weight and looking about.)
 function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, rainy = false, osmFor = null, walk = null, sink = null) {
   const V = new FBuf(), C = new FBuf();
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
@@ -6635,7 +7618,7 @@ function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, rainy =
     for (let k = 0; k < 4; k++) quad(c[k], c[(k+1)%4], t[(k+1)%4], t[k], col);
     quad(t[0], t[1], t[2], t[3], col);
   };
-  const person = (x, y, g, fx, fy, r, i, swing = 0, phase = -1) => {
+  const person = (x, y, g, fx, fy, r, i, swing = 0, phase = -1, anim = null) => {
     const kid = r(1) < 0.10, old = !kid && r(2) < 0.18;
     const H = kid ? 1.05 + r(3) * 0.25 : (1.58 + r(3) * 0.30) * (old ? 0.96 : 1);
     const W = (kid ? 0.16 : 0.20 + r(4) * 0.06) * (r(5) < 0.2 ? 1.2 : 1);
@@ -6647,7 +7630,11 @@ function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, rainy =
     const legH = H * 0.47, bodyH = H * 0.33, headH = H * 0.13;
     const lean = old ? 0.06 : 0;
     const bx = x + fx * lean, by = y + fy * lean, hx = bx + fx * lean, hy = by + fy * lean, h0 = g + legH + bodyH;
-    if (sink) sink.push(x, g, -y, Math.atan2(fx, fy), H, r(26), phase, 0.88 + r(27) * 0.24);
+    if (sink) {
+      const m = anim || (phase < 0 ? [1, 0, r(29) < 0.3 ? 1 : 0] : [0, 0, 0]);
+      sink.push(x, g, -y, Math.atan2(fx, fy), H, r(26), phase, 0.88 + r(27) * 0.24, m[0], r(28), m[1], m[2]);
+      if (m[0] === 2) return;                 // (a pacer carries nothing that would stay behind)
+    }
     else {
     if (skirt) box(x, g, y, fx, fy, W * 0.95, W * 0.6, g + legH * 0.45, g + legH, coat);
     for (const sd of [-1, 1]) {                                   // legs
@@ -6713,6 +7700,12 @@ function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, rainy =
         const wx = sec[2] - sec[0], wy = sec[3] - sec[1], wl = Math.hypot(wx, wy) || 1;
         let fx = -wx / wl, fy = -wy / wl;                       // towards the track edge
         if (pl.island && r(21) < 0.5) { fx = -fx; fy = -fy; }
+        // a pacer: along the platform from this section to one 12-24 m on
+        const j = R.indexOf(sec), j2 = j + (r(30) < 0.5 ? -1 : 1) * (2 + Math.floor(r(31) * 3));
+        if (sink && r(32) < 0.17 && j2 >= 0 && j2 < R.length) {
+          const s2 = R[j2], x2 = s2[0] + (s2[2] - s2[0]) * t, y2 = s2[1] + (s2[3] - s2[1]) * t, L = Math.hypot(x2 - x, y2 - y) / 2;
+          if (L > 4) { person((x + x2) / 2, (y + y2) / 2, (sec[4] + s2[4]) / 2, (x2 - x) / (2 * L), (y2 - y) / (2 * L), r, i, 0, -1, [2, L, 1.0 + r(33) * 0.4]); continue; }
+        }
         person(x, y, sec[4], fx, fy, r, i);
       }
       continue;
@@ -6729,6 +7722,10 @@ function buildPlatformPeople(stops, downPts, upPts, demAt, hour, majors, rainy =
       let fx = -nx * side, fy = -ny * side;
       if (face > 0.72) { fx = ux * (face > 0.86 ? 1 : -1); fy = uy * (face > 0.86 ? 1 : -1); }
       else if (face > 0.62) { fx = -fx; fy = -fy; }
+      const L = 5 + r(31) * 5;
+      if (sink && r(32) < 0.17 && Math.abs(along) + L < half) {
+        person(x, y, g, ux, uy, r, i, 0, -1, [2, L, 1.0 + r(33) * 0.4]); continue;
+      }
       person(x, y, g, fx, fy, r, i);
       // now and then a pair or a family standing together
       if (r(24) < 0.18) person(x + ux * 0.8, y + uy * 0.8, g, fx, fy, (k) => r(k + 40), i);
@@ -6927,8 +7924,17 @@ function buildSignals(sigs, downPts, upPts, aspectOf) {
 
 
 // ------------------------------------------------- level crossing furniture
-// 68 crossings, with the barrier type OSM records for each: full, half,
-// double half, or none. The booms drop when a train is close enough.
+// The crossings with what OSM records for each: barrier full, half, double
+// half or none, and crossing:light (tools/patch_crossings.py). On each side
+// of the line, on the right of the road for the traffic coming up to it,
+// stands the Hungarian road signal: a pale post with the St Andrew's cross
+// (white, red rim) on top and under it the light: an upside-down triangle,
+// white rim and black face, two red lamps side by side and one white lamp
+// under them, each with a hood. With no train near the white lamp blinks
+// slowly; when one is near, the two reds blink in turn and the booms come
+// down. A crossing tagged light=no has the cross alone; one with no tag
+// gets the light (nearly all on these main lines have one). The road is
+// taken to cross square to the line, 7 m wide.
 function buildCrossings(crossings, downPts, demAt, trains) {
   const V = new FBuf(), C = new FBuf();
   const at = (m) => {
@@ -6938,56 +7944,109 @@ function buildCrossings(crossings, downPts, demAt, trains) {
     return [a[0] + u*(b[0]-a[0]), a[1] + u*(b[1]-a[1]), a[2] + u*(b[2]-a[2])];
   };
   const push = (p, col) => { V.push(p[0], p[1], -p[2]); C.push(col[0], col[1], col[2]); };
-  const beam = (a, b, w, up, col) => {
-    const q = [[a[0]-w[0], a[1]-up, a[2]-w[1]], [b[0]-w[0], b[1]-up, b[2]-w[1]],
-               [b[0]+w[0], b[1]+up, b[2]+w[1]], [a[0]+w[0], a[1]+up, a[2]+w[1]]];
-    for (const k of [0,1,2,0,2,3]) push(q[k], col);
-  };
-  const post = [0.30, 0.31, 0.32], red = [0.80, 0.16, 0.12], white = [0.88, 0.88, 0.86];
-  const lampR = [0.95, 0.20, 0.15], lampOff = [0.20, 0.16, 0.16];
+  const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
+  const XP_POST = [0.62, 0.63, 0.62], XP_RED = [0.74, 0.10, 0.09], XP_WHITE = [0.90, 0.90, 0.88];
+  const XP_BLACK = [0.035, 0.035, 0.04], XP_BACK = [0.34, 0.35, 0.36], XP_GREY = [0.30, 0.31, 0.32];
+  const XP_RED_ON = [2.3, 0.22, 0.16], XP_RED_OFF = [0.20, 0.04, 0.04];
+  const XP_WHITE_ON = [2.1, 2.05, 1.9], XP_WHITE_OFF = [0.16, 0.16, 0.17];
+  const now = performance.now() / 1000;
+  const W = 3.5, D = 7.5;                    // half the road; signal from the track's middle
 
-  for (const x of crossings) {
-    const m = x.m;
+  // (OSM often has two nodes, the road and its footway, or one per track:
+  // nodes within 25 m are one crossing, with the most any of them says)
+  const RANK = { half: 1, double_half: 2, full: 3 };
+  const groups = [];
+  for (const x of crossings.slice().sort((a, b) => a.m - b.m)) {
+    const g = groups[groups.length - 1];
+    if (g && x.m - g.m0 < 25) g.list.push(x); else groups.push({ m0: x.m, list: [x] });
+  }
+  for (const grp of groups) {
+    const m = grp.list[0].m;
     if (m < downPts[0][3] + 20 || m > downPts[downPts.length-1][3] - 20) continue;
-    const barrier = x.barrier;
-    if (!barrier || barrier === "no") continue;      // unprotected: nothing to draw
+    let barrier = null;
+    for (const q of grp.list) if (RANK[q.barrier] > (RANK[barrier] || 0)) barrier = q.barrier;
+    const light = grp.list.some(q => q.light !== "no") || !!barrier;
     const a = at(m - 10), b = at(m + 10);
     const dx = b[0]-a[0], dy = b[1]-a[1];
     const L = Math.hypot(dx, dy) || 1;
     const fx = dx/L, fy = dy/L, nx = -fy, ny = fx;
-    const p = at(m);
+    const p = at(m), g0 = p[2];
     // is anything coming?
     let close = false;
     for (const t of trains) {
       const d = Math.abs(t.m - m);
       if (d < 900 && t.v > 1) { close = true; break; }
     }
-    const drop = close ? 1 : 0;
+    const blinkA = Math.floor(now * 1.6) % 2 === 0;
+    const whiteOn = !close && now % 1.4 < 0.6;
 
     for (const sg of [-1, 1]) {
-      const bx = p[0] + nx * sg * 9.5, bz = p[1] + ny * sg * 9.5;
-      const g = p[2];
-      // post
-      beam([bx - 0.14, g, bz - 0.14], [bx + 0.14, g, bz + 0.14], [0.14, 0.14], 1.6, post);
-      // the boom: spans ACROSS THE ROAD (along the track tangent direction fx, fy)
-      // when closed (drop=1), and stands upright (vertical in y) when open (drop=0).
-      const len = (barrier === "full") ? 7.6 : 4.8;
-      const boomDir = (sg > 0) ? -1 : 1;
-      const tipX = bx + fx * boomDir * len * drop;
-      const tipZ = bz + fy * boomDir * len * drop;
-      const tipY = g + 1.5 + (1 - drop) * 4.6;
-      for (let seg = 0; seg < 5; seg++) {
-        const t0 = seg / 5, t1 = (seg + 1) / 5;
-        const p0 = [bx + (tipX - bx) * t0, g + 1.5 + (tipY - (g + 1.5)) * t0, bz + (tipZ - bz) * t0];
-        const p1 = [bx + (tipX - bx) * t1, g + 1.5 + (tipY - (g + 1.5)) * t1, bz + (tipZ - bz) * t1];
-        beam(p0, p1, [nx * 0.09, ny * 0.09], 0.09, seg % 2 ? white : red);
+      // u across the road (towards its middle), h up, o towards the cars coming
+      const ex = fx * sg, ey = fy * sg, ox = nx * sg, oy = ny * sg;
+      const bx = p[0] + ox * D - ex * W, by = p[1] + oy * D - ey * W;
+      const gy = g0;                         // (the road is flush with the rails here)
+      const Q = (u, h, o) => [bx + ex * u + ox * o, gy + h, by + ey * u + oy * o];
+      const box = (u0, u1, h0, h1, o0, o1, col) => {
+        quad(Q(u0, h0, o1), Q(u1, h0, o1), Q(u1, h1, o1), Q(u0, h1, o1), col);
+        quad(Q(u1, h0, o0), Q(u0, h0, o0), Q(u0, h1, o0), Q(u1, h1, o0), col);
+        quad(Q(u0, h0, o0), Q(u0, h0, o1), Q(u0, h1, o1), Q(u0, h1, o0), col);
+        quad(Q(u1, h0, o1), Q(u1, h0, o0), Q(u1, h1, o0), Q(u1, h1, o1), col);
+        quad(Q(u0, h1, o1), Q(u1, h1, o1), Q(u1, h1, o0), Q(u0, h1, o0), col);
+      };
+      const top = light ? 3.55 : 2.75;
+      box(-0.05, 0.05, 0, top, -0.05, 0.05, XP_POST);
+      // the St Andrew's cross: two boards, a red rim round white
+      const ch = top - 0.35;
+      for (const [k, ang] of [[0, 0.95], [1, -0.95]]) {
+        const ca = Math.cos(ang), sa = Math.sin(ang);
+        const R = (l, w, o) => Q(l * ca - w * sa, ch + l * sa + w * ca, o);
+        const o = 0.07 + k * 0.03;
+        quad(R(-0.62, -0.1, o - 0.012), R(0.62, -0.1, o - 0.012), R(0.62, 0.1, o - 0.012), R(-0.62, 0.1, o - 0.012), XP_BACK);
+        quad(R(-0.62, -0.1, o), R(0.62, -0.1, o), R(0.62, 0.1, o), R(-0.62, 0.1, o), XP_RED);
+        quad(R(-0.57, -0.055, o + 0.006), R(0.57, -0.055, o + 0.006), R(0.57, 0.055, o + 0.006), R(-0.57, 0.055, o + 0.006), XP_WHITE);
       }
-      // warning signal lamps facing approaching road traffic (facing along nx * sg)
-      for (const side of [-1, 1]) {
-        const lx = bx + fx * side * 0.55, lz = bz + fy * side * 0.55;
-        beam([lx - 0.16, g + 2.5, lz], [lx + 0.16, g + 2.5, lz], [0.16, 0.16], 0.16,
-             close && (Math.floor(performance.now() / 500) % 2 === (side > 0 ? 0 : 1))
-               ? lampR : lampOff);
+      if (light) {
+        // the triangle: top edge at 2.55 m, point at 1.62 m, a box 14 cm deep
+        const tT = 2.55, tB = 1.62, hw = 0.56, o0 = 0.0, o1 = 0.14;
+        const tri = (k, o, col) => {
+          const s = k, tt = tT - s * 0.55, tb = tB + s * 1.1, w = hw - s * 0.95;
+          quad(Q(0, tb, o), Q(w, tt, o), Q(-w, tt, o), Q(-w, tt, o), col);
+        };
+        tri(0, o0 - 0.005, XP_BACK);
+        tri(0, o1, XP_WHITE);
+        tri(0.075, o1 + 0.005, XP_BLACK);
+        quad(Q(-hw, tT, o1), Q(hw, tT, o1), Q(hw, tT, o0), Q(-hw, tT, o0), XP_GREY);
+        for (const sd of [-1, 1])
+          quad(Q(0, tB, o1), Q(sd * hw, tT, o1), Q(sd * hw, tT, o0), Q(0, tB, o0), XP_GREY);
+        // the lamps, each a disc with a hood over it
+        const lamp = (u, h, r, col) => {
+          const o = o1 + 0.012, n = 10;
+          for (let i = 0; i < n; i++) {
+            const a0 = i / n * 6.2832, a1 = (i + 1) / n * 6.2832;
+            quad(Q(u, h, o), Q(u + Math.cos(a0) * r, h + Math.sin(a0) * r, o),
+                 Q(u + Math.cos(a1) * r, h + Math.sin(a1) * r, o), Q(u + Math.cos(a1) * r, h + Math.sin(a1) * r, o), col);
+          }
+          quad(Q(u - r * 1.15, h + r * 1.1, o), Q(u + r * 1.15, h + r * 1.1, o),
+               Q(u + r * 1.15, h + r * 0.75, o + r * 1.6), Q(u - r * 1.15, h + r * 0.75, o + r * 1.6), XP_BLACK);
+        };
+        lamp(-0.2, 2.31, 0.115, close && blinkA ? XP_RED_ON : XP_RED_OFF);
+        lamp(0.2, 2.31, 0.115, close && !blinkA ? XP_RED_ON : XP_RED_OFF);
+        lamp(0, 1.98, 0.075, whiteOn ? XP_WHITE_ON : XP_WHITE_OFF);
+      }
+      if (barrier) {
+        // the boom: from its drive just behind the post, across the near half
+        // of the road (the whole road for a full barrier); upright when open
+        const len = barrier === "full" ? 2 * W + 0.4 : W + 0.4, drop = close ? 1 : 0;
+        box(0.3, 0.62, 0, 1.05, -0.62, -0.3, XP_GREY);
+        const h0 = 0.95;
+        for (let seg = 0; seg < 6; seg++) {
+          const t0 = seg / 6, t1 = (seg + 1) / 6;
+          const P0 = drop ? [0.46 + len * t0, h0] : [0.46, h0 + len * t0];
+          const P1 = drop ? [0.46 + len * t1, h0] : [0.46, h0 + len * t1];
+          const col = seg % 2 ? XP_WHITE : XP_RED;
+          if (drop) box(P0[0], P1[0], h0 - 0.05, h0 + 0.05, -0.5, -0.42, col);
+          else box(0.41, 0.51, P0[1], P1[1], -0.5, -0.42, col);
+        }
       }
     }
   }
@@ -7065,8 +8124,46 @@ function buildCityExtras(x, tx, demAt, waterAt, railDistAt, skipAt = null) {
   const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
   const BALLAST = [0.36, 0.33, 0.30], RAIL = [0.30, 0.29, 0.28], TRAMBED = [0.32, 0.32, 0.33];
   const pts = (a) => { const o = []; for (let i = 0; i < a.length; i += 2) o.push(tx(a[i], a[i + 1])); return o; };
+  // the tram tracks' segments in a 20 m grid, so each tram way can tell on
+  // which side its partner track runs (the overhead line's poles stand on the
+  // other side, never between the two tracks)
+  const tramSeg = new Map();
+  for (const [kind, , flat] of x.rails || []) {
+    if (kind !== 2) continue;
+    const P = pts(flat);
+    for (let i = 0; i + 1 < P.length; i++) {
+      const k = Math.floor((P[i][0] + P[i + 1][0]) / 40) + "," + Math.floor((P[i][1] + P[i + 1][1]) / 40);
+      if (!tramSeg.has(k)) tramSeg.set(k, []);
+      tramSeg.get(k).push([P[i], P[i + 1], flat]);
+    }
+  }
+  // signed distance to the nearest OTHER tram track at (px, py), along the
+  // normal (nx, ny): + on the left, - on the right, 0 if none within 7 m
+  const partner = (px, py, nx, ny, own) => {
+    let best = 0, bd = 7;
+    const cx = Math.floor(px / 20), cy = Math.floor(py / 20);
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++)
+      for (const [a, b, f] of tramSeg.get((cx + dx) + "," + (cy + dy)) || []) {
+        if (f === own) continue;
+        const ex = b[0] - a[0], ey = b[1] - a[1], L2 = ex * ex + ey * ey || 1;
+        const t = Math.max(0, Math.min(1, ((px - a[0]) * ex + (py - a[1]) * ey) / L2));
+        const qx = a[0] + ex * t - px, qy = a[1] + ey * t - py, d = Math.hypot(qx, qy);
+        if (d < bd && d > 1.5) { bd = d; best = Math.sign(qx * nx + qy * ny) * d; }
+      }
+    return best;
+  };
+  // A wire as two crossed ribbons (as catenary.js), drawn thicker than it is
+  // so it survives the low internal resolution.
+  const wire = (p0, p1, r, col) => {
+    const dx = p1[0] - p0[0], dz = p1[2] - p0[2], L = Math.hypot(dx, dz) || 1;
+    const nx = -dz / L * r, nz = dx / L * r;
+    quad([p0[0], p0[1] - r, p0[2]], [p1[0], p1[1] - r, p1[2]], [p1[0], p1[1] + r, p1[2]], [p0[0], p0[1] + r, p0[2]], col);
+    quad([p0[0] - nx, p0[1], p0[2] - nz], [p1[0] - nx, p1[1], p1[2] - nz], [p1[0] + nx, p1[1], p1[2] + nz], [p0[0] + nx, p0[1], p0[2] + nz], col);
+  };
+  const POLE = [0.34, 0.37, 0.35], TWIRE = [0.24, 0.22, 0.20];
   for (const [kind, bridge, flat] of x.rails || []) {
     const P = pts(flat);
+    if (kind === 2) tramOverhead(P, bridge, flat);
     const gauge = kind === 1 ? 1.0 : 1.435, bw = kind === 2 ? 1.6 : kind === 1 ? 1.9 : 2.7;
     const yOf = (p) => {
       const g = demAt(p[0], p[1]);
@@ -7097,6 +8194,54 @@ function buildCityExtras(x, tx, demAt, waterAt, railDistAt, skipAt = null) {
       if (bridge && kind !== 2) {   // railway bridges get deck edges; trams on road bridges run flush
         for (const sg of [-1, 1])
           quad(Q(a, ya, sg * bw, -1.2), Q(b, yb, sg * bw, -1.2), Q(b, yb, sg * bw, 0.1), Q(a, ya, sg * bw, 0.1), [0.40, 0.38, 0.36]);
+      }
+    }
+  }
+  // The tram's overhead line: one contact wire 5.5 m over the ground, hung
+  // from a bracket on a pole every 32 m. The pole stands 3.1 m out on the
+  // side away from the other track (both tracks' poles face each other across
+  // a double line, which reads as Budapest's span-wire poles from a distance).
+  // Not from OSM: the city's poles are not mapped, so the spacing is typical.
+  // On a bridge there are no poles (they stand on the parapet in reality).
+  function tramOverhead(P, bridge, own) {
+    const CW = 5.5, POLE_H = 7.2, OFF = 3.1, SPAN = 32;
+    const yOf = (p) => bridge ? NaN : demAt(p[0], p[1]);
+    let acc = SPAN * 0.5 + (Math.abs(P[0][0] * 7.1 + P[0][1] * 3.3) % 9);
+    for (let i = 0; i + 1 < P.length; i++) {
+      const a = P[i], b = P[i + 1];
+      const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy);
+      if (L < 0.2) continue;
+      const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+      if (railDistAt) { const r = railDistAt(mx, my); if (r && r.d < 6) { acc = 0; continue; } }
+      const ya = bridge ? NaN : yOf(a), yb = bridge ? NaN : yOf(b);
+      if (isFinite(ya) && isFinite(yb))
+        wire([a[0], ya + CW, a[1]], [b[0], yb + CW, b[1]], 0.05, TWIRE);
+      const nx = -dy / L, ny = dx / L;
+      acc += L;
+      while (acc >= SPAN) {
+        acc -= SPAN;
+        const t = 1 - acc / L, px = a[0] + dx * t, py = a[1] + dy * t;
+        const g = yOf([px, py]);
+        if (!isFinite(g)) continue;
+        // the partner track's side; the pole goes on the other one
+        const pd = partner(px, py, nx, ny, own);
+        const sg = pd > 0 ? -1 : pd < 0 ? 1 : (i % 2 ? 1 : -1);
+        const ox = px + nx * OFF * sg, oy = py + ny * OFF * sg;
+        const go = demAt(ox, oy);
+        if (!isFinite(go)) continue;
+        // a tapered square pole
+        const r0 = 0.15, r1 = 0.09;
+        const c = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+        for (let k = 0; k < 4; k++) {
+          const [u0, v0] = c[k], [u1, v1] = c[(k + 1) % 4];
+          quad([ox + u0 * r0, go - 0.3, oy + v0 * r0], [ox + u1 * r0, go - 0.3, oy + v1 * r0],
+               [ox + u1 * r1, go + POLE_H, oy + v1 * r1], [ox + u0 * r1, go + POLE_H, oy + v0 * r1], POLE);
+        }
+        // the bracket over the track and its tie, and the hanger to the wire
+        const tip = [px - nx * sg * 0.25, g + CW + 0.55, py - ny * sg * 0.25];
+        wire([ox, go + CW + 0.6, oy], tip, 0.05, POLE);
+        wire([ox, go + CW + 1.5, oy], [px + nx * sg * 0.9, g + CW + 0.62, py + ny * sg * 0.9], 0.035, POLE);
+        wire(tip, [px, g + CW, py], 0.03, TWIRE);
       }
     }
   }
@@ -7357,7 +8502,7 @@ function buildTrains(traffic, downPts, upPts, player, night = 0, hollow = false,
       const frontEnd = k === 0 ? t.dir : 0;
       const rearEnd = k === t.cars - 1 ? -t.dir : 0;
 
-      if (isLoco) buildLoco(quad, Pw, half, stock, tGlass, night, t.loco);
+      if (isLoco) buildLoco(quad, Pw, half, stock, tGlass, night, t.loco, t.dir);
       else if (stock === "FREIGHT")
         buildWagon(quad, Pw, half, tSeed, k);
       else buildCoach(quad, Pw, half, stock, k, t.cars, frontEnd, rearEnd, tGlass, night);
@@ -7404,8 +8549,13 @@ function buildCoach(quad, P, half, stock, k, cars, frontEnd, rearEnd, glass, nig
   const step = doubleDeck ? half * 0.56 : half;
   // (the 416 and Bzmot fronts are nearly upright: a short nose)
   const nose = (frontEnd || rearEnd) ? (stock === "FLIRT" ? 1.30 : (stock === "M416" || stock === "BZMOT") ? 0.38 : 1.05) : 0;
-  const e0 = -half + (rearEnd ? nose : 0);
-  const e1 =  half - (frontEnd ? nose : 0);
+  // frontEnd and rearEnd are the way that end of the train faces along the
+  // track (+1 up the chainage, -1 down): a train running at -1 has its head
+  // at the car's -1 end. (Until 28 Oct the head was put at +1 whatever the
+  // direction, so every train running at -1 had its cabs on the inside.)
+  const cabAt = (out) => frontEnd === out || rearEnd === out;
+  const e0 = -half + (cabAt(-1) ? nose : 0);
+  const e1 =  half - (cabAt(1) ? nose : 0);
 
   // window bands, and where the blue gives way to the white
   const loWin = doubleDeck ? [1.08, 1.88] : [floor + 0.62, floor + 1.62];
@@ -7518,9 +8668,8 @@ function buildCoach(quad, P, half, stock, k, cars, frontEnd, rearEnd, glass, nig
   }
 
   for (const [ee, out] of [[e0, -1], [e1, 1]]) {
-    const isCab = (out < 0 ? rearEnd : frontEnd) !== 0;
     const topH = doubleDeck ? endTop : roofHi;
-    if (isCab) cabEnd(quad, P, ee, out, W, Wt, topH, floor, liv, nose, glass, night, stock);
+    if (cabAt(out)) cabEnd(quad, P, ee, out, W, Wt, topH, floor, liv, nose, glass, night, stock, frontEnd === out);
     else {
       quad(P(ee, -W, floor - 0.4), P(ee, W, floor - 0.4),
            P(ee, W, topH - 0.32), P(ee, -W, topH - 0.32), DARK);
@@ -7538,7 +8687,7 @@ function buildCoach(quad, P, half, stock, k, cars, frontEnd, rearEnd, glass, nig
     pantograph(quad, P, half * 0.15, doubleDeck ? CAR_H[stock] : CAR_H[stock]);
 }
 
-function cabEnd(quad, P, ee, out, W, Wt, topH, floor, liv, nose, glass, night, stock = "KISS") {
+function cabEnd(quad, P, ee, out, W, Wt, topH, floor, liv, nose, glass, night, stock = "KISS", lead = out > 0) {
   const tip = ee + out * nose;
   const wTip = W * 0.72, wTipT = Wt * 0.62;
   quad(P(ee, -Wt, topH), P(ee, Wt, topH),
@@ -7653,7 +8802,6 @@ function cabEnd(quad, P, ee, out, W, Wt, topH, floor, liv, nose, glass, night, s
   // and two red low at the trailing one; both ends carry both, and the colour
   // is chosen by which way the vehicle faces. They are authored above 1.0, so
   // it is the bloom that makes them read as lights rather than white squares.
-  const lead = out > 0;
   const lampCol = lead ? HEADLAMP : TAILLAMP;
   const boost = 0.55 + night * 0.9;
   const lc = [lampCol[0]*boost, lampCol[1]*boost, lampCol[2]*boost];
@@ -7708,7 +8856,7 @@ function pantograph(quad, P, x, roofY) {
 // A V43-ish machine: cobalt blue with a yellow warning front, roof equipment,
 // a cab at each end. It is what pulls everything on this line that is not a
 // multiple unit.
-function buildLoco(quad, P, half, stock, glass, night, loco) {
+function buildLoco(quad, P, half, stock, glass, night, loco, dir = 1) {
   const liv = LIVERY["LOCO_" + loco] || LIVERY.LOCO;
   const W = 1.48, Wt = 1.20, roofY = 4.28, floor = 1.15;
   const nose = 1.15;
@@ -7732,7 +8880,7 @@ function buildLoco(quad, P, half, stock, glass, night, loco) {
   }
   quad(P(e0, -Wt, roofY), P(e1, -Wt, roofY), P(e1, Wt, roofY), P(e0, Wt, roofY), liv.roof);
   for (const [ee, out] of [[e0, -1], [e1, 1]])
-    cabEnd(quad, P, ee, out, W, Wt, roofY, floor, liv, nose, glass, night, "LOCO");
+    cabEnd(quad, P, ee, out, W, Wt, roofY, floor, liv, nose, glass, night, "LOCO", out === dir);
   bogies(quad, P, half, "end", W);
   pantograph(quad, P, -half * 0.34, roofY);
   pantograph(quad, P, half * 0.34, roofY);
@@ -8265,6 +9413,102 @@ const SERVICES = [
     pattern: "none",  stock: "FREIGHT" },
 ];
 
+// ---- single track. A line whose up and down tracks are the same path
+// (line 2) is single track except where the data shows a second track
+// alongside, 3–7 m off: double-track sections and station loops. Those
+// ranges come from the yard-track layer (OSM, q_line2_rails.ql, unpacked by
+// geom.js unpackRails); a range under 300 m is a siding, not a loop. The
+// loop's side is the side the second track is on. Returns {loops, single},
+// single null on a double-track line. main.js and tools/test_sim.mjs both
+// use it, so the test runs on the sections the game has.
+function trackLayout(route, routeData, railWays) {
+  const dn = routeData.track_down, up = routeData.track_up;
+  const singleLine = dn.length === up.length && dn.length > 10 && dn[10][0] === up[10][0] && dn[10][1] === up[10][1];
+  if (!singleLine) return { loops: [], single: null };
+  let loops = [];
+  const B = 50, n = Math.ceil(dn[dn.length - 1][3] / B) + 2;
+  const cnt = new Uint16Array(n), side = new Float32Array(n);
+  for (const w of railWays) {
+    if (w.cls !== 0) continue;
+    // along each segment, not only at its nodes: a straight loop track
+    // has a node at each end and nothing between
+    for (let j = 0; j + 1 < w.pts.length; j++) {
+      const q0 = w.pts[j], q1 = w.pts[j + 1];
+      if (q0[3] < 3 || q0[3] > 7 || q1[3] < 3 || q1[3] > 7) continue;
+      const steps = Math.max(1, Math.ceil(Math.abs(q1[2] - q0[2]) / 25));
+      for (let st = 0; st <= steps; st++) {
+        const f = st / steps;
+        const x = q0[0] + (q1[0] - q0[0]) * f, y = q0[1] + (q1[1] - q0[1]) * f, c = q0[2] + (q1[2] - q0[2]) * f;
+        const k = Math.floor(c / B);
+        if (k < 0 || k >= n) continue;
+        const a = route.at(c), tg = route.tangent(c);
+        cnt[k]++; side[k] += Math.sign(tg[0] * (y - a[1]) - tg[1] * (x - a[0]));
+      }
+    }
+  }
+  for (let k = 0; k < n; k++) {
+    if (!cnt[k]) continue;
+    const last = loops[loops.length - 1];
+    if (last && k * B - last.b <= 250) { last.b = (k + 1) * B; last.side += side[k]; }
+    else loops.push({ a: k * B, b: (k + 1) * B, side: side[k] });
+  }
+  loops = loops.filter(l => l.b - l.a >= 300).map(l => ({ a: l.a, b: l.b, side: l.side >= 0 ? 1 : -1 }));
+  const end = dn[dn.length - 1][3];
+  const single = [];
+  let at = 0;
+  for (const l of loops) { if (l.a - at > 150) single.push([at, l.a]); at = Math.max(at, l.b); }
+  if (end - at > 150) single.push([at, end]);
+  // a "single" stretch under 1.2 km between two double ones is a gap in
+  // the mapped second track (Kőbánya-Kispest came out single), not a real
+  // single-track section: real ones run from loop to loop, kilometres
+  for (let i = single.length - 1; i >= 0; i--) {
+    const [a, b] = single[i];
+    const inner = a > 0 && b < end;
+    if (inner && b - a < 1200) single.splice(i, 1);
+  }
+  return { loops, single };
+}
+
+// How far a train coming off a single-track section is eased over onto the
+// loop track (m), and how far short of the section's entry a train waiting
+// to cross stands: clear of that ease, so the two never stand in each other.
+// (The wait was 25 m short and the ease 60 m, and the front of every train
+// coming off the single track ran through the one waiting for it.)
+const LOOP_EASE = 60;
+const CROSS_STAND = LOOP_EASE + 20;
+
+// Which side a train is drawn on: trains running against the player's
+// direction take the second track wherever the line is not single track, so
+// a crossing is two trains side by side. "Not single" is the complement of
+// the traffic's own sections, not the loops: a short gap in the mapped second
+// track counts as double for the traffic (trackLayout), and trains drawn on
+// one line there ran through each other. Eased over LOOP_EASE metres at the
+// ends that meet a single-track section.
+function sideOnLoops(route, loops, single) {
+  const end = route.r.track_down[route.r.track_down.length - 1][3];
+  const dbl = [];
+  let at = 0;
+  for (const [a, b] of single) { if (a > at) dbl.push([at, a]); at = b; }
+  if (end > at) dbl.push([at, end]);
+  const ranges = dbl.map(([a, b]) => {
+    // the side of the loop that overlaps it most
+    let best = 0, side = 1;
+    for (const l of loops) {
+      const o = Math.min(b, l.b) - Math.max(a, l.a);
+      if (o > best) { best = o; side = l.side; }
+    }
+    return { a, b, side, ea: a > 0, eb: b < end };
+  });
+  return (t, m) => {
+    if (t.dir === route.dir) return 0;
+    for (const r of ranges) {
+      if (m > r.a && m < r.b)
+        return r.side * 4.6 * Math.min(1, r.ea ? (m - r.a) / LOOP_EASE : 1, r.eb ? (r.b - m) / LOOP_EASE : 1);
+    }
+    return 0;
+  };
+}
+
 class Traffic {
   constructor(route, signalsDown, timetable) {
     this.route = route;
@@ -8452,7 +9696,7 @@ class Traffic {
     const c = this.claim[i];
     if (!c || c.dir === t.dir) return null;
     const [a, b] = this.single[i];
-    return (t.dir > 0 ? a : b) - t.dir * 25;
+    return (t.dir > 0 ? a : b) - t.dir * CROSS_STAND;
   }
   distanceToSignal(train) {
     if (train.singleStopM != null) return Math.max(0, (train.singleStopM - train.m) * train.dir);
@@ -15671,9 +16915,11 @@ function drawHud(c, canvas, st, world) {
   const place = (sx, sy, text, colour, dim) => {
     c.font = `600 ${Math.round(12*s)}px "IBM Plex Sans", system-ui, sans-serif`;
     const tw = c.measureText(text).width;
-    if (used.some(u => Math.abs(u[0]-sx) < (tw+40)*s*0.5 && Math.abs(u[1]-sy) < 15*s))
+    // the label's box (with a margin) must not touch another's
+    const bx0 = sx - 10*s, bx1 = sx + tw + 10*s, by0 = sy - 28*s, by1 = sy + 2*s;
+    if (used.some(u => bx0 < u[2] && bx1 > u[0] && by0 < u[3] && by1 > u[1]))
       return false;
-    used.push([sx, sy]);
+    used.push([bx0, by0, bx1, by1]);
     c.globalAlpha = dim;
     c.fillStyle = "rgba(8,14,18,.58)";
     c.fillRect(sx - 4*s, sy - 22*s, tw + 8*s, 16*s);
@@ -15691,24 +16937,43 @@ function drawHud(c, canvas, st, world) {
       : layer === "places" ? ["place"] : ["landmark", "church", "public"];
     const col = { place: "rgba(255,236,190,.96)", landmark: "rgba(190,232,255,.96)",
                   church: "rgba(226,214,246,.94)", public: "rgba(214,238,214,.94)" };
+    // In the city every tile adds its landmarks and public buildings, and
+    // from the street they crowded the view (the owner's Völgy utca picture).
+    // So: the most important first (rank, then distance), at most MAX_NAMES
+    // of them, none nearer than 150 m unless it is a town or district (you
+    // are standing in it; the street plaque names the street), and the
+    // overlap test below takes the whole label box.
+    const MAX_NAMES = 7, cands = [];
     for (const pl of routeData.places) {
       if (!want.includes(pl.kind)) continue;
       const d = Math.hypot(pl.xy[0] - st.camEye[0], pl.xy[1] + st.camEye[2]);
       const cap = pl.kind === "place" ? (pl.rank <= 1 ? 14000 : pl.rank <= 3 ? 5000 : 2200)
                 : pl.rank <= 1 ? 4200 : pl.rank <= 2 ? 2600 : 1500;
-      if (d > cap || d < 60 || !visible(d)) continue;
+      const near = pl.kind === "place" && pl.rank <= 2 ? 60 : 150;
+      if (d > cap || d < near || !visible(d)) continue;
+      cands.push([(pl.rank || 2) + d / cap, pl, d, cap]);
+    }
+    cands.sort((a, b) => a[0] - b[0]);
+    let shown = 0;
+    for (const [, pl, d, cap] of cands) {
+      if (shown >= MAX_NAMES) break;
       const pr = project(st.vp, [pl.xy[0], pl.h + 22, -pl.xy[1]]);
       if (!pr) continue;
       const sx = (pr[0]*0.5+0.5)*W, sy = (1-(pr[1]*0.5+0.5))*H;
       if (sx < 40*s || sx > W-40*s || sy < 30*s || sy > H*0.80) continue;
-      place(sx, sy, pl.name, col[pl.kind], Math.max(0.35, 1 - d / cap));
+      if (place(sx, sy, pl.name, col[pl.kind], Math.max(0.35, 1 - d / cap))) shown++;
     }
   }
 
   if (layer === "hills" || layer === "all") {
     c.font = `600 ${Math.round(12*s)}px "IBM Plex Sans", system-ui, sans-serif`;
-    const peaks = routeData.peaks;
+    // the five nearest summits at most (from a Buda street every hill round
+    // about was named at once)
+    const peaks = routeData.peaks.map(pk => [Math.hypot(pk.xy[0] - st.camEye[0], pk.xy[1] + st.camEye[2]), pk])
+      .sort((a, b) => a[0] - b[0]).map(a => a[1]);
+    let hills = 0;
     for (const pk of peaks) {
+      if (hills >= 5) break;
       const d = Math.hypot(pk.xy[0] - st.camEye[0], pk.xy[1] + st.camEye[2]);
       if (d > 24000 || d < 220 || !visible(d)) continue;
       const rise = pk.ele - st.camEye[1];
@@ -15720,8 +16985,8 @@ function drawHud(c, canvas, st, world) {
       if (!pr) continue;
       const sx = (pr[0]*0.5+0.5)*W, sy = (1-(pr[1]*0.5+0.5))*H;
       if (sx < 40*s || sx > W-40*s || sy < 30*s || sy > H*0.72) continue;
-      place(sx, sy, `${pk.name}  ${pk.ele|0}`, "rgba(236,244,248,.95)",
-            Math.max(0.30, 1 - d / 26000));
+      if (place(sx, sy, `${pk.name}  ${pk.ele|0}`, "rgba(236,244,248,.95)",
+                Math.max(0.30, 1 - d / 26000))) hills++;
     }
   }
 
@@ -17864,8 +19129,12 @@ class Trams {
             const lc = [TRAM_LAMP[0] * (0.4 + night), TRAM_LAMP[1] * (0.4 + night), TRAM_LAMP[2] * (0.4 + night)];
             for (const o of [-0.8, 0.8]) quad(P(f, o - 0.14, 0.75), P(f, o + 0.14, 0.75), P(f, o + 0.14, 0.95), P(f, o - 0.14, 0.95), lc);
             // the pantograph over the leading section
-            const m = this.at(r, s1 - secL * 0.5);
-            quad(P(m, -0.6, H + 0.05), P(m, 0.6, H + 0.05), P(m, 0.6, H + 0.65), P(m, -0.6, H + 0.65), TRAM_SKIRT);
+            // (a half-diamond up to the contact wire, which geom.js
+            // buildCityExtras hangs 5.5 m over the ground: 0.7 + H + 1.45)
+            const m = this.at(r, s1 - secL * 0.5), m0 = this.at(r, s1 - secL * 0.5 - 0.9);
+            quad(P(m0, -0.5, H + 0.05), P(m0, 0.5, H + 0.05), P(m, 0.5, H + 0.8), P(m, -0.5, H + 0.8), TRAM_SKIRT);
+            quad(P(m, -0.5, H + 0.8), P(m, 0.5, H + 0.8), P(m0, 0.5, H + 1.40), P(m0, -0.5, H + 1.40), TRAM_SKIRT);
+            quad(P(m0, -0.75, H + 1.40), P(m0, 0.75, H + 1.40), P(m0, 0.75, H + 1.47), P(m0, -0.75, H + 1.47), TRAM_BOGIE);
           }
         }
       }
@@ -17927,6 +19196,686 @@ class Trams {
     }
 
     return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
+  }
+}
+
+// ===== streams.js =====
+
+// Streams, ditches and small canals (tools/bake_streams.py → data/streams.json,
+// from OSM waterway=stream/ditch/drain/canal; culverts and tunnels left out):
+// the Rákos-patak, the Szilas-patak, the Ördög-árok, the ditches along the
+// fields. Until now only the Danube and the lakes were water.
+//
+// Each is drawn as a strip of water between two muddy banks that darken
+// towards it, laid on the ground a little above it (as the roads are). It is
+// NOT dug into the terrain: the heightmap is 25 m a pixel and cannot hold a
+// two-metre channel, so from low down the banks read as a ditch by their
+// colour, not by a real drop.
+//
+// There are 3,500 km of them, so the meshes are cut into 1 km chunks and only
+// those near the camera are built (two a frame at most) and kept.
+
+// The water's colour is a marker: TRACK_FS shades it as water (sky in it at a
+// glancing angle, a sun glint, a slow ripple). Keep the two in step.
+const STREAM_WATER = [0.090, 0.150, 0.160];
+const STREAM_MUD = [0.30, 0.26, 0.19], STREAM_BANK = [0.29, 0.35, 0.19];
+const STREAM_CHUNK = 1000;
+// [water half-width, bank width] by kind: stream, ditch/drain, canal
+const STREAM_SIZE = [[0.8, 1.3], [0.45, 0.8], [2.2, 1.6]];
+
+class Streams {
+  /** @param coverIsWater (x, north) → true over a lake or the river */
+  constructor(data, near, demAt, coverIsWater) {
+    const [mlat, mlon] = metresPerDegree(near.frame_lat ?? (near.south + near.north) / 2);
+    this.demAt = demAt; this.coverIsWater = coverIsWater;
+    this.chunks = new Map();          // key → [{ kind, hw, bw, pts }]
+    this.built = new Map();           // key → mesh (whatever build() returned)
+    this.names = data.names || {};
+    const W = (near.east - near.west) * mlon, N = (near.north - near.south) * mlat;
+    (data.ways || []).forEach(([kind, wd, flat], wi) => {
+      // undo the delta coding; lat/lon in 1e-5 degrees from (lat0, lon0)
+      let la = 0, lo = 0;
+      const P = [];
+      for (let i = 0; i < flat.length; i += 2) {
+        la += flat[i]; lo += flat[i + 1];
+        const x = (data.lon0 + lo * 1e-5 - near.west) * mlon, n = (data.lat0 + la * 1e-5 - near.south) * mlat;
+        P.push([x, n]);
+      }
+      // only what lies in this line's near region (where the ground is known)
+      if (!P.some(([x, n]) => x > 0 && n > 0 && x < W && n < N)) return;
+      // resample to 8 m so the strip follows the ground
+      const R = [];
+      for (let i = 1; i < P.length; i++) {
+        const a = P[i - 1], b = P[i], k = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 8));
+        for (let j = 0; j < k; j++) R.push([a[0] + (b[0] - a[0]) * j / k, a[1] + (b[1] - a[1]) * j / k]);
+      }
+      R.push(P[P.length - 1]);
+      const [hw0, bw] = STREAM_SIZE[kind] || STREAM_SIZE[1];
+      const hw = wd > 0 ? Math.min(6, wd / 20) : hw0;
+      // cut into runs by chunk (each run keeps one point of overlap)
+      let run = null, key = null;
+      for (let i = 0; i < R.length; i++) {
+        const k = Math.floor(R[i][0] / STREAM_CHUNK) + "," + Math.floor(R[i][1] / STREAM_CHUNK);
+        if (k !== key) {
+          if (run) run.pts.push(R[i]);
+          key = k; run = { kind, hw, bw, pts: i ? [R[i - 1], R[i]] : [R[i]], wi };
+          if (!this.chunks.has(k)) this.chunks.set(k, []);
+          this.chunks.get(k).push(run);
+        } else run.pts.push(R[i]);
+      }
+    });
+  }
+
+  /** The mesh of one chunk: [verts, cols] as the track program takes them. */
+  buildChunk(runs) {
+    const V = new FBuf(), C = new FBuf(), demAt = this.demAt;
+    const push = (x, y, n, c) => { V.push(x, y, -n); C.push(c[0], c[1], c[2]); };
+    for (const { hw, bw, pts } of runs) {
+      if (pts.length < 2) continue;
+      // per-point normals (mitred), heights, and the five offsets of the
+      // cross-section: bank, mud edge, water, water, mud edge, bank
+      const off = [-hw - bw, -hw - 0.25, -hw, hw, hw + 0.25, hw + bw];
+      const col = [STREAM_BANK, STREAM_MUD, STREAM_WATER, STREAM_WATER, STREAM_MUD, STREAM_BANK];
+      const rows = pts.map((p, i) => {
+        const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
+        const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+        const nx = -dy / L, ny = dx / L;
+        const wet = this.coverIsWater(p[0], p[1]);
+        return off.map((o) => {
+          const x = p[0] + nx * o, n = p[1] + ny * o, g = demAt(x, n);
+          // the water lies a little lower than its banks
+          return [x, g + (Math.abs(o) <= hw + 0.01 ? 0.10 : 0.18), n, wet || !isFinite(g)];
+        });
+      });
+      for (let i = 0; i + 1 < rows.length; i++) {
+        const A = rows[i], B = rows[i + 1];
+        for (let j = 0; j + 1 < off.length; j++) {
+          if (A[j][3] || B[j][3]) continue;           // in a lake or the river: its water is there
+          const a0 = A[j], a1 = A[j + 1], b0 = B[j], b1 = B[j + 1];
+          const c0 = col[j], c1 = col[j + 1];
+          // the water band is one colour (the marker), the banks shade across
+          push(a0[0], a0[1], a0[2], c0); push(a1[0], a1[1], a1[2], c1); push(b1[0], b1[1], b1[2], c1);
+          push(a0[0], a0[1], a0[2], c0); push(b1[0], b1[1], b1[2], c1); push(b0[0], b0[1], b0[2], c0);
+        }
+      }
+    }
+    return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
+  }
+
+  /** Call every frame: builds chunks within R of (cx, cn), at most two a
+   *  frame, nearest first; frees those past R + 800 m. */
+  update(cx, cn, R, make, free) {
+    const want = [];
+    const k0x = Math.floor(cx / STREAM_CHUNK), k0y = Math.floor(cn / STREAM_CHUNK), r = Math.ceil(R / STREAM_CHUNK);
+    for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) {
+      const k = (k0x + i) + "," + (k0y + j);
+      if (!this.chunks.has(k) || this.built.has(k)) continue;
+      const d = Math.hypot((k0x + i + 0.5) * STREAM_CHUNK - cx, (k0y + j + 0.5) * STREAM_CHUNK - cn);
+      if (d < R) want.push([d, k]);
+    }
+    want.sort((a, b) => a[0] - b[0]);
+    for (const [, k] of want.slice(0, 2)) {
+      const m = this.buildChunk(this.chunks.get(k));
+      this.built.set(k, m.count ? make(m) : null);
+    }
+    for (const [k, m] of this.built) {
+      const [i, j] = k.split(",").map(Number);
+      if (Math.hypot((i + 0.5) * STREAM_CHUNK - cx, (j + 0.5) * STREAM_CHUNK - cn) > R + 800) {
+        if (m) free(m);
+        this.built.delete(k);
+      }
+    }
+  }
+  each(fn) { for (const m of this.built.values()) if (m) fn(m); }
+}
+
+// ===== streetbits.js =====
+
+// The street's small things in Budapest (tools/bake_streetbits.py →
+// data/streetbits.json, all from OSM): bus and tram stop shelters and signs,
+// the raised stop platforms, litter bins, benches, recycling bins, fences,
+// hedges and guard rails. Simple coloured shapes in the track program, built
+// in 1 km chunks round the camera (as streams.js), at most two a frame.
+//
+// What is a guess: a shelter mapped only as a point (or as `shelter=yes` on
+// the stop) is 4 × 1.5 m and faces the nearest road; colours are typical
+// BKK ones, not per stop; fences are one height (1.25 m) and drawn solid.
+
+const SB_CHUNK = 1000;
+const SB_STEEL = [0.30, 0.32, 0.33], SB_GLASS = [0.58, 0.66, 0.70], SB_ROOF = [0.22, 0.24, 0.26],
+      SB_BKK = [0.10, 0.27, 0.56], SB_WHITE = [0.86, 0.87, 0.86], SB_BIN = [0.18, 0.26, 0.22],
+      SB_WOOD = [0.42, 0.30, 0.19], SB_FENCE = [0.40, 0.44, 0.40], SB_FENCE_TOP = [0.30, 0.33, 0.30],
+      SB_HEDGE = [0.17, 0.29, 0.13], SB_HEDGE_TOP = [0.22, 0.35, 0.16], SB_RAIL = [0.62, 0.63, 0.62],
+      SB_PLAT = [0.52, 0.51, 0.49], SB_KERB = [0.62, 0.61, 0.58], SB_TRAMSIGN = [0.92, 0.70, 0.10];
+const SB_RECYCLE = [[0.20, 0.42, 0.22], [0.86, 0.72, 0.14], [0.18, 0.36, 0.62]];
+
+class StreetBits {
+  /** @param isRoad (x, north) → true on a road's carriageway
+   *  @param railDist (x, north) → metres to this line's own track */
+  constructor(data, near, demAt, isRoad, railDist) {
+    const [mlat, mlon] = metresPerDegree(near.frame_lat ?? (near.south + near.north) / 2);
+    this.demAt = demAt; this.isRoad = isRoad; this.railDist = railDist;
+    const X = (lo) => (data.lon0 + lo * 1e-5 - near.west) * mlon, Nn = (la) => (data.lat0 + la * 1e-5 - near.south) * mlat;
+    this.chunks = new Map(); this.built = new Map();
+    const put = (x, n, item) => {
+      const k = Math.floor(x / SB_CHUNK) + "," + Math.floor(n / SB_CHUNK);
+      if (!this.chunks.has(k)) this.chunks.set(k, []);
+      this.chunks.get(k).push(item);
+    };
+    const p = data.p || [];
+    for (let i = 0; i < p.length; i += 6) {
+      const x = X(p[i + 2]), n = Nn(p[i + 1]);
+      put(x, n, { t: "p", kind: p[i], x, n, ang: p[i + 3], len: p[i + 4] / 10, wid: p[i + 5] / 10 });
+    }
+    for (const f of data.l || []) {
+      let la = 0, lo = 0;
+      const P = [];
+      for (let i = 1; i < f.length; i += 2) { la += f[i]; lo += f[i + 1]; P.push([X(lo), Nn(la)]); }
+      // a line goes into the chunk of each of its points (so a long fence is
+      // in every chunk it crosses), split into runs per chunk
+      let run = null, key = null;
+      for (let i = 0; i < P.length; i++) {
+        const k = Math.floor(P[i][0] / SB_CHUNK) + "," + Math.floor(P[i][1] / SB_CHUNK);
+        if (f[0] === 4) { if (i === 0) put(P[0][0], P[0][1], { t: "l", kind: 4, pts: P }); continue; }
+        if (k !== key) {
+          if (run) run.pts.push(P[i]);
+          key = k; run = { t: "l", kind: f[0], pts: i ? [P[i - 1], P[i]] : [P[i]] };
+          put(P[i][0], P[i][1], run);
+        } else run.pts.push(P[i]);
+      }
+    }
+  }
+
+  buildChunk(items) {
+    const V = new FBuf(), C = new FBuf(), demAt = this.demAt;
+    const push = (q, c) => { V.push(q[0], q[1], -q[2]); C.push(c[0], c[1], c[2]); };
+    const quad = (a, b, c, d, col) => { push(a, col); push(b, col); push(c, col); push(a, col); push(c, col); push(d, col); };
+    // the pavement's height: the road beside is laid on the highest ground
+    // round it (geom.js demRidge), so the furniture must not stand lower
+    const base = (x, n) => Math.max(demAt(x, n), demAt(x + 4, n), demAt(x - 4, n), demAt(x, n + 4), demAt(x, n - 4)) + 0.30;
+    // an upright box round (x, n) turned by ang (radians, from east toward
+    // north), half sizes hu (along) and hv (across), from y0 to y1 over g
+    const box = (x, n, g, ang, hu, hv, y0, y1, col, top) => {
+      const c = Math.cos(ang), s = Math.sin(ang);
+      const P = (u, v, h) => [x + c * u - s * v, g + h, n + s * u + c * v];
+      const k = [[-hu, -hv], [hu, -hv], [hu, hv], [-hu, hv]];
+      for (let i = 0; i < 4; i++) {
+        const [u0, v0] = k[i], [u1, v1] = k[(i + 1) % 4];
+        quad(P(u0, v0, y0), P(u1, v1, y0), P(u1, v1, y1), P(u0, v0, y1), col);
+      }
+      quad(P(-hu, -hv, y1), P(hu, -hv, y1), P(hu, hv, y1), P(-hu, hv, y1), top || col);
+    };
+    // which way is the road from (x, n): the angle (as box's) of the side
+    // facing it, or null
+    const roadward = (x, n) => {
+      for (const r of [4, 7, 11]) for (let a = 0; a < 8; a++) {
+        const t = a * Math.PI / 4;
+        if (this.isRoad(x + Math.cos(t) * r, n + Math.sin(t) * r)) return t;
+      }
+      return null;
+    };
+    for (const it of items) {
+      if (it.t === "p") {
+        const { kind, x, n } = it;
+        const g = base(x, n);
+        if (!isFinite(g)) continue;
+        const h = Math.sin(x * 12.9898 + n * 78.233) * 43758.5453 % 1;
+        if (kind <= 2 && this.isRoad(x, n)) continue;           // not in the carriageway
+        if (kind === 0) {                                       // a litter bin on a post
+          box(x, n, g, 0, 0.04, 0.04, 0, 0.55, SB_STEEL);
+          box(x, n, g, h * 3, 0.22, 0.22, 0.45, 1.0, SB_BIN, SB_STEEL);
+        } else if (kind === 1) {                                // a bench
+          const ang = it.ang >= 0 ? Math.PI / 2 - it.ang * Math.PI / 180 : h * Math.PI;
+          box(x, n, g, ang, 0.85, 0.05, 0.0, 0.42, SB_STEEL);
+          box(x, n, g, ang, 0.9, 0.22, 0.42, 0.47, SB_WOOD);
+          box(x - Math.sin(ang) * 0.2, n + Math.cos(ang) * 0.2, g, ang, 0.9, 0.03, 0.55, 0.85, SB_WOOD);
+        } else if (kind === 2) {                                // three recycling bins
+          const ang = h * Math.PI;
+          for (let j = 0; j < 3; j++)
+            box(x + Math.cos(ang) * (j - 1) * 1.6, n + Math.sin(ang) * (j - 1) * 1.6, g, ang, 0.7, 0.7, 0, 1.5, SB_RECYCLE[j]);
+        } else if (kind === 3 || kind === 4) {                  // a stop sign: pole and plate
+          box(x, n, g, 0, 0.04, 0.04, 0, 2.9, SB_STEEL);
+          const t = roadward(x, n), ang = t == null ? 0 : t;      // (the plate faces along the road)
+          box(x, n, g, ang, 0.30, 0.02, 2.2, 2.85, kind === 4 ? SB_TRAMSIGN : SB_BKK, SB_WHITE);
+        } else if (kind === 5) {                                // a shelter
+          const L = it.len > 1.5 ? Math.min(it.len, 14) : 4, W = it.wid > 0.8 ? Math.min(it.wid, 3) : 1.5;
+          // the long side's angle: OSM's outline, else across the road
+          let ang, t = roadward(x, n);
+          if (it.ang >= 0) {
+            ang = Math.PI / 2 - it.ang * Math.PI / 180;
+            // face the road: of the two long sides, the open one is roadward
+            if (t != null && Math.cos(t - (ang + Math.PI / 2)) < 0) ang += Math.PI;
+          } else ang = t == null ? h * Math.PI : t - Math.PI / 2;
+          const c = Math.cos(ang), s = Math.sin(ang), hu = L / 2, hv = W / 2;
+          const P = (u, v, y) => [x + c * u - s * v, g + y, n + s * u + c * v];
+          // back wall (glass with a steel band), two side panes, four posts,
+          // the roof slab, a bench along the back; the roadward side (v = +hv) open
+          quad(P(-hu, -hv, 0.1), P(hu, -hv, 0.1), P(hu, -hv, 2.3), P(-hu, -hv, 2.3), SB_GLASS);
+          quad(P(-hu, -hv + 0.02, 0.9), P(hu, -hv + 0.02, 0.9), P(hu, -hv + 0.02, 1.05), P(-hu, -hv + 0.02, 1.05), SB_STEEL);
+          for (const su of [-1, 1]) quad(P(su * hu, -hv, 0.1), P(su * hu, hv * 0.2, 0.1), P(su * hu, hv * 0.2, 2.3), P(su * hu, -hv, 2.3), SB_GLASS);
+          for (const [su, sv] of [[-1, -1], [1, -1], [-1, 1], [1, 1]])
+            box(x + c * su * hu - s * sv * hv, n + s * su * hu + c * sv * hv, g, ang, 0.05, 0.05, 0, 2.4, SB_STEEL);
+          box(x, n, g, ang, hu + 0.15, hv + 0.2, 2.4, 2.55, SB_ROOF);
+          box(x + s * (hv - 0.35), n - c * (hv - 0.35), g, ang, hu * 0.7, 0.2, 0.42, 0.47, SB_WOOD);
+          // the name board on one end
+          box(x + c * (hu - 0.3) - s * hv * 0.6, n + s * (hu - 0.3) + c * hv * 0.6, g, ang, 0.03, 0.35, 2.55, 2.85, SB_BKK, SB_WHITE);
+        }
+        continue;
+      }
+      const P = it.pts;
+      if (it.kind === 4) {                                      // a stop platform, as its outline
+        if (P.length < 3 || this.railDist(P[0][0], P[0][1]) < 30) continue;
+        let cx = 0, cn = 0;
+        for (const q of P) { cx += q[0]; cn += q[1]; }
+        cx /= P.length; cn /= P.length;
+        const top = base(cx, cn) + 0.08;
+        if (!isFinite(top)) continue;
+        for (let i = 0; i + 1 < P.length; i++) {
+          const a = P[i], b = P[i + 1];
+          quad([cx, top, cn], [cx, top, cn], [a[0], top, a[1]], [b[0], top, b[1]], SB_PLAT);
+          quad([a[0], demAt(a[0], a[1]) - 0.3, a[1]], [b[0], demAt(b[0], b[1]) - 0.3, b[1]], [b[0], top, b[1]], [a[0], top, a[1]], SB_KERB);
+        }
+        continue;
+      }
+      for (let i = 0; i + 1 < P.length; i++) {
+        const a = P[i], b = P[i + 1];
+        const dx = b[0] - a[0], dn = b[1] - a[1], L = Math.hypot(dx, dn);
+        if (L < 0.2 || L > 400) continue;
+        const ga = demAt(a[0], a[1]), gb = demAt(b[0], b[1]);
+        if (!isFinite(ga) || !isFinite(gb)) continue;
+        const nx = -dn / L, nn = dx / L;
+        const Q = (p, g, o, y) => [p[0] + nx * o, g + y, p[1] + nn * o];
+        if (it.kind === 0) {                                    // fence: a panel with a top rail
+          quad(Q(a, ga, 0, -0.4), Q(b, gb, 0, -0.4), Q(b, gb, 0, 1.1), Q(a, ga, 0, 1.1), SB_FENCE);
+          quad(Q(a, ga, 0, 1.1), Q(b, gb, 0, 1.1), Q(b, gb, 0, 1.25), Q(a, ga, 0, 1.25), SB_FENCE_TOP);
+        } else if (it.kind === 1) {                             // hedge
+          for (const o of [-0.4, 0.4]) quad(Q(a, ga, o, -0.3), Q(b, gb, o, -0.3), Q(b, gb, o, 1.3), Q(a, ga, o, 1.3), SB_HEDGE);
+          quad(Q(a, ga, -0.4, 1.3), Q(b, gb, -0.4, 1.3), Q(b, gb, 0.4, 1.3), Q(a, ga, 0.4, 1.3), SB_HEDGE_TOP);
+        } else if (it.kind === 2) {                             // guard rail on short posts
+          quad(Q(a, ga, 0, 0.45), Q(b, gb, 0, 0.45), Q(b, gb, 0, 0.75), Q(a, ga, 0, 0.75), SB_RAIL);
+          for (let t = 0; t < L; t += 4) {
+            const px = a[0] + dx / L * t, pn = a[1] + dn / L * t, g = ga + (gb - ga) * t / L;
+            box(px, pn, g, 0, 0.06, 0.06, -0.2, 0.7, SB_STEEL);
+          }
+        } else if (it.kind === 3) {                             // a stop platform drawn as a line: a 2.4 m strip
+          const mx = (a[0] + b[0]) / 2, mn = (a[1] + b[1]) / 2;
+          if (this.railDist(mx, mn) < 30) continue;
+          const ya = base(a[0], a[1]) + 0.08, yb = base(b[0], b[1]) + 0.08;
+          quad(Q(a, ya, -1.2, 0), Q(b, yb, -1.2, 0), Q(b, yb, 1.2, 0), Q(a, ya, 1.2, 0), SB_PLAT);
+          for (const o of [-1.2, 1.2]) quad(Q(a, ga - 0.3, o, 0), Q(b, gb - 0.3, o, 0), Q(b, yb, o, 0), Q(a, ya, o, 0), SB_KERB);
+        }
+      }
+    }
+    return { verts: V.arr(), cols: C.arr(), count: V.length / 3 };
+  }
+
+  update(cx, cn, R, make, free) {
+    const want = [];
+    const k0x = Math.floor(cx / SB_CHUNK), k0y = Math.floor(cn / SB_CHUNK), r = Math.ceil(R / SB_CHUNK);
+    for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) {
+      const k = (k0x + i) + "," + (k0y + j);
+      if (!this.chunks.has(k) || this.built.has(k)) continue;
+      const d = Math.hypot((k0x + i + 0.5) * SB_CHUNK - cx, (k0y + j + 0.5) * SB_CHUNK - cn);
+      if (d < R) want.push([d, k]);
+    }
+    want.sort((a, b) => a[0] - b[0]);
+    for (const [, k] of want.slice(0, 2)) {
+      const m = this.buildChunk(this.chunks.get(k));
+      this.built.set(k, m.count ? make(m) : null);
+    }
+    for (const [k, m] of this.built) {
+      const [i, j] = k.split(",").map(Number);
+      if (Math.hypot((i + 0.5) * SB_CHUNK - cx, (j + 0.5) * SB_CHUNK - cn) > R + 700) {
+        if (m) free(m);
+        this.built.delete(k);
+      }
+    }
+  }
+  each(fn) { for (const m of this.built.values()) if (m) fn(m); }
+}
+
+// ===== grass.js =====
+
+// Ground cover near the camera: grass tufts, with flowers in them in the
+// growing season, crops in the fields (wheat, maize, sunflower), reeds in the wetland, ferns under the trees and pebbles on
+// rough ground. The terrain is one colour a texel and looked bald close up
+// (the owner: "like something was forgotten there").
+//
+// Nothing is baked and there is no instance buffer. Every instance is a cell
+// of a grid round the camera (snapped, so the tufts stay put as it moves);
+// GRASS_VS works out from the cell alone whether anything grows there and
+// what, from the land cover (the same texture the terrain uses), and drops
+// the rest. Past 28 m only one cell in four is kept, drawn bigger.
+//
+// What it must not grow on: roads, pavements, platforms, tracks, ditches.
+// Those are drawn from above into a mask (GRASS_MASK_*) every few frames.
+// The same pass draws the corridor (the ground beside the railway, which is
+// its own mesh, not the terrain) with its HEIGHT and greenness packed into
+// the mask, so the grass beside the line stands on the corridor and only
+// where it is green, not on the ballast.
+
+const GRASS_MASK_VS = `#version 300 es
+in vec3 aPos; in vec3 aCol;
+out float vH; out vec3 vCol;
+uniform mat4 uVP;
+void main(){ vH = aPos.y; vCol = aCol; gl_Position = uVP * vec4(aPos, 1.0); }`;
+const GRASS_MASK_FS = `#version 300 es
+precision highp float;
+in float vH; in vec3 vCol; out vec4 fc;
+uniform int uMode;      // 0: the corridor (height + greenness), 1: blocked
+void main(){
+  if (uMode == 1) { fc = vec4(1.0); return; }
+  float v = clamp((vH - 50.0) * 50.0, 0.0, 65535.0);       // 2 cm steps from 50 m
+  float green = clamp((vCol.g - max(vCol.r, vCol.b)) * 9.0, 0.0, 1.0);
+  // farmland's colour (geom.js COVER_COL[4]) is not green, but plants grow on it
+  float field = 1.0 - smoothstep(0.03, 0.06, distance(vCol, vec3(0.55, 0.51, 0.29)));
+  fc = vec4(0.0, floor(v / 256.0) / 255.0, mod(v, 256.0) / 255.0, max(green, field));
+}`;
+
+const GRASS_VS = `#version 300 es
+in vec3 aPos;                 // blade vertex: x across, y 0 (root) or 1 (tip), z along
+out vec3 vCol; out float vDist; out float vTip;
+uniform mat4 uVP; uniform vec3 uEye;
+uniform vec2 uOrigin; uniform float uSpacing; uniform int uSide; uniform float uR;
+uniform sampler2D uHeightNear, uHeightFar, uCover, uMask;
+uniform vec2 uNearSize, uFarSize, uNearStep, uFarStep, uFarOffset;
+uniform vec4 uMaskBox;        // centre x, z, size
+uniform vec4 uSeason;         // leaf, autumn, fresh, crop
+uniform float uTime, uSnow, uDay;   // uDay: day of the year, 1–365
+uniform vec4 uCityBox;
+float decode(vec3 c){ return (c.r*255.0*256.0 + c.g*255.0) * 0.1; }
+float gh(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float sampleH(vec2 w){
+  vec2 nuv = vec2(w.x, -w.y) / (uNearSize * uNearStep);
+  if (nuv.x > 0.002 && nuv.x < 0.998 && nuv.y > 0.002 && nuv.y < 0.998)
+    return decode(texture(uHeightNear, vec2(nuv.x, 1.0 - nuv.y)).rgb);
+  vec2 fuv = (w + uFarOffset) / (uFarSize * uFarStep);
+  return decode(texture(uHeightFar, vec2(clamp(fuv.x,0.0,1.0), 1.0 - clamp(fuv.y,0.0,1.0))).rgb);
+}
+void drop(){ gl_Position = vec4(2.0, 2.0, 2.0, 1.0); vCol = vec3(0.0); vDist = 0.0; vTip = 0.0; }
+void main(){
+  int n = uSide;
+  vec2 cell = vec2(float(gl_InstanceID % n), float(gl_InstanceID / n)) - float(n) * 0.5;
+  vec2 base = uOrigin + cell * uSpacing;
+  float d = length(base - uEye.xz);
+  // past 28 m, one cell in four, twice the size
+  bool far = d > 28.0;
+  ivec2 ic = ivec2(floor(base / uSpacing + 0.5));
+  if (far && ((ic.x & 1) == 1 || (ic.y & 1) == 1)) { drop(); return; }
+  if (d > uR) { drop(); return; }
+  float r1 = gh(base * 0.731), r2 = gh(base * 1.37 + 4.1), r3 = gh(base * 0.29 + 9.7);
+  vec2 w = base + (vec2(r1, r2) - 0.5) * uSpacing * (far ? 1.8 : 0.9);
+
+  // the mask: blocked (roads etc.), or the corridor's own ground
+  vec2 muv = (w - uMaskBox.xy) / uMaskBox.z + 0.5;
+  vec4 mk = texture(uMask, muv);
+  if (mk.r > 0.5) { drop(); return; }
+  vec2 nuv = vec2(w.x, -w.y) / (uNearSize * uNearStep);
+  if (nuv.x <= 0.0 || nuv.x >= 1.0 || nuv.y <= 0.0 || nuv.y >= 1.0) { drop(); return; }
+  vec4 cc = texture(uCover, vec2(nuv.x, 1.0 - nuv.y));
+  float cov = floor(cc.r * 255.0 + 0.5);
+  float ground;
+  float dens;
+  bool corridor = cc.b * 255.0 < 86.0;
+  if (corridor) {
+    // the corridor mesh owns the ground here: its height from the mask, and
+    // plants only where it is grass or field, not ballast or cess
+    if (mk.a < 0.5) { drop(); return; }
+    ground = (mk.g * 255.0 * 256.0 + mk.b * 255.0) / 50.0 + 50.0;
+  } else ground = sampleH(w);
+  dens = cov < 0.5 ? 0.9 : cov < 1.5 ? 0.35 : cov < 2.5 ? 0.7 : cov < 3.5 ? 1.0
+       : cov < 4.5 ? 1.0 : cov < 5.5 ? 0.85 : cov < 6.5 ? 0.45 : cov < 7.5 ? 0.0
+       : cov < 8.5 ? 0.15 : cov < 9.5 ? 0.0 : cov < 10.5 ? 0.25 : cov < 11.5 ? 1.0
+       : cov < 12.5 ? 0.2 : cov < 13.5 ? 0.95 : cov < 14.5 ? 0.15 : 0.0;
+  // residential: only the lawn plots (the same plots as TERRAIN_FS), and in
+  // the city fewer, as it is mostly paved there
+  if (cov > 6.5 && cov < 7.5) {
+    vec2 plot = floor(w / vec2(14.0, 17.0));
+    float h1 = fract(sin(dot(plot, vec2(127.1, 311.7))) * 43758.5453);
+    bool inCity = w.x > uCityBox.x && w.x < uCityBox.z && -w.y > uCityBox.y && -w.y < uCityBox.w;
+    dens = h1 < 0.45 ? (inCity ? 0.35 : 0.9) : 0.0;
+  }
+
+  // Farmland: what is standing in the field, by the day of the year (the
+  // field's own tint, cover G, picks the crop the way TERRAIN_FS does and
+  // moves each field's dates by up to ±8 days). Winter wheat: sown in
+  // October, green all winter, tall in May, gold in late June, cut through
+  // July (field by field), stubble in August, ploughed in September. One
+  // field in four is maize or sunflower: sown in April, tallest in August,
+  // cut in September and October.
+  // crop: 0 nothing, 1 stubble, 2 wheat, 3 maize, 4 sunflower
+  int crop = 0;
+  float cropT = 0.0, ripe = 0.0;
+  if (cov > 3.5 && cov < 4.5) {
+    float ft = cc.g;
+    float dd = uDay + (fract(ft * 6.1) - 0.5) * 16.0;
+    float cutAt = fract(ft * 4.3);                    // when in the harvest window this field is cut
+    if (fract(ft * 9.7) > 0.72) {
+      bool sun = fract(ft * 3.7) > 0.6;
+      float harvest = sun ? 255.0 + cutAt * 20.0 : 265.0 + cutAt * 30.0;
+      if (dd > 112.0 && dd < harvest) {
+        crop = sun ? 4 : 3;
+        cropT = smoothstep(112.0, 205.0, dd);
+        ripe = smoothstep(sun ? 225.0 : 235.0, harvest, dd);
+      } else if (dd >= harvest && dd < 320.0) crop = 1;
+      if (crop >= 3) {
+        // rows 0.75 m apart, along the field's own direction
+        float ra = fract(ft * 11.3) * 3.14159;
+        vec2 across = vec2(-sin(ra), cos(ra));
+        float o = dot(w, across);
+        w -= across * (o - (floor(o / 0.75) + 0.5) * 0.75);
+      }
+    } else {
+      float sowY = mod(dd + 365.0 - 290.0, 365.0);      // days since sowing (~17 Oct)
+      float harvest = 182.0 + cutAt * 22.0;
+      if (dd >= harvest && dd < 250.0) crop = 1;
+      else if (dd >= 250.0 && dd < 290.0) crop = 0;     // ploughed
+      else {
+        crop = 2;
+        // 0.05 m when it comes up, 0.15 m through the winter, 0.85 m by June
+        cropT = sowY < 40.0 ? 0.05 + 0.10 * sowY / 40.0
+              : sowY < 135.0 ? 0.15 : 0.15 + 0.70 * smoothstep(135.0, 225.0, sowY);
+        ripe = smoothstep(152.0, 178.0, dd) * step(dd, 250.0);
+      }
+    }
+    if (crop == 0) { drop(); return; }
+  }
+  if (r3 > dens) { drop(); return; }
+
+  // what grows: 0 grass, 1 flowering, 2 reeds, 3 fern, 4 pebble
+  float k = gh(base * 2.11 + 1.3);
+  int kind = 0;
+  if (cov > 10.5 && cov < 11.5 && k < 0.6) kind = 2;
+  else if (cov > 0.5 && cov < 1.5) kind = k < 0.7 ? 3 : 0;
+  else if ((cov < 0.5 || cov > 9.5 && cov < 10.5 || cov > 11.5 && cov < 12.5 || cov > 13.5) && k < 0.12) kind = 4;
+  else if (k < 0.10 * clamp(uSeason.x * 1.4 - uSeason.y, 0.0, 1.0) && cov != 13.0) kind = 1;
+  else if (cov > 12.5 && cov < 13.5 && k < 0.03) kind = 1;
+
+  if (crop > 0) kind = 5;
+  // the blade's shape
+  float hgt = kind == 2 ? 1.3 : kind == 3 ? 0.55 : kind == 4 ? 0.10 : kind == 1 ? 0.45 : 0.32;
+  if (crop == 1) hgt = 0.12;
+  if (crop == 2) hgt = cropT;
+  if (crop == 3) hgt = 2.3 * cropT;
+  if (crop == 4) hgt = 1.8 * cropT;
+  if (cov > 12.5 && cov < 13.5 && kind == 0) hgt = 0.14;   // a park is mown
+  hgt *= kind == 5 ? 0.88 + 0.24 * gh(base * 3.3) : 0.7 + 0.6 * gh(base * 3.3);   // (a crop is even)
+  float wid = kind == 3 ? 0.55 : kind == 4 ? 0.22 : kind == 2 ? 0.30 : 0.26;
+  if (crop == 2) wid = 0.20;
+  if (crop >= 3) wid = 0.50;
+  float sz = far ? 1.7 : 1.0;
+  float fade = smoothstep(uR, uR * 0.72, d);
+  hgt *= fade * (1.0 - clamp(uSnow * 1.3, 0.0, 1.0));
+  if (hgt < 0.02) { drop(); return; }
+  float ang = crop == 4 ? 0.0 : r1 * 6.2832;
+  float ca = cos(ang), sa = sin(ang);
+  vec3 lp = vec3(aPos.x * wid * sz, aPos.y * hgt, aPos.z * wid * sz);
+  if (kind == 3) lp.xz *= 1.0 + aPos.y * 0.8;               // fern fronds spread
+  // a sunflower's first two blades are its head: a diamond 0.4 m across on
+  // top of the stalk, facing east (as they do), from July
+  bool head = crop == 4 && gl_VertexID / 3 < 2 && uDay > 185.0;
+  if (head) {
+    int vi = gl_VertexID % 3;
+    float up = gl_VertexID / 3 == 0 ? 1.0 : -1.0;
+    lp = vi == 0 ? vec3(0.0, hgt, -0.2) : vi == 1 ? vec3(0.0, hgt, 0.2) : vec3(0.05, hgt + up * 0.2, 0.0);
+  }
+  vec3 p = vec3(w.x + ca * lp.x - sa * lp.z, ground - 0.06 + lp.y, w.y + sa * lp.x + ca * lp.z);
+  // wind
+  float sway = sin(uTime * 1.6 + w.x * 0.35 + w.y * 0.21) * 0.5 + sin(uTime * 2.7 + w.x * 0.9) * 0.25;
+  p.xz += vec2(0.7, 0.4) * sway * (head ? 1.0 : aPos.y) * min(hgt, 1.0) * (kind == 4 ? 0.0 : 0.35);
+
+  // colour, with the seasons as the terrain has them
+  float leaf = uSeason.x, aut = uSeason.y, fresh = uSeason.z;
+  vec3 green = mix(vec3(0.27, 0.40, 0.15), vec3(0.36, 0.50, 0.19), gh(base * 5.1));
+  green = mix(green, vec3(0.36, 0.53, 0.18), fresh * 0.6);
+  vec3 straw = vec3(0.56, 0.50, 0.30);
+  vec3 col = mix(straw, green, clamp(leaf * 1.2 - aut * 0.6, 0.0, 1.0));
+  col = mix(col, vec3(0.45, 0.41, 0.30), (1.0 - leaf) * 0.5);
+  if (kind == 2) col = mix(vec3(0.42, 0.44, 0.24), vec3(0.62, 0.55, 0.36), aut + (1.0 - leaf) * 0.6);
+  if (kind == 3) col = mix(vec3(0.17, 0.30, 0.11), vec3(0.50, 0.33, 0.14), aut * 0.8 + (1.0 - leaf) * 0.5);
+  if (kind == 4) col = vec3(0.52, 0.50, 0.46) * (0.8 + 0.3 * gh(base * 7.7));
+  if (crop == 1) col = vec3(0.76, 0.70, 0.50);                                      // stubble, paler than the soil
+  if (crop == 2) col = mix(vec3(0.30, 0.47, 0.17), vec3(0.80, 0.66, 0.26), ripe);  // wheat, green to ripe
+  if (crop >= 3) col = mix(vec3(0.24, 0.42, 0.14), vec3(0.62, 0.55, 0.36), ripe); // maize, sunflower leaves
+  // sunflower heads: two blades of each plant, yellow in July and August,
+  // brown as they ripen
+  if (head) col = mix(vec3(0.95, 0.74, 0.08), vec3(0.32, 0.24, 0.12), smoothstep(225.0, 245.0, uDay));
+  // a flowering tuft: three of its seven blades are stems with a flower
+  if (kind == 1 && aPos.y > 0.5 && gl_VertexID / 3 < 3) {
+    float f = gh(base * 9.1);
+    col = f < 0.30 ? vec3(0.92, 0.90, 0.84)                 // daisy, yarrow
+        : f < 0.55 ? vec3(0.92, 0.78, 0.18)                 // buttercup, dandelion
+        : f < 0.78 ? vec3(0.55, 0.42, 0.78)                 // knapweed, sage
+        : vec3(0.82, 0.16, 0.12);                           // poppy
+  }
+  vCol = col * (0.85 + 0.3 * gh(base * 4.4));
+  vTip = head ? 1.0 : aPos.y;
+  vDist = length(p - uEye);
+  gl_Position = uVP * vec4(p, 1.0);
+}`;
+const GRASS_FS = `#version 300 es
+precision highp float;
+in vec3 vCol; in float vDist; in float vTip; out vec4 fc;
+uniform vec3 uSunDir, uSunCol, uSkyCol, uFogCol;
+uniform float uFogDensity, uLift, uWet;
+void main(){
+  // dark at the root (the tufts shade their own bases), lit at the tip
+  float ao = mix(0.50, 1.0, vTip);
+  vec3 c = vCol * mix(1.0, 0.65, uWet);
+  vec3 col = c * (uSunCol * max(uSunDir.y, 0.0) * 0.80 * ao + uSkyCol * (0.50 + uLift * 0.38) * ao + 0.05 + uLift * 0.08);
+  float f = 1.0 - exp(-vDist * uFogDensity);
+  fc = vec4(mix(col, uFogCol, clamp(f, 0.0, 1.0)), 1.0);
+}`;
+
+class Grass {
+  constructor(gl) {
+    this.gl = gl;
+    this.prog = compile(gl, GRASS_VS, GRASS_FS);
+    this.maskProg = compile(gl, GRASS_MASK_VS, GRASS_MASK_FS);
+    // one tuft: seven blades, each a triangle, at its own angle and lean
+    const v = [];
+    for (let b = 0; b < 7; b++) {
+      const a = b * 2.39996, ca = Math.cos(a), sa = Math.sin(a);
+      const r = 0.15 + 0.85 * ((b * 0.618) % 1);        // root off the centre
+      const lean = 0.35 + 0.4 * ((b * 0.382) % 1);
+      const ox = ca * r * 0.5, oz = sa * r * 0.5;
+      const px = -sa * 0.18, pz = ca * 0.18;              // half the blade's width
+      v.push(ox - px, 0, oz - pz,  ox + px, 0, oz + pz,  ox + ca * lean, 1, oz + sa * lean);
+    }
+    this.vcount = v.length / 3;
+    this.vao = gl.createVertexArray();
+    gl.bindVertexArray(this.vao);
+    const b = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, b);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(v), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+    gl.bindVertexArray(null);
+    // the mask: 512² over the grass's reach (180 m at 70 m), nearest sampling
+    this.MS = 512; this.box = [0, 0, 180];
+    this.maskTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.maskTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, this.MS, this.MS, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    for (const [k, val] of [[gl.TEXTURE_MIN_FILTER, gl.NEAREST], [gl.TEXTURE_MAG_FILTER, gl.NEAREST],
+                            [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]])
+      gl.texParameteri(gl.TEXTURE_2D, k, val);
+    this.fbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.maskTex, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    this.frame = 0; this.last = null;
+  }
+
+  /** Redraw the mask round (cx, cz) (world x, z) when the camera has moved
+   *  10 m, or every 20 frames (tiles come and go). corridor: one VAO;
+   *  blocked: a list of VAOs ({vao, count}) drawn as "nothing grows here". */
+  updateMask(cx, cz, corridor, blocked, R = 70) {
+    const gl = this.gl;
+    this.frame++;
+    const snap = 10, bx = Math.round(cx / snap) * snap, bz = Math.round(cz / snap) * snap;
+    // the mask spans the grass's reach and the 10 m snap, both sides
+    const S = 2 * R + 40;
+    if (this.last && this.last[0] === bx && this.last[1] === bz && this.last[2] === S && this.frame % 20) return;
+    this.last = [bx, bz, S];
+    this.box = [bx, bz, S];
+    // top-down: world x → clip x, world z → clip y, height out of the way
+    const k = 2 / S;
+    const vp = new Float32Array([k, 0, 0, 0,  0, 0, 0, 0,  0, k, 0, 0,  -bx * k, -bz * k, 0, 1]);
+    const prevFbo = gl.getParameter(gl.FRAMEBUFFER_BINDING), prevVp = gl.getParameter(gl.VIEWPORT);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
+    gl.viewport(0, 0, this.MS, this.MS);
+    gl.disable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.disable(gl.BLEND);
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(this.maskProg.p);
+    gl.uniformMatrix4fv(this.maskProg.u.uVP, false, vp);
+    gl.uniform1i(this.maskProg.u.uMode, 0);
+    if (corridor && corridor.count) { gl.bindVertexArray(corridor.vao); gl.drawArrays(gl.TRIANGLES, 0, corridor.count); }
+    gl.uniform1i(this.maskProg.u.uMode, 1);
+    gl.colorMask(true, false, false, false);
+    for (const m of blocked) if (m && m.count) { gl.bindVertexArray(m.vao); gl.drawArrays(gl.TRIANGLES, 0, m.count); }
+    gl.colorMask(true, true, true, true);
+    gl.bindVertexArray(null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, prevFbo);
+    gl.viewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3]);
+    gl.enable(gl.DEPTH_TEST);
+  }
+
+  /** Draw. t: the terrain's textures and sizes; u: frame uniforms. */
+  draw(vp, eye, R, t, u) {
+    const gl = this.gl, p = this.prog, U = p.u;
+    const spacing = 0.55, side = Math.ceil(2 * R / spacing) + 2;
+    gl.useProgram(p.p);
+    gl.uniformMatrix4fv(U.uVP, false, vp);
+    gl.uniform3fv(U.uEye, eye);
+    gl.uniform2f(U.uOrigin, Math.round(eye[0] / (2 * spacing)) * 2 * spacing, Math.round(eye[2] / (2 * spacing)) * 2 * spacing);
+    gl.uniform1f(U.uSpacing, spacing);
+    gl.uniform1i(U.uSide, side);
+    gl.uniform1f(U.uR, R);
+    gl.uniform2f(U.uNearSize, t.nearW, t.nearH);
+    gl.uniform2f(U.uFarSize, t.farW, t.farH);
+    gl.uniform2f(U.uNearStep, t.nearStep, t.nearStep);
+    gl.uniform2f(U.uFarStep, t.farStep, t.farStep);
+    gl.uniform2f(U.uFarOffset, t.farOffset[0], t.farOffset[1]);
+    gl.uniform4f(U.uMaskBox, this.box[0], this.box[1], this.box[2], 0);
+    gl.uniform4fv(U.uSeason, u.season);
+    gl.uniform4fv(U.uCityBox, u.cityBox);
+    gl.uniform1f(U.uTime, u.time);
+    gl.uniform1f(U.uSnow, u.snow);
+    gl.uniform1f(U.uDay, ((u.day - 1) % 365 + 365) % 365 + 1);
+    gl.uniform3fv(U.uSunDir, u.sunDir);
+    gl.uniform3fv(U.uSunCol, u.sunCol);
+    gl.uniform3fv(U.uSkyCol, u.skyCol);
+    gl.uniform3fv(U.uFogCol, u.fogCol);
+    gl.uniform1f(U.uFogDensity, u.fog);
+    gl.uniform1f(U.uLift, u.lift);
+    gl.uniform1f(U.uWet, u.wet);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, t.near); gl.uniform1i(U.uHeightNear, 0);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, t.far); gl.uniform1i(U.uHeightFar, 1);
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, t.cover); gl.uniform1i(U.uCover, 2);
+    gl.activeTexture(gl.TEXTURE8); gl.bindTexture(gl.TEXTURE_2D, this.maskTex); gl.uniform1i(U.uMask, 8);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindVertexArray(this.vao);
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, this.vcount, side * side);
+    gl.bindVertexArray(null);
   }
 }
 
@@ -18046,6 +19995,34 @@ function bindSettings(state, {
       state.gfx[key] = +el.value;
       const p = loadPrefs(); p.gfx = p.gfx || {}; p.gfx[key] = +el.value; savePrefs(p);
     });
+  }
+  // how far the near trees are leaves (foliage.js); 0 is the old automatic
+  // 120 or 190 m by the quality. Lite (phones) stays at 70 m whatever this says.
+  {
+    const el = document.getElementById("gfxLeafR");
+    if (el) {
+      const p0 = loadPrefs();
+      if (p0.gfx && p0.gfx.leafR != null) el.value = String(p0.gfx.leafR);
+      state.gfx.leafR = +el.value;
+      el.addEventListener("change", () => {
+        state.gfx.leafR = +el.value;
+        const p = loadPrefs(); p.gfx = p.gfx || {}; p.gfx.leafR = +el.value; savePrefs(p);
+      });
+    }
+  }
+  // how far the ground cover reaches (grass.js); 0 is off. Lite (phones)
+  // takes at most 22 m whatever this says.
+  {
+    const el = document.getElementById("gfxGrass");
+    if (el) {
+      const p0 = loadPrefs();
+      if (p0.gfx && p0.gfx.grass != null) el.value = String(p0.gfx.grass);
+      state.gfx.grass = +el.value;
+      el.addEventListener("change", () => {
+        state.gfx.grass = +el.value;
+        const p = loadPrefs(); p.gfx = p.gfx || {}; p.gfx.grass = +el.value; savePrefs(p);
+      });
+    }
   }
   const qs0 = document.getElementById("qualSel");
   if (qs0 && document.body.classList.contains("touch")) qs0.value = "low";
@@ -18379,6 +20356,10 @@ function savePrefs(p) {
 
 
 
+
+
+
+
 const RES = { w: 512, h: 288 };            // internal render size, upscaled
 // nested square annuli: each ring has a hole exactly filled by the finer one,
 // so the plane is tiled once and ordinary depth testing sorts everything
@@ -18472,6 +20453,16 @@ async function boot(assets) {
   // ---- programs
   const pSky = compile(gl, SKY_VS, SKY_FS);
   const pTer = compile(gl, TERRAIN_VS, TERRAIN_FS);
+  // ground cover near the camera (grass.js)
+  let grass = null;
+  // its reach: the Beállítás setting (state.gfx.grass, 0 off), at most 22 m
+  // with state.lite; SIM.state.grassR overrides both
+  const grassRadius = () => {
+    if (state.grassR != null) return state.grassR;
+    const g = state.gfx && state.gfx.grass != null ? state.gfx.grass : 70;
+    return state.lite ? Math.min(g, 22) : g;
+  };
+  try { grass = new Grass(gl); } catch (e) { console.warn("grass unavailable", e); }
   const pTrk = compile(gl, TRACK_VS, TRACK_FS);
   const pVeg = compile(gl, VEG_VS, VEG_FS);
   const pTree = compile(gl, TREE_VS, VEG_FS);     // the cadastre's trees, one instance each
@@ -18533,6 +20524,54 @@ async function boot(assets) {
     for (const p of [pTrk, pBld]) { gl.useProgram(p.p); if (p.u.uFacTex) gl.uniform1i(p.u.uFacTex, 6); }
     gl.useProgram(null);
   }
+  // The façade kit (tools/bake_facade_kit.py): colour on unit 14, masks on
+  // unit 15. uKitFam holds each family's first sheet and count, in the order
+  // of tools/facade_zones.py FAMILIES; a family with no sheets has a count of
+  // 0 and stays procedural.
+  {
+    const base = window.DATA_BASE || "data/";
+    const units = [gl.TEXTURE14, gl.TEXTURE15];
+    const texs = units.map(u => {
+      const t = gl.createTexture();
+      gl.activeTexture(u); gl.bindTexture(gl.TEXTURE_2D, t);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([200, 196, 188, 255]));
+      return t;
+    });
+    const KIT_FAMILIES = ["tenement", "interwar", "cube", "village", "villa", "mav", "oldtown", "garden", "civic", "szocreal"];
+    const fams = new Int32Array(KIT_FAMILIES.length * 2);
+    let size = [1024, 1024];
+    try {
+      const meta = await fetch(base + "facade_kit.json").then(r => r.ok ? r.json() : null);
+      if (meta && meta.sheets > 0 && meta.families) {
+        const imgs = await Promise.all([loadImage(base + "facade_kit.webp"), loadImage(base + "facade_kit_mask.png")]);
+        imgs.forEach((img, i) => {
+          gl.activeTexture(units[i]); gl.bindTexture(gl.TEXTURE_2D, texs[i]);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, img);
+          gl.generateMipmap(gl.TEXTURE_2D);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        });
+        KIT_FAMILIES.forEach((f, i) => {
+          const r = meta.families[f];
+          if (r) { fams[i * 2] = r[0]; fams[i * 2 + 1] = r[1]; }
+        });
+        size = meta.atlas;
+      }
+    } catch (e) { console.warn("no façade kit", e); }
+    gl.activeTexture(gl.TEXTURE0);
+    for (const p of [pTrk, pBld]) {
+      gl.useProgram(p.p);
+      if (p.u.uKitTex) gl.uniform1i(p.u.uKitTex, 14);
+      if (p.u.uKitMask) gl.uniform1i(p.u.uKitMask, 15);
+      if (p.u.uKitSize) gl.uniform2f(p.u.uKitSize, size[0], size[1]);
+      const famLoc = gl.getUniformLocation(p.p, "uKitFam");
+      if (famLoc) gl.uniform2iv(famLoc, fams);
+      // the façades' parallax steps (FACADE_GLSL); lite keeps the shading only
+      const pomLoc = gl.getUniformLocation(p.p, "uKitPom");
+      if (pomLoc) gl.uniform1f(pomLoc, state.lite ? 0 : 1);
+    }
+    gl.useProgram(null);
+  }
 
   await step(tt("terep és pálya", "terrain and track"), 0.74);
   // ---- geometry
@@ -18582,7 +20621,21 @@ async function boot(assets) {
     gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 32, 16);
     gl.vertexAttribDivisor(1, 1); gl.vertexAttribDivisor(2, 1);
     gl.bindVertexArray(null);
-    return { vao, bufs: [b], n: inst.length / 8 };
+    return { vao, bufs: [b], n: inst.length / 8, inst };   // inst: the near leaf trees pick from it
+  }
+  // the near trees as leaves on wood (foliage.js); the far ones stay crosses
+  const foliage = new Foliage(gl, 14000);   // (records: 650 m of leafy trees is about 11,700)
+  const gpuTimer = gl.getExtension("EXT_disjoint_timer_query_webgl2");
+  const vegQueries = [];
+  function readVegTimer() {
+    while (vegQueries.length && gl.getQueryParameter(vegQueries[0][0], gl.QUERY_RESULT_AVAILABLE)) {
+      const [q, k] = vegQueries.shift();
+      if (!gl.getParameter(gpuTimer.GPU_DISJOINT_EXT)) {
+        const ms = gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6;
+        state[k] = state[k] == null ? ms : state[k] * 0.9 + ms * 0.1;
+      }
+      gl.deleteQuery(q);
+    }
   }
 
   function trackVao(pts) {
@@ -18998,7 +21051,7 @@ async function boot(assets) {
   // phones; until they load (and on phones) people are the old box figures.
   const pPpl = compile(gl, PEOPLE_VS, PEOPLE_FS);
   let people3d = null;
-  const pplWalk = [], pplStand = [];       // eight numbers a person (geom.js)
+  const pplWalk = [], pplStand = [];       // twelve numbers a person (geom.js)
   state.ppl = { walk: pplWalk, stand: pplStand };   // (for the console)
   if (!state.lite) (async () => {
     try {
@@ -19037,9 +21090,10 @@ async function boot(assets) {
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(bin, q.uo, q.nv * 2), gl.STATIC_DRAW);
         gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 0, 0);
         q.ib = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, q.ib);
-        gl.bufferData(gl.ARRAY_BUFFER, 4 * 8 * 32, gl.DYNAMIC_DRAW); q.icap = 32;
-        gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3, 4, gl.FLOAT, false, 32, 0); gl.vertexAttribDivisor(3, 1);
-        gl.enableVertexAttribArray(4); gl.vertexAttribPointer(4, 4, gl.FLOAT, false, 32, 16); gl.vertexAttribDivisor(4, 1);
+        gl.bufferData(gl.ARRAY_BUFFER, 4 * 12 * 32, gl.DYNAMIC_DRAW); q.icap = 32;
+        gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3, 4, gl.FLOAT, false, 48, 0); gl.vertexAttribDivisor(3, 1);
+        gl.enableVertexAttribArray(4); gl.vertexAttribPointer(4, 4, gl.FLOAT, false, 48, 16); gl.vertexAttribDivisor(4, 1);
+        gl.enableVertexAttribArray(5); gl.vertexAttribPointer(5, 4, gl.FLOAT, false, 48, 32); gl.vertexAttribDivisor(5, 1);
         const eb = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, eb);
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(bin, q.io, q.ni), gl.STATIC_DRAW);
         gl.bindVertexArray(null);
@@ -19057,9 +21111,9 @@ async function boot(assets) {
     const P = people3d.people;
     for (const q of P) q.inst.length = 0;
     const add = (a, i) => { const q = P[Math.min(P.length - 1, (a[i + 5] * P.length) | 0)];
-      q.inst.push(a[i], a[i + 1], a[i + 2], a[i + 3], a[i + 4], 0.0, a[i + 6], a[i + 7]); };
-    for (let i = 0; i < pplWalk.length; i += 8) add(pplWalk, i);
-    for (let i = 0; i < pplStand.length; i += 8)
+      q.inst.push(a[i], a[i + 1], a[i + 2], a[i + 3], a[i + 4], 0.0, a[i + 6], a[i + 7], a[i + 8], a[i + 9], a[i + 10], a[i + 11]); };
+    for (let i = 0; i < pplWalk.length; i += 12) add(pplWalk, i);
+    for (let i = 0; i < pplStand.length; i += 12)
       if (Math.abs(pplStand[i] - camX) < 700 && Math.abs(pplStand[i + 2] + camZ) < 700) add(pplStand, i);
 
     // Hero Character (player):
@@ -19071,15 +21125,15 @@ async function boot(assets) {
       const phase = (p.phase !== undefined) ? p.phase : -1.0;
       const tint = p.tintScale || 1.0;
       const pitch = p.pitchAngle || 0.0;
-      q.inst.push(p.x, p.y, -p.n, p.yaw || 0, H, pitch, phase, tint);
+      q.inst.push(p.x, p.y, -p.n, p.yaw || 0, H, pitch, phase, tint, 0, 0, 0, 0);
     }
 
     let total = 0;
     for (const q of P) {
-      q.n = q.inst.length / 8; total += q.n;
+      q.n = q.inst.length / 12; total += q.n;
       if (!q.n) continue;
       gl.bindBuffer(gl.ARRAY_BUFFER, q.ib);
-      if (q.n > q.icap) { q.icap = q.n * 2; gl.bufferData(gl.ARRAY_BUFFER, 4 * 8 * q.icap, gl.DYNAMIC_DRAW); }
+      if (q.n > q.icap) { q.icap = q.n * 2; gl.bufferData(gl.ARRAY_BUFFER, 4 * 12 * q.icap, gl.DYNAMIC_DRAW); }
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Float32Array(q.inst));
     }
     state.people3dN = total;
@@ -19092,6 +21146,7 @@ async function boot(assets) {
     gl.uniform2f(pPpl.u.uGrid, people3d.cols, people3d.rows);
     gl.uniform1f(pPpl.u.uFrames, people3d.frames);
     gl.uniform1f(pPpl.u.uPull, 0.004);
+    gl.uniform1f(pPpl.u.uTime, (state.hour * 3600) % 86400);
     gl.uniform3fv(pPpl.u.uSunDir, sunDir);
     gl.uniform3fv(pPpl.u.uSunCol, pal.sun);
     gl.uniform3fv(pPpl.u.uSkyCol, pal.zenith);
@@ -19106,6 +21161,7 @@ async function boot(assets) {
       if (!q.n) return;
       gl.uniform1f(pPpl.u.uRow0, q.row0);
       gl.uniform1f(pPpl.u.uCell, pi);
+      gl.uniform4fv(pPpl.u.uRig, q.rig || [0.58, 0, 0.16, 0]);
       gl.bindVertexArray(q.vao);
       gl.drawElementsInstanced(gl.TRIANGLES, q.ni, gl.UNSIGNED_SHORT, 0, q.n);
     });
@@ -19438,71 +21494,15 @@ async function boot(assets) {
     Math.max(routeData.track_down[0][3],
              Math.min(routeData.track_down[routeData.track_down.length-1][3], m)))[2];
   await step(tt("vonatforgalom", "train traffic"), 0.84);
-  // ---- single track. A line whose up and down tracks are the same path
-  // (line 2) is single track except where the data shows a second track
-  // alongside, 3–7 m off: double-track sections and station loops. Those
-  // ranges come from the yard-track layer (OSM, q_line2_rails.ql); a range
-  // under 300 m is a siding, not a loop. The loop's side is the side the
-  // second track is on.
-  let loops = [];
-  {
-    const dn = routeData.track_down, up = routeData.track_up;
-    const singleLine = dn.length === up.length && dn.length > 10 && dn[10][0] === up[10][0] && dn[10][1] === up[10][1];
-    if (singleLine) {
-      const B = 50, n = Math.ceil(dn[dn.length - 1][3] / B) + 2;
-      const cnt = new Uint16Array(n), side = new Float32Array(n);
-      for (const w of railWays) {
-        if (w.cls !== 0) continue;
-        // along each segment, not only at its nodes: a straight loop track
-        // has a node at each end and nothing between
-        for (let j = 0; j + 1 < w.pts.length; j++) {
-          const q0 = w.pts[j], q1 = w.pts[j + 1];
-          if (q0[3] < 3 || q0[3] > 7 || q1[3] < 3 || q1[3] > 7) continue;
-          const steps = Math.max(1, Math.ceil(Math.abs(q1[2] - q0[2]) / 25));
-          for (let st = 0; st <= steps; st++) {
-            const f = st / steps;
-            const x = q0[0] + (q1[0] - q0[0]) * f, y = q0[1] + (q1[1] - q0[1]) * f, c = q0[2] + (q1[2] - q0[2]) * f;
-            const k = Math.floor(c / B);
-            if (k < 0 || k >= n) continue;
-            const a = route.at(c), tg = route.tangent(c);
-            cnt[k]++; side[k] += Math.sign(tg[0] * (y - a[1]) - tg[1] * (x - a[0]));
-          }
-        }
-      }
-      for (let k = 0; k < n; k++) {
-        if (!cnt[k]) continue;
-        const last = loops[loops.length - 1];
-        if (last && k * B - last.b <= 250) { last.b = (k + 1) * B; last.side += side[k]; }
-        else loops.push({ a: k * B, b: (k + 1) * B, side: side[k] });
-      }
-      loops = loops.filter(l => l.b - l.a >= 300).map(l => ({ a: l.a, b: l.b, side: l.side >= 0 ? 1 : -1 }));
-      const end = dn[dn.length - 1][3];
-      const single = [];
-      let at = 0;
-      for (const l of loops) { if (l.a - at > 150) single.push([at, l.a]); at = Math.max(at, l.b); }
-      if (end - at > 150) single.push([at, end]);
-      // a "single" stretch under 1.2 km between two double ones is a gap in
-      // the mapped second track (Kőbánya-Kispest came out single), not a real
-      // single-track section: real ones run from loop to loop, kilometres
-      for (let i = single.length - 1; i >= 0; i--) {
-        const [a, b] = single[i];
-        const inner = a > 0 && b < end;
-        if (inner && b - a < 1200) single.splice(i, 1);
-      }
-      traffic.setSingleTrack(single);
-      console.log("single track sections", single.map(q => q.map(v => (v / 1000).toFixed(2)).join("–")).join(", "));
-    }
+  // ---- single track (line 2): the sections and the loops between them come
+  // from the yard-track layer (traffic.js trackLayout); trainSide is how far
+  // off the running line a train is drawn
+  const { loops, single } = trackLayout(route, routeData, railWays);
+  if (single) {
+    traffic.setSingleTrack(single);
+    console.log("single track sections", single.map(q => q.map(v => (v / 1000).toFixed(2)).join("–")).join(", "));
   }
-  // which side a train is drawn on: in a loop, trains running against the
-  // player's direction take the loop track, so a crossing is two trains
-  // side by side; eased over 60 m at each end of the loop
-  const trainSide = loops.length ? (t, m) => {
-    if (t.dir === route.dir) return 0;
-    for (const l of loops) {
-      if (m > l.a && m < l.b) return l.side * 4.6 * Math.min(1, (m - l.a) / 60, (l.b - m) / 60);
-    }
-    return 0;
-  } : null;
+  const trainSide = single ? sideOnLoops(route, loops, single) : null;
   // a siding's rail height: the line's, except on a raised stretch, where one
   // off the widened top stands on the slope or the ground, not in the air
   const yardYAt = (m, p) => {
@@ -20024,6 +22024,19 @@ async function boot(assets) {
     const td = await fetch(`${window.DATA_BASE || "data/"}trams.json`).then(r => r.ok ? r.json() : null);
     if (td) trams = new Trams(td, assets.world.near, demAt, (n) => wA + wB * n, (x, n) => coverAt(x, n) === 9);
   } catch (e) { console.warn("trams unavailable", e); }
+  // streams and ditches (streams.js), meshed in 1 km chunks round the camera
+  let streams = null;
+  try {
+    const sd = await fetch(`${window.DATA_BASE || "data/"}streams.json`).then(r => r.ok ? r.json() : null);
+    if (sd) streams = new Streams(sd, assets.world.near, demAt, (x, n) => coverAt(x, n) === 9);
+  } catch (e) { console.warn("streams unavailable", e); }
+  // stops, shelters, bins, benches, fences in Budapest (streetbits.js)
+  let streetBits = null;
+  try {
+    const sb = city ? await fetch(`${window.DATA_BASE || "data/"}streetbits.json`).then(r => r.ok ? r.json() : null) : null;
+    if (sb) streetBits = new StreetBits(sb, assets.world.near, demAt, (x, n) => onRoadCarriageway(x, n, 0.3),
+                                        (x, n) => { const r = railDistAt(x, n); return r && isFinite(r.d) ? r.d : 1e9; });
+  } catch (e) { console.warn("street bits unavailable", e); }
   // the line's own extras (bake_linex.py): names along the whole line, the
   // quarries, solar farms and pipelines outside the city
   // horses in their paddocks (tools/bake_horses.py), within 5 km of the line
@@ -21739,7 +23752,11 @@ async function boot(assets) {
       // the automatic driver obeys a red: it did not look at signals at all
       {
         const ds = traffic.distanceToSignal(playerTrain);
-        driver.signalStop = playerTrain.aspect === ASPECT.STOP && ds < 3000 ? driver.m + route.dir * ds : null;
+        // (waiting to cross on single track the point is fixed: worked out from
+        // the distance, which stops at 0, it moved with a train that had run
+        // past it, and the train crept on into the opposing one)
+        driver.signalStop = playerTrain.aspect === ASPECT.STOP && ds < 3000
+          ? (playerTrain.singleStopM ?? driver.m + route.dir * ds) : null;
         // a car on the line, seen from 700 m
         const ob = traffic.obstacleM;
         if (ob != null && driver.auto) {
@@ -22069,7 +24086,7 @@ async function boot(assets) {
 
         // 4. Shove nearby pedestrians back
         if (typeof pplStand !== "undefined" && pplStand) {
-          for (let i = 0; i < pplStand.length; i += 8) {
+          for (let i = 0; i < pplStand.length; i += 12) {
             const px_ = pplStand[i], pz_ = -pplStand[i + 2];
             const dx = px_ - pX, dz = pz_ - pN;
             const dist = Math.hypot(dx, dz);
@@ -22647,6 +24664,8 @@ async function boot(assets) {
     }
     state.camXZ = [camEye[0], -camEye[2]];
     if (city) city.update(camEye[0], -camEye[2]);
+    if (streetBits && state.show.roads) streetBits.update(camEye[0], -camEye[2], state.lite ? 500 : 1300, colouredVao, freeVao);
+    if (streams) streams.update(camEye[0], -camEye[2], state.lite ? 1100 : 2400, colouredVao, freeVao);
     state.camY = camEye[1];
 
     // Authentic Budapest street / square name plaque determination
@@ -22695,7 +24714,14 @@ async function boot(assets) {
                                 RES.w / RES.h, nearZ, 62000);
     const vp = M4.mul(proj, view);
     const invVP = M4.invert(vp);
-    state.lastCam = { eye: camEye, invVP };
+    // The sky works out each pixel's ray as the far point minus the near
+    // point through an inverse VP. With the eye 25 km from the origin in
+    // float32 (steps of 2 mm) and the near plane 0.12 m away in a passenger
+    // seat, that difference was a few per cent off and changed every frame:
+    // the sky wobbled. Its own matrix has the camera at the origin.
+    const skyVP = M4.mul(proj, M4.lookAt([0, 0, 0], fwd, camUp));
+    const invSkyVP = M4.invert(skyVP);
+    state.lastCam = { eye: camEye, invVP, invSkyVP };
 
     const insideTrain = !state.follow && state.followIdx < 0 && state.followCarIdx < 0 && state.followShipIdx < 0 && !(state.drone && state.drone.active) && !state.fly && !flying && !state.tram && !(state.person && state.person.active);
     const inCab = state.cab && insideTrain && !seated;
@@ -22920,7 +24946,7 @@ async function boot(assets) {
       if (state.show.sky) {
       gl.useProgram(pSky.p);
       gl.bindVertexArray(quadVao);
-      gl.uniformMatrix4fv(pSky.u.uInvVP, false, opts.invVP);
+      gl.uniformMatrix4fv(pSky.u.uInvVP, false, opts.skyInvVP);
       gl.uniform3fv(pSky.u.uSunDir, sunDir);
       gl.uniform3fv(pSky.u.uZenith, pal.zenith);
       gl.uniform3fv(pSky.u.uHorizon, pal.horizon);
@@ -23011,6 +25037,16 @@ async function boot(assets) {
         gl.bindVertexArray(r.mesh.vao);
         gl.drawElements(gl.TRIANGLES, r.mesh.count, r.mesh.type, 0);
       }
+      // grass, flowers, reeds, ferns and pebbles within grassR of the camera
+      // (not in the reflection; SIM.state.grassR = 0 turns it off)
+      const grassR = grassRadius();
+      if (grass && !opts.reflect && grassR > 0 && state.show.veg) {
+        grass.draw(vp, camEye, grassR,
+          { near: texNear.tex, far: texFar.tex, cover: texCover.tex, nearW: texNear.w, nearH: texNear.h,
+            farW: texFar.w, farH: texFar.h, nearStep, farStep, farOffset },
+          { season: season4, day: state.day, cityBox: cityBoxLine, time: now * 0.001, snow: snowCover, sunDir, sunCol: pal.sun,
+            skyCol: pal.zenith, fogCol: pal.horizon, fog: pal.fog, lift, wet: wetGround });
+      }
       }
 
       // track
@@ -23041,13 +25077,24 @@ async function boot(assets) {
       if (pTrk.u.uGround) gl.uniform1f(pTrk.u.uGround, 1);
       gl.bindVertexArray(corridor.vao);
       gl.drawArrays(gl.TRIANGLES, 0, corridor.count);
+      if (streams) {                 // (under the roads: a road over a ditch wins)
+        gl.polygonOffset(-6.0, -12.0);
+        streams.each(m => { gl.bindVertexArray(m.vao); gl.drawArrays(gl.TRIANGLES, 0, m.count); });
+        gl.polygonOffset(-2.0, -4.0);
+      }
       if (pTrk.u.uGround) gl.uniform1f(pTrk.u.uGround, 0);
       if (state.show.roads) {
         gl.polygonOffset(-9.0, -18.0);
+        if (pTrk.u.uRoad) gl.uniform1f(pTrk.u.uRoad, state.lite ? 0 : 1);
         gl.bindVertexArray(roadMesh.vao);
         gl.drawArrays(gl.TRIANGLES, 0, roadMesh.count);
         if (city) city.each(m => { if (m.roads && m.roads.count) {
           gl.bindVertexArray(m.roads.vao); gl.drawArrays(gl.TRIANGLES, 0, m.roads.count); } });
+        if (pTrk.u.uRoad) gl.uniform1f(pTrk.u.uRoad, 0);
+        if (streetBits) {
+          gl.polygonOffset(-2.0, -4.0);
+          streetBits.each(m => { gl.bindVertexArray(m.vao); gl.drawArrays(gl.TRIANGLES, 0, m.count); });
+        }
       }
       if (yardMesh.count) {
         gl.polygonOffset(-2.2, -4.4);
@@ -23207,6 +25254,12 @@ async function boot(assets) {
       }
 
       // vegetation
+      // SIM.state.vegTimer = true times this block on the GPU (main view only)
+      // into state.vegGpuMs, and the leaf trees' placement into
+      // state.folPlaceGpuMs, where the extension exists: how the leaf
+      // trees were measured against the crosses
+      const vegQ = state.vegTimer && !opts.reflect && gpuTimer ? gl.createQuery() : null;
+      if (vegQ) gl.beginQuery(gpuTimer.TIME_ELAPSED_EXT, vegQ);
       if (state.show.veg) {
       gl.useProgram(pVeg.p); setCraters(pVeg);
       gl.uniformMatrix4fv(pVeg.u.uVP, false, vp);
@@ -23236,6 +25289,11 @@ async function boot(assets) {
       gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, texCover.tex);
       gl.uniform1i(pVeg.u.uCover, 2);
       gl.bindVertexArray(vegVao);
+      // Near the camera a tree is drawn by foliage.js as leaves on wood, and
+      // this pass takes it over between 55% and 100% of that radius, each tree
+      // at its own distance (VEG_BAND_GLSL). Not in the reflection, which
+      // keeps the crosses throughout. uNearFade.y is the radius.
+      const leafR = opts.reflect || !folO ? 0 : leafR0;
       // the two passes, plus the close forest pass (woodland only, a tree
       // every 7 m, lower: the understorey the woods were missing) — not at
       // the lowest quality
@@ -23250,6 +25308,8 @@ async function boot(assets) {
         gl.uniform1f(pVeg.u.uSpacing, spacing);
         gl.uniform1i(pVeg.u.uSide, side);
         gl.uniform1f(pVeg.u.uMaxDist, maxd);
+        const lr = dense ? Math.min(leafR, 100) : leafR;
+        gl.uniform2f(pVeg.u.uNearFade, 0, lr);
         gl.drawArraysInstanced(gl.TRIANGLES, 0, 18, side * side);
       }
       // Budapest's own trees, from the cadastre, per loaded city tile
@@ -23274,10 +25334,45 @@ async function boot(assets) {
         gl.uniform1f(U.uCloudT, state.wxT);
         gl.uniform1f(U.uCloudShadow, cloudShadow);
         gl.uniform1f(U.uMaxDist, (state.cityR || 3200) > 2000 ? 2400 : 1300);
+        gl.uniform2f(U.uNearFade, 0, leafR);
         city.each(m => { if (m.tr) { gl.bindVertexArray(m.tr.vao); gl.drawArraysInstanced(gl.TRIANGLES, 0, 18, m.tr.n); } });
       }
+      if (leafR > 0) foliage.draw(folO);
       }
+      if (vegQ) { gl.endQuery(gpuTimer.TIME_ELAPSED_EXT); vegQueries.push([vegQ, "vegGpuMs"]); }
 
+    }
+
+    // The near leaf trees: which stand where (foliage.js place), worked out
+    // before any pass of the frame begins, and only when the camera has
+    // moved 30 m or so. A transform-feedback pass is cheap work but costly to
+    // schedule (on Metal, inside the scene's pass, it split it in two).
+    const leafR0 = state.show.veg && state.leafTrees !== false
+      ? (state.lite ? 70 : (state.gfx && state.gfx.leafR) || ((state.cityR || 3200) > 2000 ? 190 : 120)) : 0;
+    let folO = null;
+    if (leafR0 > 0) {
+      if (city) {
+        const lists = [];
+        city.each(m => { if (m.tr) lists.push(m.tr.inst); });
+        foliage.pickCadastre(lists, camEye[0], camEye[2], leafR0 + 40);
+      }
+      // per pass: grid spacing, near radius, share of the leaf clusters
+      // drawn, dense; the understorey only within 100 m and with fewer
+      const fp = [[16, leafR0, 1, 0], [46, leafR0, 1, 0]];
+      if ((state.cityR || 3200) > 2000) fp.push([7, Math.min(leafR0, 100), 0.6, 1]);
+      folO = {
+        vp, eye: camEye, nearR: leafR0, sunDir, season: season4, decks,
+        cloudT: state.wxT, cloudShadow, setCraters, setStreetLights,
+        cityBox: cityBoxLine, nearSize: [texNear.w, texNear.h], nearStep,
+        texNear: texNear.tex, texCover: texCover.tex,
+        passes: fp.map(([sp, r, b, dn]) => [sp, r, b * (state.lite ? 0.5 : 1), dn]), craters: state.craters.length,
+        cadBudget: state.lite ? 0.5 : 1, time: (performance.now() * 0.001) % 3600,
+        pxPerM: RES.h * 0.5 * proj[5], pal, snow: snowCover, lift,
+      };
+      const q = state.vegTimer && gpuTimer ? gl.createQuery() : null;
+      if (q) gl.beginQuery(gpuTimer.TIME_ELAPSED_EXT, q);
+      foliage.place(folO);
+      if (q) { gl.endQuery(gpuTimer.TIME_ELAPSED_EXT); vegQueries.push([q, "folPlaceGpuMs"]); }
     }
 
     // ---- reflection
@@ -23305,13 +25400,23 @@ async function boot(assets) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, rfbo);
       gl.viewport(0, 0, REFL.w, REFL.h);
       gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, dummyTex);
-      drawWorld(mVP, mEye, { reflect: true, invVP: M4.invert(mVP) });
+      // (the sky's mirror is the same flip with no translation)
+      const skyR = M4.mul(skyVP, new Float32Array([1,0,0,0,  0,-1,0,0,  0,0,1,0,  0,0,0,1]));
+      drawWorld(mVP, mEye, { reflect: true, invVP: M4.invert(mVP), skyInvVP: M4.invert(skyR) });
     }
 
+    // where the grass must not grow, and the corridor's height (grass.js)
+    if (grass && grassRadius() > 0) {
+      const blocked = [roadMesh, yardMesh, platMesh, bufMesh, trkDown, trkUp];
+      if (city) city.each(m => { blocked.push(m.roads, m.x); });
+      if (streetBits) streetBits.each(m => blocked.push(m));
+      if (streams) streams.each(m => blocked.push(m));
+      grass.updateMask(camEye[0], camEye[2], corridor, blocked, grassRadius());
+    }
     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
     gl.viewport(0, 0, RES.w, RES.h);
     gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, reflTex);
-    drawWorld(vp, camEye, { reflect: false, invVP });
+    drawWorld(vp, camEye, { reflect: false, invVP, skyInvVP: invSkyVP });
 
     // station name boards
     gl.useProgram(pBrd.p);
@@ -23796,6 +25901,7 @@ async function boot(assets) {
       sound.setLoop("amb_menu", A + "menu.m4a", state.menu ? 0.5 : 0);
     }
     state.jsMs = (state.jsMs || 0) * 0.9 + (performance.now() - jsT0) * 0.1;
+    if (vegQueries.length) readVegTimer();
     state.frameN = (state.frameN || 0) + 1;
     if (!byHand) requestAnimationFrame(frame);
   }
@@ -23813,10 +25919,10 @@ async function boot(assets) {
   // is, and there is no other way to ask from outside.
   const multiRoute = new MultiRoute();
   multiRoute.register(lineLine, route);
-  window.SIM = { tick, step: stepFrames, blastTrains, aiWrecks, solids, lakes: lakeLevels, kisvasut: () => kisvasut, trams: () => trams, demAt, vfx, carModels: () => carModels, railDistAt, res: RES, driver, route, state, data: routeData, stations: stn, PLANES, roadWays, city: () => city, carSurf, cityTiles: () => city,
+  window.SIM = { grass: () => grass, streams: () => streams, streetBits: () => streetBits, tick, step: stepFrames, foliage, blastTrains, aiWrecks, solids, lakes: lakeLevels, kisvasut: () => kisvasut, trams: () => trams, demAt, vfx, carModels: () => carModels, railDistAt, res: RES, driver, route, state, data: routeData, stations: stn, PLANES, roadWays, city: () => city, carSurf, cityTiles: () => city,
                  demAt, coverAt, multiRoute,
                  unified: { frame: UNIFIED_FRAME, localToUnified, unifiedToLocal, geoToUnified, unifiedToGeo, offsets: LINE_OFFSETS },
-                 traffic, playerTrain, sound, roadTraffic,
+                 traffic, playerTrain, sound, roadTraffic, trainSide,
                  riverTraffic,
                  dyn: () => ({ trains: trainDyn.count, signals: sigDyn.count,
                                crossings: xingDyn.count, cars: carDyn.count,

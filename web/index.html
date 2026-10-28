@@ -478,6 +478,18 @@
     <label><span data-en="Depth of field amount">Mélységélesség mértéke</span> <input id="gfxDofAmt" type="range" min="0.04" max="1.2" step="0.02" value="0.12"></label>
     <label><span data-en="Motion blur amount">Elmosás mértéke</span> <input id="gfxMotionAmt" type="range" min="0.2" max="2.5" step="0.05" value="1"></label>
     <label><span data-en="Corner shading amount">Zugárnyék mértéke</span> <input id="gfxAOAmt" type="range" min="0.2" max="2" step="0.05" value="1"></label>
+    <label title="Eddig a távolságig levelekből rajzolt fák, azon túl egyszerűbbek. Telefonon mindig 70 m." data-en-title="Trees drawn from single leaves up to this distance, simpler ones beyond. Always 70 m on a phone."><span data-en="Leafy trees up to">Lombos fák eddig</span> <select id="gfxLeafR">
+        <option value="0" data-en="auto (120–190 m)">auto (120–190 m)</option>
+        <option value="300">300 m</option>
+        <option value="450">450 m</option>
+        <option value="650" data-en="650 m — fast computer">650 m — erős gép</option>
+      </select></label>
+    <label title="Fű, virágok, nád és kavics a kamera körül. Telefonon legfeljebb 22 m." data-en-title="Grass, flowers, reeds and pebbles round the camera. At most 22 m on a phone."><span data-en="Grass">Fű</span> <select id="gfxGrass">
+        <option value="0" data-en="off">ki</option>
+        <option value="40" data-en="near (40 m)">közel (40 m)</option>
+        <option value="70" selected data-en="normal (70 m)">normál (70 m)</option>
+        <option value="110" data-en="far (110 m) — fast computer">messze (110 m) — erős gép</option>
+      </select></label>
     <label><span data-en="Volume">Hangerő</span> <input id="volSlider" type="range" min="0" max="1" step="0.02" value="0.7"></label>
     <label><span data-en="Animation">Animáció</span> <select id="cineSel">
         <option value="off" data-en="— still —">— áll —</option>

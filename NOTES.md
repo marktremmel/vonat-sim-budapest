@@ -443,6 +443,34 @@ mistake each one represents. Check these before believing anything.
     - The build scripts bake cover and water from terrarium (`DDM25=0`), then
       the heights with `HEIGHTS_ONLY=1`; "auto" needs the finished cover.
     - Line 71 stays on terrarium (its alignment is broken).
+19. **Pest's tenements were tagged as modern flats** (27 Oct 2026,
+    `bake_context.py`). OSM tags most inner-Pest bérházak `building=apartments`,
+    and `CLS` made that class 4, which the shader draws as modern flats (kind
+    10) once it is 8 m tall. In Terézváros 439 buildings were class 4 against
+    118 class 9 (tenement), so the tenement façades, procedural or the façade
+    kit, hardly reached inner Pest. An `apartments` or `residential` building in
+    a dense block (the same `crowd`/`cover_mean` test as the untagged rule),
+    not a slab, 30 m or lower and not dated 1945 or later, is now class 9.
+    Terézváros after the city rebake: 559 class 9, 0 class 4. The line
+    contexts were rebaked the same evening: line 70 8 buildings, line 2 19,
+    S21 none; nothing else in the files changed. Any rule change in
+    `bake_context.py` needs the city tiles and every line's context rebaked.
+20. **A transform-feedback pass is cheap work but costly to schedule** (27 Oct
+    2026, `foliage.js`, `docs/LEAF_TREES.md`). The near trees' placement wrote
+    about 3,000 points by transform feedback every frame, inside the scene's
+    render pass, and the GPU timer charged it 2–4 ms. On this Mac (Metal back
+    end) that most likely split the pass. It now runs before any pass starts,
+    and only when the camera has moved 30 m: 0.07 ms a frame on average.
+    Also: the GPU timer query here measures coarsely and catches neighbouring
+    work. Check a timer result against a back-to-back whole-frame A/B before
+    believing it.
+21. **The building class byte carries the façade family** (27 Oct 2026,
+    `tools/facade_zones.py`). In `context*.json` and the city tiles the u8
+    class of a building or polygon is `class | family << 4`. Anything that
+    reads that byte must take `& 15` for the class (`geom.js` and both
+    building shaders do; `bake_city.py` only copies it). A new class must stay
+    under 16. Relation outlines have string ids, so the family's random pick
+    hashes `str(id)`.
 
 ## Twelfth pass — the wire, the platforms, and Nyugati
 - **The overhead line.** A 25 kV railway with no catenary anywhere on it now

@@ -264,6 +264,10 @@ export class Driver {
       this.throttle = Math.max(0, Math.min(1, err / 3.0));
       this.brake = Math.max(0, Math.min(1, (-err - 0.15) / 2.2));
       if (this.brake > 0.02) this.throttle = 0;
+      // told to stand (a red, a crossing to wait for): the brake goes fully
+      // on. With the brake in proportion to the speed alone, a down grade
+      // held the train at 0.3 m/s, and it crept past the signal for ever.
+      if (cap < 0.05) { this.throttle = 0; this.brake = 1; }
     }
     const m = s.massT * 1000 * s.rot;
     // Wheel slip: the driven axles can only put down adhesion x their share

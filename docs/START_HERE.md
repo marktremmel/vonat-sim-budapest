@@ -25,6 +25,8 @@ Around the trains there is a whole region:
 - **The current session:** `SESSION_S19.md` (14 Oct, by Antigravity, rewritten after review: hero / on-foot mode with a blast, the map that opens and drops a pin, tram stop names, re-baked maps; §7 lists the eight bugs the review fixed).
 - **Before it:** `SESSION_S18.md` (13 Oct: animated 3D pedestrian models, street furniture, picture tests, bus & horse models, Bzmot).
 - **The one before:** `SESSION_S17.md` (12 Oct: Kopár-hágó tunnel, Pázmáneum, Nagykörút traffic fix, tram bar, graffiti).
+- **27–28 Oct, pushed together on 28 Oct:** `LEAF_TREES.md` (near trees as leaves on wood, with crown light and per-leaf seasons), `FACADE_KIT.md` (making and cutting façade sheets, all prompts, depth and reflections), `FACADE_PLAN.md` (which family goes where: districts, towns, MÁV colonies; built), `STREET_DETAIL.md` (tram wires and poles, pavements and road texture, smoother ground, streams and ditches, stops, shelters, bins and fences from OSM, fewer labels, grass and crops). Also line 2's trains no longer drawn through each other, the passenger-view sky wobble, and idle and pacing platform people (`OWNER_BACKLOG.md` → "28 Oct").
+- **The façade sheets themselves** (`art/facade_kit/`, 379 MB) are not in git: only the cut atlas in `web/data/` is. Keep a copy of `art/` outside the repo; the cutter needs it to rebuild the atlas.
 
 
 ## Read in this order
@@ -80,6 +82,7 @@ Around the trains there is a whole region:
 | --- | --- |
 | `main.js` | Boot, the frame loop, cameras, all draw passes, photo mode, the city-tile build callback. The big one (~3,900 lines). |
 | `shaders.js` | All GLSL: terrain, track/buildings (`FACADE_GLSL`), vegetation (`VEG_VS`, `TREE_VS`, `VEG_FS`), water, sky, clouds, the post blit (DOF, motion blur, AO, grading), car models. |
+| `foliage.js` | The near trees as leaves on wood: template mesh, transform-feedback placement, leaf shaders (`docs/LEAF_TREES.md`). The far trees and the shared placement and colours (`VEG_PLACE_GLSL`, `VEG_PAL_GLSL`) stay in `shaders.js`. |
 | `route.js` | `Route` (the baked track by chainage) and `Driver` (train physics, master controller, brakes, EVM). `STOCKS`. |
 | `traffic.js` | Timetabled trains and signals; `RoadTraffic` (cars); `RiverTraffic` (ships). |
 | `trains.js` | Procedural train meshes (KISS, FLIRT, EC, freight, locos). |

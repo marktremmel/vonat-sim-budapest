@@ -1,5 +1,6 @@
 // --------------------------------------------------------------- gl helpers
-export function compile(gl, vs, fs) {
+// tf: varyings a transform-feedback pass captures (interleaved), or none
+export function compile(gl, vs, fs, tf) {
   const p = gl.createProgram();
   for (const [type, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
     const s = gl.createShader(type);
@@ -18,6 +19,7 @@ export function compile(gl, vs, fs) {
     ["aCol", 1], ["aPosSize", 1], ["aPosRow", 1],
     ["aUv", 2], ["aRotHgtCls", 2], ["aAngN", 2], ["aNrm", 2], ["aBld", 3],
   ]) gl.bindAttribLocation(p, loc, name);
+  if (tf) gl.transformFeedbackVaryings(p, tf, gl.INTERLEAVED_ATTRIBS);
   gl.linkProgram(p);
   if (!gl.getProgramParameter(p, gl.LINK_STATUS))
     throw new Error(gl.getProgramInfoLog(p));
